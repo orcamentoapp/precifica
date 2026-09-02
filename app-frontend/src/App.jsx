@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { Plus, Stethoscope, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList } from "lucide-react";
+import { Plus, Stethoscope, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, FolderPlus } from "lucide-react";
 import { apiRequest } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   taxProvisionPercent: 15,
   taxRegime: "liberal", // "liberal" (pessoa física, Carnê-Leão) | "cnpj" (Simples Nacional / Lucro Presumido)
   darkMode: false,
+  procedureCategories: [], // categorias criadas manualmente (podem existir vazias, sem nenhum procedimento ainda)
   pixFeePercent: 0,
   cardPresets: [
     {
@@ -150,8 +151,11 @@ const DEFAULT_PROCEDURES = [
   }))
 );
 
-function groupByCategory(procedures) {
+function groupByCategory(procedures, extraCategories = []) {
   const map = new Map();
+  extraCategories.forEach((cat) => {
+    if (cat && !map.has(cat)) map.set(cat, []);
+  });
   procedures.forEach((p) => {
     const cat = p.category || "Sem categoria";
     if (!map.has(cat)) map.set(cat, []);
@@ -420,10 +424,23 @@ function SortableHeader({ label, sortKey, sortConfig, onSort, align = "right" })
   );
 }
 
-function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect, onUpdate, onDelete, onDuplicate }) {
+function ProcedureTable({
+  procedures = [],
+  calcs,
+  settings,
+  selectedId,
+  onSelect,
+  onUpdate,
+  onDelete,
+  onDuplicate,
+  onEditProcedure,
+  onRenameCategory,
+  onDeleteCategory,
+}) {
+  const categories = settings.procedureCategories || [];
   const [collapsed, setCollapsed] = useState(() => {
     const initial = {};
-    groupByCategory(procedures).forEach(([cat]) => {
+    groupByCategory(procedures, categories).forEach(([cat]) => {
       initial[cat] = true;
     });
     return initial;
@@ -431,14 +448,72 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
   const [query, setQuery] = useState("");
   const [sortConfig, setSortConfig] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [categoryMenu, setCategoryMenu] = useState(null); // { x, y, cat }
+  const [renamingCategory, setRenamingCategory] = useState(null); // nome original sendo renomeado
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmDeleteCategory, setConfirmDeleteCategory] = useState(null);
 
-  function openContextMenu(e, procId) {
-    e.preventDefault();
-    const menuWidth = 160;
-    const menuHeight = 84;
-    const x = Math.min(e.clientX, Math.max(8, window.innerWidth - menuWidth - 8));
-    const y = Math.min(e.clientY, Math.max(8, window.innerHeight - menuHeight - 8));
+  // Infra de "toque e segure" pra abrir o mesmo menu de contexto no celular
+  // (onContextMenu não dispara em toque; refs ficam aqui em vez de dentro do
+  // .map(), porque hooks não podem ser chamados por item de uma lista).
+  const longPressTimerRef = useRef(null);
+  const longPressMovedRef = useRef(false);
+  const suppressClickRef = useRef(false);
+
+  function longPressHandlers(onLongPress) {
+    return {
+      onTouchStart: (e) => {
+        longPressMovedRef.current = false;
+        const touch = e.touches[0];
+        const point = { clientX: touch.clientX, clientY: touch.clientY };
+        longPressTimerRef.current = setTimeout(() => {
+          if (!longPressMovedRef.current) {
+            suppressClickRef.current = true;
+            onLongPress(point);
+          }
+        }, 500);
+      },
+      onTouchMove: () => {
+        longPressMovedRef.current = true;
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      },
+      onTouchEnd: () => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      },
+    };
+  }
+
+  function consumeSuppressedClick() {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return true;
+    }
+    return false;
+  }
+
+  function openContextMenu(point, procId) {
+    point.preventDefault?.();
+    const menuWidth = 170;
+    const menuHeight = 116;
+    const x = Math.min(point.clientX, Math.max(8, window.innerWidth - menuWidth - 8));
+    const y = Math.min(point.clientY, Math.max(8, window.innerHeight - menuHeight - 8));
     setContextMenu({ x, y, procId });
+  }
+
+  function openCategoryMenu(point, cat) {
+    point.preventDefault?.();
+    if (cat === "Sem categoria") return; // categoria "coringa", não é editável/removível
+    const menuWidth = 170;
+    const menuHeight = 84;
+    const x = Math.min(point.clientX, Math.max(8, window.innerWidth - menuWidth - 8));
+    const y = Math.min(point.clientY, Math.max(8, window.innerHeight - menuHeight - 8));
+    setCategoryMenu({ x, y, cat });
   }
 
   function toggleCategory(cat) {
@@ -454,7 +529,7 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
 
   const q = normalizeText(query.trim());
   const filtered = q ? procedures.filter((p) => normalizeText(p.name).includes(q)) : procedures;
-  const groups = groupByCategory(filtered);
+  const groups = groupByCategory(filtered, q ? [] : categories);
   const renderGroups = groups.map(([cat, items]) => ({
     cat,
     items: sortItems(items, calcs, sortConfig),
@@ -531,7 +606,15 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
           )}
           {renderGroups.map(({ cat, items, isCollapsed }) => (
             <tbody key={cat} className="divide-y divide-stone-50">
-              <tr className="bg-stone-50 cursor-pointer hover:bg-stone-100" onClick={() => toggleCategory(cat)}>
+              <tr
+                className="bg-stone-50 cursor-pointer hover:bg-stone-100"
+                onClick={() => {
+                  if (consumeSuppressedClick()) return;
+                  toggleCategory(cat);
+                }}
+                onContextMenu={(e) => openCategoryMenu(e, cat)}
+                {...longPressHandlers((point) => openCategoryMenu(point, cat))}
+              >
                 <td colSpan={7} className="px-5 py-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">
                     <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
@@ -547,11 +630,18 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
                   return (
                     <tr
                       key={p.id}
-                      onClick={() => onSelect(p.id)}
+                      onClick={() => {
+                        if (consumeSuppressedClick()) return;
+                        onSelect(p.id);
+                      }}
                       onContextMenu={(e) => {
                         openContextMenu(e, p.id);
                         onSelect(p.id);
                       }}
+                      {...longPressHandlers((point) => {
+                        openContextMenu(point, p.id);
+                        onSelect(p.id);
+                      })}
                       className={`cursor-pointer border-l-2 ${
                         isSelected ? "bg-teal-50 border-teal-600" : "border-transparent hover:bg-stone-50"
                       }`}
@@ -653,6 +743,15 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
           >
             <button
               onClick={() => {
+                onEditProcedure(contextMenu.procId);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition inline-flex items-center gap-2"
+            >
+              <Pencil className="w-3.5 h-3.5 text-stone-400" /> Editar
+            </button>
+            <button
+              onClick={() => {
                 onDuplicate(contextMenu.procId);
                 setContextMenu(null);
               }}
@@ -672,6 +771,235 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
           </div>
         </div>
       )}
+
+      {categoryMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => {
+            setCategoryMenu(null);
+            setConfirmDeleteCategory(null);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setCategoryMenu(null);
+            setConfirmDeleteCategory(null);
+          }}
+        >
+          <div
+            className="absolute bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden py-1 w-40"
+            style={{ top: `${categoryMenu.y}px`, left: `${categoryMenu.x}px` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setRenamingCategory(categoryMenu.cat);
+                setRenameValue(categoryMenu.cat);
+                setCategoryMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition inline-flex items-center gap-2"
+            >
+              <Pencil className="w-3.5 h-3.5 text-stone-400" /> Editar
+            </button>
+            {confirmDeleteCategory === categoryMenu.cat ? (
+              <button
+                onClick={() => {
+                  onDeleteCategory(categoryMenu.cat);
+                  setCategoryMenu(null);
+                  setConfirmDeleteCategory(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
+              >
+                Confirmar exclusão?
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmDeleteCategory(categoryMenu.cat);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition"
+              >
+                Excluir
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {renamingCategory && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setRenamingCategory(null)}>
+          <div className="bg-white rounded-2xl p-5 max-w-xs w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-stone-800 mb-3 text-sm">Renomear categoria</h3>
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameValue.trim()) {
+                  onRenameCategory(renamingCategory, renameValue.trim());
+                  setRenamingCategory(null);
+                }
+              }}
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={() => setRenamingCategory(null)}
+                className="text-xs font-medium text-stone-500 border border-stone-200 rounded-lg px-3 py-2 hover:bg-stone-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!renameValue.trim()) return;
+                  onRenameCategory(renamingCategory, renameValue.trim());
+                  setRenamingCategory(null);
+                }}
+                disabled={!renameValue.trim()}
+                className="text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 py-2 hover:bg-teal-800 disabled:opacity-50"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Formulário de edição de um procedimento, num layout vertical — pensado
+// pra funcionar bem no celular, onde editar campo por campo numa tabela
+// larga é ruim. Cada campo já salva em tempo real (mesmo onUpdate da
+// tabela), então esse modal não tem botão de salvar — só de fechar.
+function ProcedureEditModal({ proc, categories, onUpdate, onClose, onAddCategory }) {
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryValue, setNewCategoryValue] = useState("");
+
+  if (!proc) return null;
+
+  const allCategories = Array.from(new Set([...(categories || []), proc.category].filter(Boolean)));
+
+  function handleCategorySelect(value) {
+    if (value === "__new__") {
+      setAddingCategory(true);
+      return;
+    }
+    onUpdate(proc.id, { category: value === "__none__" ? "" : value });
+  }
+
+  function confirmNewCategory() {
+    const name = newCategoryValue.trim();
+    if (!name) return;
+    onAddCategory(name);
+    onUpdate(proc.id, { category: name });
+    setAddingCategory(false);
+    setNewCategoryValue("");
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-5 max-w-sm w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-stone-800 text-sm">Editar procedimento</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-stone-500 block mb-1">Nome</label>
+            <input
+              value={proc.name}
+              onChange={(e) => onUpdate(proc.id, { name: e.target.value })}
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-stone-500 block mb-1">Categoria</label>
+            {addingCategory ? (
+              <div className="flex gap-2">
+                <input
+                  autoFocus
+                  value={newCategoryValue}
+                  onChange={(e) => setNewCategoryValue(e.target.value)}
+                  placeholder="Nome da nova categoria"
+                  onKeyDown={(e) => e.key === "Enter" && confirmNewCategory()}
+                  className="flex-1 text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+                />
+                <button
+                  onClick={confirmNewCategory}
+                  className="text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 hover:bg-teal-800"
+                >
+                  OK
+                </button>
+              </div>
+            ) : (
+              <select
+                value={proc.category || "__none__"}
+                onChange={(e) => handleCategorySelect(e.target.value)}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
+              >
+                <option value="__none__">Sem categoria</option>
+                {allCategories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value="__new__">+ Nova categoria...</option>
+              </select>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-stone-500 block mb-1">Custo (R$)</label>
+              <input
+                type="number"
+                value={proc.cost}
+                onChange={(e) => onUpdate(proc.id, { cost: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-stone-500 block mb-1">Valor (R$)</label>
+              <input
+                type="number"
+                value={proc.valorBase}
+                onChange={(e) => onUpdate(proc.id, { valorBase: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-stone-500 block mb-1">Margem alvo (%)</label>
+              <input
+                type="number"
+                value={proc.marginPercent}
+                onChange={(e) => onUpdate(proc.id, { marginPercent: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-stone-500 block mb-1">Duração (min)</label>
+              <input
+                type="number"
+                value={proc.durationMinutes}
+                onChange={(e) => onUpdate(proc.id, { durationMinutes: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+              />
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full mt-5 text-sm font-semibold bg-teal-700 text-white rounded-lg py-2.5 hover:bg-teal-800 transition"
+        >
+          Concluído
+        </button>
+      </div>
     </div>
   );
 }
@@ -3397,19 +3725,34 @@ export default function App() {
   const [budgetHistoryEntryId, setBudgetHistoryEntryId] = useState(null);
   const [reopenWarning, setReopenWarning] = useState("");
   const [budgetHistory, setBudgetHistory] = useState([]);
-  const [justSaved, setJustSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState([]);
+  const [future, setFuture] = useState([]);
   const [hasPending, setHasPending] = useState(false);
   const historyBaselineRef = useRef(null);
   const historyTimerRef = useRef(null);
   const [cropImageSrc, setCropImageSrc] = useState(null);
+  const [editingProcId, setEditingProcId] = useState(null);
+  const [newCategoryModalOpen, setNewCategoryModalOpen] = useState(false);
+  const [newCategoryValue, setNewCategoryValue] = useState("");
+  const [procMenuOpen, setProcMenuOpen] = useState(false);
+  const procMenuRef = useRef(null);
 
   // Aplica/remove a classe "dark" no <html> conforme a preferência salva —
   // é essa classe que os overrides de tema escuro em index.css usam.
   useEffect(() => {
     document.documentElement.classList.toggle("dark", !!settings.darkMode);
   }, [settings.darkMode]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (procMenuRef.current && !procMenuRef.current.contains(e.target)) {
+        setProcMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -3602,6 +3945,8 @@ export default function App() {
     e.target.value = "";
   }
 
+  const MAX_HISTORY = 5;
+
   function flushHistoryBaseline() {
     if (historyTimerRef.current) {
       clearTimeout(historyTimerRef.current);
@@ -3611,7 +3956,8 @@ export default function App() {
       const baseline = historyBaselineRef.current;
       historyBaselineRef.current = null;
       setHasPending(false);
-      setHistory((h) => [...h.slice(-19), baseline]);
+      setHistory((h) => [...h.slice(-(MAX_HISTORY - 1)), baseline]);
+      setFuture([]); // uma edição nova invalida qualquer "refazer" pendente
     }
   }
 
@@ -3628,21 +3974,8 @@ export default function App() {
   function pushCheckpointNow(before) {
     if (!Array.isArray(before)) return;
     flushHistoryBaseline();
-    setHistory((h) => [...h.slice(-19), before]);
-  }
-
-  async function handleManualSave() {
-    if (historyTimerRef.current) {
-      clearTimeout(historyTimerRef.current);
-      historyTimerRef.current = null;
-    }
-    if (historyBaselineRef.current) {
-      historyBaselineRef.current = null;
-      setHasPending(false);
-    }
-    await persistProcedures(procedures);
-    setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 1800);
+    setHistory((h) => [...h.slice(-(MAX_HISTORY - 1)), before]);
+    setFuture([]);
   }
 
   function undo() {
@@ -3654,14 +3987,30 @@ export default function App() {
       const prev = historyBaselineRef.current;
       historyBaselineRef.current = null;
       setHasPending(false);
+      setFuture((f) => [...f.slice(-(MAX_HISTORY - 1)), procedures]);
       persistProcedures(prev);
       return;
     }
     setHistory((h) => {
       if (h.length === 0) return h;
       const prev = h[h.length - 1];
-      if (Array.isArray(prev)) persistProcedures(prev);
+      if (Array.isArray(prev)) {
+        setFuture((f) => [...f.slice(-(MAX_HISTORY - 1)), procedures]);
+        persistProcedures(prev);
+      }
       return h.slice(0, -1);
+    });
+  }
+
+  function redo() {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const next = f[f.length - 1];
+      if (Array.isArray(next)) {
+        setHistory((h) => [...h.slice(-(MAX_HISTORY - 1)), procedures]);
+        persistProcedures(next);
+      }
+      return f.slice(0, -1);
     });
   }
 
@@ -3704,7 +4053,42 @@ export default function App() {
     if (selectedId === id) setSelectedId(null);
   }
 
+  // Adiciona uma categoria "vazia" (sem procedimento nenhum ainda) — fica
+  // guardada em settings pra continuar aparecendo mesmo sem nenhum
+  // procedimento usando ela ainda.
+  function handleAddCategory(name) {
+    const trimmed = (name || "").trim();
+    if (!trimmed || trimmed === "Sem categoria") return;
+    const current = settings.procedureCategories || [];
+    if (current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return;
+    persistSettings({ ...settings, procedureCategories: [...current, trimmed] });
+  }
+
+  // Renomeia a categoria tanto na lista de categorias quanto em todos os
+  // procedimentos que estavam usando o nome antigo.
+  function handleRenameCategory(oldName, newName) {
+    const trimmed = (newName || "").trim();
+    if (!trimmed || trimmed === oldName) return;
+    const current = settings.procedureCategories || [];
+    const nextCategories = current.includes(oldName)
+      ? current.map((c) => (c === oldName ? trimmed : c))
+      : [...current, trimmed];
+    persistSettings({ ...settings, procedureCategories: nextCategories });
+    pushCheckpointNow(procedures);
+    persistProcedures(procedures.map((p) => (p.category === oldName ? { ...p, category: trimmed } : p)));
+  }
+
+  // Remove a categoria da lista — os procedimentos que estavam nela NÃO são
+  // apagados, só voltam a ficar "Sem categoria" (ação não-destrutiva).
+  function handleDeleteCategory(name) {
+    const current = settings.procedureCategories || [];
+    persistSettings({ ...settings, procedureCategories: current.filter((c) => c !== name) });
+    pushCheckpointNow(procedures);
+    persistProcedures(procedures.map((p) => (p.category === name ? { ...p, category: "" } : p)));
+  }
+
   const canUndo = history.length > 0 || hasPending;
+  const canRedo = future.length > 0;
   const selectedProc = (procedures || []).find((p) => p.id === selectedId) || null;
   const calcs = {};
   (procedures || []).forEach((p) => {
@@ -3831,56 +4215,63 @@ export default function App() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-stone-700">Procedimentos</h2>
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={undo}
-                  disabled={!canUndo}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${
-                    canUndo
-                      ? "border-stone-200 text-stone-600 hover:bg-stone-100"
-                      : "border-stone-100 text-stone-300 cursor-not-allowed"
-                  }`}
-                >
-                  <Undo2 className="w-4 h-4" /> Desfazer
-                </button>
-                <button
-                  onClick={handleManualSave}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${
-                    justSaved
-                      ? "border-teal-200 bg-teal-50 text-teal-700"
-                      : "border-stone-200 text-stone-600 hover:bg-stone-100"
-                  }`}
-                >
-                  {justSaved ? (
-                    <>
-                      <Check className="w-4 h-4" /> Salvo!
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4" /> Salvar
-                    </>
+                {canUndo && (
+                  <button
+                    onClick={undo}
+                    title="Desfazer última alteração"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                  >
+                    <Undo2 className="w-4 h-4" /> Desfazer
+                  </button>
+                )}
+                {canRedo && (
+                  <button
+                    onClick={redo}
+                    title="Refazer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                  >
+                    <Redo2 className="w-4 h-4" /> Refazer
+                  </button>
+                )}
+
+                <div className="relative" ref={procMenuRef}>
+                  <button
+                    onClick={() => setProcMenuOpen((v) => !v)}
+                    title="Importar / Exportar procedimentos"
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                  >
+                    <Menu className="w-4 h-4" />
+                  </button>
+                  {procMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-52 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-50 overflow-hidden">
+                      <button
+                        onClick={() => {
+                          handleExportProcedures();
+                          setProcMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                      >
+                        <Download className="w-3.5 h-3.5 text-stone-400" /> Exportar lista
+                      </button>
+                      <button
+                        onClick={() => {
+                          proceduresFileInputRef.current?.click();
+                          setProcMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-stone-400" /> Importar lista
+                      </button>
+                    </div>
                   )}
-                </button>
-                <button
-                  onClick={handleExportProcedures}
-                  title="Exportar a lista de procedimentos num arquivo .json"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
-                >
-                  <Download className="w-4 h-4" /> Exportar
-                </button>
-                <button
-                  onClick={() => proceduresFileInputRef.current?.click()}
-                  title="Importar uma lista de procedimentos de um arquivo .json"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
-                >
-                  <Upload className="w-4 h-4" /> Importar
-                </button>
-                <input
-                  ref={proceduresFileInputRef}
-                  type="file"
-                  accept="application/json"
-                  onChange={handleImportProceduresFile}
-                  className="hidden"
-                />
+                  <input
+                    ref={proceduresFileInputRef}
+                    type="file"
+                    accept="application/json"
+                    onChange={handleImportProceduresFile}
+                    className="hidden"
+                  />
+                </div>
                 {proceduresImportFeedback && (
                   <span
                     className={`text-xs ${proceduresImportFeedback === "Importado!" ? "text-teal-600" : "text-rose-600"}`}
@@ -3888,6 +4279,15 @@ export default function App() {
                     {proceduresImportFeedback}
                   </span>
                 )}
+                <button
+                  onClick={() => {
+                    setNewCategoryValue("");
+                    setNewCategoryModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                >
+                  <FolderPlus className="w-4 h-4" /> Nova categoria
+                </button>
                 <button
                   onClick={addProcedure}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-700 text-white text-sm font-medium hover:bg-teal-800 transition"
@@ -3915,6 +4315,9 @@ export default function App() {
                 onUpdate={updateProcedure}
                 onDelete={deleteProcedure}
                 onDuplicate={duplicateProcedure}
+                onEditProcedure={setEditingProcId}
+                onRenameCategory={handleRenameCategory}
+                onDeleteCategory={handleDeleteCategory}
               />
             )}
 
@@ -3932,6 +4335,67 @@ export default function App() {
             setCropImageSrc(null);
           }}
         />
+      )}
+
+      {editingProcId &&
+        (() => {
+          const proc = procedures.find((p) => p.id === editingProcId);
+          if (!proc) return null;
+          const allCategoryNames = Array.from(
+            new Set([...(settings.procedureCategories || []), ...procedures.map((p) => p.category).filter(Boolean)])
+          );
+          return (
+            <ProcedureEditModal
+              proc={proc}
+              categories={allCategoryNames}
+              onUpdate={updateProcedure}
+              onClose={() => setEditingProcId(null)}
+              onAddCategory={handleAddCategory}
+            />
+          );
+        })()}
+
+      {newCategoryModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          onClick={() => setNewCategoryModalOpen(false)}
+        >
+          <div className="bg-white rounded-2xl p-5 max-w-xs w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-stone-800 mb-3 text-sm">Nova categoria</h3>
+            <input
+              autoFocus
+              value={newCategoryValue}
+              onChange={(e) => setNewCategoryValue(e.target.value)}
+              placeholder="Nome da categoria"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newCategoryValue.trim()) {
+                  handleAddCategory(newCategoryValue.trim());
+                  setNewCategoryModalOpen(false);
+                }
+              }}
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={() => setNewCategoryModalOpen(false)}
+                className="text-xs font-medium text-stone-500 border border-stone-200 rounded-lg px-3 py-2 hover:bg-stone-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!newCategoryValue.trim()) return;
+                  handleAddCategory(newCategoryValue.trim());
+                  setNewCategoryModalOpen(false);
+                }}
+                disabled={!newCategoryValue.trim()}
+                className="text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 py-2 hover:bg-teal-800 disabled:opacity-50"
+              >
+                Criar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

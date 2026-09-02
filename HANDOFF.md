@@ -32,7 +32,95 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: dias restantes no menu de perfil + modo escuro + aviso de vencimento próximo com "Renovar agora"
+## Atualização mais recente: reformulação grande da aba Procedimentos — undo/redo limitado, categorias de verdade (criar/editar/excluir), menu de contexto no celular, edição em modal
+
+Sessão grande, só na aba Procedimentos. Resumo do que mudou e por quê,
+pra não repetir raciocínio numa sessão futura:
+
+**1. Barra de ferramentas redesenhada** (`app-frontend/src/App.jsx`,
+dentro do `return` do componente `App`, seção `tab === "procedures"`):
+- **"Salvar" foi removido** — o app já salvava tudo em tempo real a
+  cada edição (todo `onUpdate`/`addProcedure`/etc já chamava
+  `persistProcedures`, que grava na hora via `/api/app-data/procedures`).
+  O botão "Salvar" era redundante; removido junto com o state
+  `justSaved` e a função `handleManualSave` (não sobrou nada usando).
+- **"Desfazer" só aparece quando existe algo pra desfazer**
+  (`canUndo`), e agora tem par: **"Refazer"** (`canRedo`), também só
+  aparece quando existe algo. As duas pilhas (desfazer/refazer) foram
+  limitadas a **5 entradas cada** (`MAX_HISTORY = 5`, antes era 20 só
+  pro undo, sem redo nenhum). Fazer uma edição nova sempre limpa a
+  pilha de "refazer" (comportamento padrão de undo/redo, senão redo
+  poderia reaplicar algo que não faz mais sentido). Os botões só
+  aparecem dentro da aba Procedimentos porque esse trecho de JSX só
+  é renderizado quando `tab === "procedures"` — trocar de aba já os
+  esconde sozinho, sem precisar resetar nada.
+- **Exportar/Importar movidos pra dentro de um botão de menu (☰)** ao
+  lado do "Novo procedimento" — ícone `Menu` do lucide-react, abre um
+  dropdown pequeno com as duas opções (mesmo padrão visual dos outros
+  menus dropdown do app).
+- **Botão novo "Nova categoria"** — abre um modal simples (nome da
+  categoria), soma em `settings.procedureCategories` (array novo no
+  `DEFAULT_SETTINGS`, persiste junto com o resto de `settings`).
+
+**2. Categorias viraram uma entidade de verdade, não só texto livre**
+— antes a "categoria" de um procedimento era só uma string solta no
+campo `p.category`, e a lista de categorias mostrada era 100%
+derivada dos procedimentos existentes (`groupByCategory`) — não tinha
+como existir uma categoria vazia, e não tinha em lugar nenhum do app
+um jeito de trocar a categoria de um procedimento depois de criado.
+Agora:
+- `settings.procedureCategories` guarda os nomes criados manualmente
+  (podem existir com zero procedimentos dentro).
+- `groupByCategory(procedures, extraCategories)` foi ajustada pra
+  aceitar essa lista extra e sempre mostrar essas categorias, mesmo
+  vazias (só quando não tem busca ativa — durante uma busca, categoria
+  vazia sem resultado não teria sentido aparecer).
+- **Clique direito (desktop) ou toque-e-segure (celular) no cabeçalho
+  de uma categoria** abre um menu com **Editar** (renomeia — atualiza
+  tanto `settings.procedureCategories` quanto o campo `category` de
+  todo procedimento que estava usando o nome antigo) e **Excluir**
+  (com confirmação de dois cliques dentro do próprio menu — não usa
+  `window.confirm` do navegador, mantendo o padrão visual do resto do
+  app). **Decisão importante**: excluir uma categoria **não apaga os
+  procedimentos dela** — eles voltam a ficar "Sem categoria". Achei
+  mais seguro que apagar dados do usuário sem ele pedir isso
+  explicitamente; se quiser que exclua os procedimentos junto, é só
+  pedir que eu mudo.
+  - A categoria especial **"Sem categoria"** (usada quando
+    `p.category` está vazio) não é editável nem removível — o menu de
+    contexto nem abre pra ela (guard em `openCategoryMenu`).
+
+**3. Procedimentos também ganharam clique direito/toque-e-segure** —
+o menu de contexto já existia pra desktop (`onContextMenu`), faltava
+funcionar no celular. Implementado um "toque e segure" próprio (~500ms,
+cancela se o dedo se mover — pra não atrapalhar o scroll da lista):
+funções `longPressHandlers`/`consumeSuppressedClick` dentro de
+`ProcedureTable`, usando refs em vez de outro hook, porque hooks não
+podem ser chamados dentro de `.map()`. O menu ganhou uma opção nova,
+**"Editar"**, além de Duplicar/Excluir que já existiam.
+- **"Editar" abre um modal novo, `ProcedureEditModal`** — formulário
+  vertical (Nome, Categoria, Custo, Valor, Margem, Duração), pensado
+  pra funcionar bem no celular, onde editar direto numa tabela larga
+  de 7 colunas é ruim. Cada campo já chama o mesmo `onUpdate` de
+  sempre (salva na hora, sem botão de salvar dentro do modal — só
+  "Concluído" pra fechar). **Esse modal também resolve uma lacuna que
+  não existia antes**: não tinha em lugar nenhum do app como trocar a
+  categoria de um procedimento já criado (só dava pra escolher
+  categoria vazia `""` na criação) — agora o campo "Categoria" é um
+  `<select>` com todas as categorias já usadas em algum procedimento +
+  as criadas manualmente, mais a opção "+ Nova categoria..." direto
+  ali.
+
+**Testado**: `npm run build` do frontend limpo, sem erros; confirmei
+que os ícones novos (`Redo2`, `Menu`, `Pencil`, `FolderPlus`) existem
+de verdade no pacote `lucide-react` instalado (`node -e` importando e
+checando `typeof`). **Não testado manualmente em dispositivo real** o
+toque-e-segure no celular nem o fluxo completo de criar/renomear/
+excluir categoria com dados reais — vale o Marcelo testar esses
+fluxos especificamente depois do deploy, é a parte com mais lógica
+nova nessa sessão.
+
+## Atualização anterior: dias restantes no menu de perfil + modo escuro + aviso de vencimento próximo com "Renovar agora"
 
 Três pedidos do Marcelo, todos no app do cliente (não no painel admin):
 
