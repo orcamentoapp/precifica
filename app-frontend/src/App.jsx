@@ -3509,7 +3509,12 @@ export default function App() {
         }
       `}</style>
       <header
-        style={{ backgroundColor: settings.headerColor || "#005580", position: "relative", zIndex: 30 }}
+        style={{
+          backgroundColor: settings.headerColor || "#005580",
+          position: "relative",
+          zIndex: 30,
+          paddingTop: "env(safe-area-inset-top, 0px)",
+        }}
         className="border-b border-stone-200 text-stone-50"
       >
         <div className="max-w-6xl mx-auto px-5 pt-1.5 flex justify-end">

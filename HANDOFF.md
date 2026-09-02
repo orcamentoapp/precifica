@@ -27,7 +27,69 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: Mercado Pago pro pagamento único (Pix/Boleto/cartão avulso), Stripe só assinatura
+## Atualização mais recente: correções de mobile — status bar sobrepondo o cabeçalho, zoom automático do iOS em inputs, e zoom manual travado
+
+Sessão curta, focada em bugs visuais no celular reportados pelo
+Marcelo com print de tela. Dois problemas distintos, os dois
+corrigidos:
+
+**1. Relógio/ícones do iPhone sobrepondo o cabeçalho azul do app** —
+causa: a tag `apple-mobile-web-app-status-bar-style` está como
+`black-translucent` (deixa a status bar transparente, flutuando por
+cima do conteúdo, em vez de empurrar pra baixo) mas o CSS não reservava
+esse espaço. Corrigido com `env(safe-area-inset-top)`:
+- `app-frontend/index.html` — meta viewport ganhou `viewport-fit=cover`
+  (necessário pra `env(safe-area-inset-*)` funcionar).
+- `app-frontend/src/App.jsx` — o `<header>` principal ganhou
+  `paddingTop: env(safe-area-inset-top, 0px)`.
+- `app-frontend/src/TrialBanner.jsx` — o banner vermelho fixo de trial
+  também é fixo no topo e tinha o mesmo problema; ganhou o mesmo
+  `paddingTop`, e a altura do espaçador (`TOTAL_HEIGHT`) foi ajustada
+  pra somar `env(safe-area-inset-top)` à altura fixa de 36px, senão
+  sobrava/faltava espaço pro conteúdo abaixo.
+
+**2. Foto de perfil cortada / app parecia "zoomado" ao abrir, só
+resolvia com pinça pra diminuir o zoom** — essa era a causa raiz mais
+importante, e é o zoom automático do iOS: o Safari força zoom na tela
+inteira quando o usuário foca um `<input>` com `font-size` menor que
+16px, e esse zoom não desfaz sozinho. Corrigido:
+- `app-frontend/src/index.css` — regra global (com `!important`, pra
+  sobrepor classes do Tailwind tipo `text-sm` que já vinham aplicadas
+  nalguns inputs) forçando `font-size: 16px` em todo `input`, `select`
+  e `textarea` dentro de `@media (max-width: 767px)`.
+
+**3. Zoom manual (pinça) travado, a pedido explícito do Marcelo** —
+`app-frontend/index.html`, meta viewport ganhou `maximum-scale=1.0,
+user-scalable=no`. **Nota de acessibilidade pra próxima instância**: o
+Marcelo foi avisado que isso impede qualquer usuário (inclusive quem
+precisa de zoom por baixa visão) de ampliar a tela manualmente, e
+decidiu manter travado mesmo assim — não é um esquecimento, foi
+escolha dele.
+
+**Testado**: `npm run build` do frontend rodou limpo duas vezes (antes
+e depois do ajuste de zoom manual), sem erros. Não foi possível testar
+em dispositivo iOS real nesta sessão (ambiente sem acesso a hardware
+Apple) — vale o Marcelo confirmar visualmente no celular dele depois
+do deploy que: (a) o cabeçalho não fica mais atrás do relógio, (b) ao
+tocar em qualquer campo de texto a tela não pula mais de zoom, e (c) a
+pinça pra dar zoom não funciona mais em lugar nenhum do app.
+
+## Atualização anterior: Mercado Pago pro pagamento único (Pix/Boleto/cartão avulso), Stripe só assinatura
+
+
+**⏸️ PARADO NO MEIO DA CONFIGURAÇÃO DO MERCADO PAGO** — o código está
+pronto e testado (ver detalhes completos logo abaixo), mas o Marcelo
+ainda **não tem as credenciais** porque a página "Credenciais de teste"
+no painel de desenvolvedores do Mercado Pago está dando
+"Ocorreu um erro" pra ele, mesmo depois de tentar aba anônima, limpar
+cache, e checar verificação pendente na conta. Ele decidiu deixar isso
+pra depois. **Continue daqui**: se ele voltar com o Access Token e a
+Chave Secreta do Webhook, é só ele colar no Railway
+(`MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET`) e testar — o
+código já está pronto, não precisa mexer em nada. Se o erro no painel do
+Mercado Pago persistir, pode valer sugerir ele abrir um chamado com o
+suporte do Mercado Pago, já que não é algo que dá pra resolver por fora
+da própria plataforma deles.
 
 Sessão longa de decisão + implementação. Resumo da conversa com o
 Marcelo, pra não repetir a mesma investigação numa sessão futura:
