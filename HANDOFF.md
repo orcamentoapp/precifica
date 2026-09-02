@@ -32,7 +32,81 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: correções de texto nas descrições do card "Custos"
+## Atualização mais recente: deixar explícito que o imposto é sempre uma aproximação (nos dois regimes)
+
+Complemento direto da sessão anterior (regime tributário CNPJ). O
+Marcelo perguntou duas coisas, e a resposta virou texto mais explícito
+na tela — sem nenhuma mudança de cálculo:
+
+1. **"O cálculo não vai dar um valor exato, e sim aproximado?"** — sim,
+   nos dois regimes. Adicionado um aviso destacado (caixa âmbar) logo
+   acima do toggle CPF/CNPJ, deixando isso explícito antes mesmo do
+   usuário escolher o regime: "Esse percentual é sempre uma
+   aproximação, não o cálculo exato do imposto que você vai pagar".
+   Também reforçado no aviso que aparece dentro da "Simulação por
+   forma de pagamento" de cada procedimento (`PaymentTable` em
+   `app-frontend/src/App.jsx`) — pro CNPJ agora também diz "estimativa,
+   pode mudar mês a mês" (antes só o texto do profissional liberal
+   tinha esse aviso).
+2. **"A porcentagem do profissional liberal também não é fixa? Qual a
+   melhor forma de colocar isso no sistema?"** — mesma lógica que já
+   valeu pra decisão do CNPJ na sessão anterior: **não vale a pena
+   tentar calcular o IRPF progressivo de verdade dentro do app**
+   (dependeria de renda total do ano inteiro somando todas as fontes,
+   deduções, dependentes — informação que o Precifica não tem e não é
+   o objetivo dele coletar). A melhor forma continua sendo o campo
+   único de "provisão estimada" que já existia — só reescrevi o texto
+   abaixo dele pra deixar mais claro que a alíquota real do Carnê-Leão
+   depende da renda total do ano, não é fixa por atendimento, e por
+   isso o usuário deve reajustar esse percentual de vez em quando.
+
+**Testado**: `npm run build` do frontend limpo, sem erros.
+
+## Atualização anterior: imposto agora cobre CNPJ também (regime tributário selecionável)
+
+O Marcelo perguntou como calcular imposto pra quem é CNPJ (o sistema
+só cobria profissional liberal/CPF até então). Decisão tomada em
+conjunto — vale registrar o raciocínio pra não repetir a discussão:
+
+**Por que não calcular o Simples Nacional "do zero" (RBT12 + Fator R +
+tabela de Anexo III/V)**: a alíquota do Simples Nacional depende da
+receita bruta dos últimos 12 meses e da folha de pagamento, com risco
+real de classificar errado o Anexo (III vs V) e gerar um preço
+sugerido incorreto. Optamos por **não implementar essa conta** — em
+vez disso, o usuário digita a alíquota efetiva que já vem pronta e
+validada na guia de pagamento (DAS) todo mês, ou que o contador
+informa (caso Lucro Presumido). Mais simples e mais confiável do que
+tentar reproduzir a legislação tributária dentro do app.
+
+**Por que continua sendo um percentual único global, não por
+procedimento**: praticamente todo procedimento odontológico é
+tributado como serviço (ISS) — não haveria ganho real em permitir
+variar por procedimento, só complexidade extra sem necessidade prática
+pro caso de uso do Marcelo.
+
+**O que foi implementado** (`app-frontend/src/App.jsx`):
+- `DEFAULT_SETTINGS.taxRegime`: novo campo, `"liberal"` (padrão, mantém
+  compatibilidade com contas existentes) ou `"cnpj"`.
+- Seção "Imposto" (dentro do card "Custos") ganhou um toggle
+  Profissional liberal (CPF) / CNPJ. O campo de percentual
+  (`taxProvisionPercent`) continua sendo o mesmo — só o rótulo e o
+  texto explicativo abaixo mudam conforme o regime selecionado,
+  orientando onde encontrar o percentual certo em cada caso (DAS do
+  Simples Nacional, contador no caso de Presumido, ou Carnê-Leão pro
+  liberal).
+- O aviso que aparece na "Simulação por forma de pagamento" (dentro de
+  cada procedimento) também passou a respeitar o regime — antes
+  sempre dizia "Carnê-Leão" mesmo pra quem selecionasse CNPJ. Precisou
+  encaminhar `settings.taxRegime` como prop através de
+  `PaymentSimulationPanel` → `PaymentTable` (esses componentes não
+  recebiam `settings` antes).
+- Nenhuma mudança na lógica de cálculo (`calcProcedure`/`calcBudget`)
+  — o percentual continua entrando exatamente do mesmo jeito, só o que
+  mudou foi rótulo/orientação na tela.
+
+**Testado**: `npm run build` do frontend limpo, sem erros.
+
+## Atualização anterior: correções de texto nas descrições do card "Custos"
 
 Ajustes pontuais de texto, a pedido do Marcelo, sem nenhuma mudança de
 lógica/cálculo — só nas descrições em `app-frontend/src/App.jsx`

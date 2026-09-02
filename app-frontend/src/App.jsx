@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS = {
   headerColor: "#005580",
   secondaryColor: "#71CFFE",
   taxProvisionPercent: 15,
+  taxRegime: "liberal", // "liberal" (pessoa física, Carnê-Leão) | "cnpj" (Simples Nacional / Lucro Presumido)
   pixFeePercent: 0,
   cardPresets: [
     {
@@ -674,14 +675,16 @@ function ProcedureTable({ procedures = [], calcs, settings, selectedId, onSelect
   );
 }
 
-function PaymentTable({ calc }) {
+function PaymentTable({ calc, taxRegime }) {
+  const taxLabel =
+    taxRegime === "cnpj"
+      ? `Alíquota efetiva (CNPJ) aplicada: ${pct(calc.taxPct)} — estimativa, pode mudar mês a mês`
+      : `Provisão de imposto (Carnê-Leão) aplicada: ${pct(calc.taxPct)} — estimativa, pois o IRPF é progressivo`;
   return (
     <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
       <div className="px-5 pt-4 pb-3 border-b border-dashed border-stone-300">
         <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">Simulação por forma de pagamento</div>
-        <div className="text-xs text-stone-400 mt-0.5">
-          Provisão de imposto (Carnê-Leão) aplicada: {pct(calc.taxPct)} — estimativa, pois o IRPF é progressivo
-        </div>
+        <div className="text-xs text-stone-400 mt-0.5">{taxLabel}</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -727,7 +730,7 @@ function PaymentTable({ calc }) {
   );
 }
 
-function PaymentSimulationPanel({ selectedProc, calc }) {
+function PaymentSimulationPanel({ selectedProc, calc, taxRegime }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
@@ -745,7 +748,7 @@ function PaymentSimulationPanel({ selectedProc, calc }) {
       {open && (
         <div className="border-t border-stone-100">
           {selectedProc ? (
-            <PaymentTable calc={calc} />
+            <PaymentTable calc={calc} taxRegime={taxRegime} />
           ) : (
             <div className="px-5 py-8 text-center text-sm text-stone-400">
               Clique na setinha ao lado de um procedimento pra ver a simulação aqui.
@@ -3065,14 +3068,80 @@ function SettingsPanel({ settings, onChange }) {
 
         <SettingsSubSection
           icon={<Percent className="w-4 h-4 text-amber-600" />}
-          title="Imposto — Profissional liberal (Receita Saúde)"
+          title={local.taxRegime === "cnpj" ? "Imposto — CNPJ" : "Imposto — Profissional liberal"}
         >
-          <FeeField label="Provisão estimada de IR (Carnê-Leão)" value={local.taxProvisionPercent} onChange={(v) => set({ taxProvisionPercent: v })} />
-          <p className="text-xs text-stone-400 mt-2 leading-relaxed">
-            Como profissional liberal você recolhe o IR pelo Carnê-Leão (tabela progressiva, sobre a receita menos despesas do Livro Caixa), e
-            não por uma alíquota fixa em cada atendimento. Esse percentual é apenas uma reserva estimada para efeito de precificação — ajuste
-            conforme sua faixa real e suas deduções.
-          </p>
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => set({ taxRegime: "liberal" })}
+              className={`flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                (local.taxRegime || "liberal") === "liberal"
+                  ? "border-teal-400 bg-teal-50 text-teal-800"
+                  : "border-stone-200 text-stone-500 hover:bg-stone-50"
+              }`}
+            >
+              Profissional liberal (CPF)
+            </button>
+            <button
+              type="button"
+              onClick={() => set({ taxRegime: "cnpj" })}
+              className={`flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                local.taxRegime === "cnpj"
+                  ? "border-teal-400 bg-teal-50 text-teal-800"
+                  : "border-stone-200 text-stone-500 hover:bg-stone-50"
+              }`}
+            >
+              CNPJ
+            </button>
+          </div>
+
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-3">
+            <Percent className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              <strong>Esse percentual é sempre uma aproximação</strong>, não o cálculo exato do imposto que você vai
+              pagar — em nenhum dos dois regimes o imposto real é um percentual fixo por atendimento. Ele serve só
+              pra reservar uma margem realista dentro do preço, ajuste sempre que sua situação mudar.
+            </p>
+          </div>
+
+          {local.taxRegime === "cnpj" ? (
+            <>
+              <FeeField
+                label="Alíquota efetiva (Simples Nacional / Lucro Presumido)"
+                value={local.taxProvisionPercent}
+                onChange={(v) => set({ taxProvisionPercent: v })}
+              />
+              <p className="text-xs text-stone-400 mt-2 leading-relaxed">
+                Se você é <strong>Simples Nacional</strong>, esse percentual já vem pronto todo mês na sua guia de
+                pagamento (DAS) — procure o campo "Alíquota efetiva total". Se for{" "}
+                <strong>Lucro Presumido</strong>, peça esse percentual pro seu contador (soma de IRPJ + CSLL + PIS +
+                COFINS + ISS sobre a receita). Evite calcular a alíquota do Simples Nacional "na mão" (ela depende da
+                receita dos últimos 12 meses e da folha de pagamento) — o valor da guia já vem certo.
+              </p>
+              <p className="text-xs text-stone-400 mt-2 leading-relaxed">
+                <strong>Mesmo assim é uma aproximação pra precificação futura</strong>: no Simples Nacional a
+                alíquota efetiva é recalculada todo mês conforme sua receita dos últimos 12 meses sobe ou desce — o
+                número da guia de hoje pode não ser mais o de daqui a alguns meses. Volte aqui de vez em quando e
+                atualize com a alíquota mais recente.
+              </p>
+            </>
+          ) : (
+            <>
+              <FeeField
+                label="Provisão estimada de IR (Carnê-Leão)"
+                value={local.taxProvisionPercent}
+                onChange={(v) => set({ taxProvisionPercent: v })}
+              />
+              <p className="text-xs text-stone-400 mt-2 leading-relaxed">
+                Como profissional liberal, o IR pelo Carnê-Leão é calculado numa <strong>tabela progressiva</strong>{" "}
+                sobre a receita menos despesas do Livro-Caixa do ano inteiro — não existe uma alíquota fixa por
+                atendimento, e a alíquota real depende de quanto você ganha no total (somando todas as fontes de
+                renda) e das suas deduções. Por isso esse campo é só uma reserva estimada pra efeito de
+                precificação: quanto maior sua renda total no ano, maior tende a ser sua faixa real — ajuste esse
+                percentual de tempos em tempos conforme sua situação.
+              </p>
+            </>
+          )}
         </SettingsSubSection>
       </SettingsCard>
 
@@ -3816,7 +3885,7 @@ export default function App() {
               />
             )}
 
-            <PaymentSimulationPanel selectedProc={selectedProc} calc={selectedCalc} />
+            <PaymentSimulationPanel selectedProc={selectedProc} calc={selectedCalc} taxRegime={settings.taxRegime} />
           </div>
         )}
       </main>
