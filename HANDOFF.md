@@ -32,7 +32,48 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: botões do orçamento cortados no mobile + barra de navegação inferior (padrão app nativo)
+## Atualização mais recente: auto-salvar orçamento ao exportar, bloquear e-mail duplicado na compra, margem de segurança no toggle da vista Paciente
+
+Três correções pontuais, a partir de feedback do Marcelo:
+
+1. **Orçamento agora salva sozinho no histórico ao ser exportado** —
+   antes só salvava se o usuário clicasse manualmente em "Salvar".
+   Criada `autoSaveOnExport()` em `app-frontend/src/App.jsx`, chamada
+   no início de `handleExportPNG`, `handleExportPDF`, `handlePrint` e
+   `handleShareWhatsApp` (só depois de confirmar que o canvas foi
+   gerado com sucesso, ou seja, só quando a exportação realmente vai
+   acontecer). Reaproveita a mesma lógica do `handleSaveBudget`: se já
+   tem `currentEntryId` (orçamento já salvo antes, nessa sessão),
+   atualiza a entrada existente em vez de criar uma duplicada a cada
+   exportação repetida do mesmo orçamento.
+2. **Bloqueado seguir pro pagamento com e-mail que já tem conta** — as
+   rotas públicas `POST /api/payments/stripe/checkout` e
+   `POST /api/payments/mercadopago/checkout`
+   (`src/routes/payments.js`) agora checam `SELECT id FROM users WHERE
+   email = $1` antes de criar a sessão de pagamento; se já existir,
+   retornam 409 com a mensagem "Já existe uma conta com esse e-mail.
+   Faça login em vez de assinar/comprar de novo." — a tela `Buy.jsx`
+   já exibia esse tipo de erro retornado pela API, não precisou mexer
+   no frontend.
+3. **Toggle Profissional/Paciente colado na Ilha Dinâmica do iPhone na
+   vista de Paciente** — a vista de Paciente é um overlay
+   `fixed inset-0` que começa exatamente no topo da tela, sem o
+   cabeçalho normal do app (que já tinha o ajuste de
+   `safe-area-inset-top` de uma sessão anterior). Adicionado
+   `paddingTop: env(safe-area-inset-top, 0px)` só nesse wrapper
+   (`app-frontend/src/App.jsx`, função que renderiza o painel de
+   Orçamento), aplicado apenas quando `patientMode` é `true` — não
+   afeta a vista Profissional normal.
+
+**Testado**: `npm run build` do frontend limpo; `node --check` em
+`src/routes/payments.js` e `server.js` sem erros. Não testado o fluxo
+de pagamento ponta a ponta com Stripe/Mercado Pago reais nesta sessão
+(exigiria credenciais de teste) — a lógica da checagem de e-mail
+duplicado é uma consulta simples e direta, mas vale o Marcelo conferir
+uma vez em produção que a mensagem de erro aparece certinho na tela de
+compra ao tentar com um e-mail já cadastrado.
+
+## Atualização anterior: botões do orçamento cortados no mobile + barra de navegação inferior (padrão app nativo)
 
 Sessão curta de ajustes de mobile, a partir de prints do Marcelo:
 

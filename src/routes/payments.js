@@ -21,6 +21,15 @@ router.post("/stripe/checkout", async (req, res) => {
   const safePlan = plan === "annual" ? "annual" : "monthly";
 
   try {
+    const { rows: existingUser } = await pool.query("SELECT id FROM users WHERE email = $1", [
+      email.trim().toLowerCase(),
+    ]);
+    if (existingUser[0]) {
+      return res
+        .status(409)
+        .json({ error: "Já existe uma conta com esse e-mail. Faça login em vez de assinar de novo." });
+    }
+
     const session = await createCheckoutSession({ email: email.trim(), plan: safePlan, trial: !!trial });
     res.json({ checkoutUrl: session.url });
   } catch (err) {
@@ -59,6 +68,15 @@ router.post("/mercadopago/checkout", async (req, res) => {
   }
   const safePlan = plan === "annual" ? "annual" : "monthly";
   try {
+    const { rows: existingUser } = await pool.query("SELECT id FROM users WHERE email = $1", [
+      email.trim().toLowerCase(),
+    ]);
+    if (existingUser[0]) {
+      return res
+        .status(409)
+        .json({ error: "Já existe uma conta com esse e-mail. Faça login em vez de comprar de novo." });
+    }
+
     const checkoutUrl = await createOneTimePaymentPreference({ email: email.trim(), plan: safePlan });
     res.json({ checkoutUrl });
   } catch (err) {

@@ -1078,6 +1078,11 @@ function SimulationPanel({
     setTimeout(() => setSaveFeedback(false), 1800);
   }
 
+  function autoSaveOnExport() {
+    if (budgetProcs.length === 0 || !boletoEntradaMet) return;
+    handleSaveBudget(currentEntryId ? "update" : "new");
+  }
+
   function buildExportCanvas() {
     if (!row) return null;
 
@@ -1406,6 +1411,7 @@ function SimulationPanel({
   function handleExportPNG() {
     const canvas = buildExportCanvas();
     if (!canvas) return;
+    autoSaveOnExport();
     const link = document.createElement("a");
     link.href = canvas.toDataURL("image/png");
     link.download = "orcamento-paciente.png";
@@ -1419,6 +1425,7 @@ function SimulationPanel({
   function handleExportPDF() {
     const canvas = buildExportCanvas();
     if (!canvas) return;
+    autoSaveOnExport();
     const blob = canvasToPDFBlob(canvas);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1435,6 +1442,7 @@ function SimulationPanel({
   function handlePrint() {
     const canvas = buildExportCanvas();
     if (!canvas) return;
+    autoSaveOnExport();
     const blob = canvasToPDFBlob(canvas);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1492,6 +1500,7 @@ function SimulationPanel({
   async function handleShareWhatsApp() {
     const canvas = buildExportCanvas();
     if (!canvas) return;
+    autoSaveOnExport();
     const shareText = buildShareText();
 
     if (navigator.share && navigator.canShare) {
@@ -1519,7 +1528,10 @@ function SimulationPanel({
   }
 
   return (
-    <div className={patientMode ? "fixed inset-0 z-50 bg-stone-50 overflow-y-auto" : undefined}>
+    <div
+      className={patientMode ? "fixed inset-0 z-50 bg-stone-50 overflow-y-auto" : undefined}
+      style={patientMode ? { paddingTop: "env(safe-area-inset-top, 0px)" } : undefined}
+    >
       <div className={patientMode ? "max-w-3xl mx-auto p-5 sm:p-8 space-y-5" : "space-y-5"}>
       <div className="bg-white border border-stone-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
