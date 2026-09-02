@@ -32,7 +32,35 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: renovação com escolha de dias (30/365) + origem da licença no painel admin
+## Atualização mais recente: correções de texto nas descrições do card "Custos"
+
+Ajustes pontuais de texto, a pedido do Marcelo, sem nenhuma mudança de
+lógica/cálculo — só nas descrições em `app-frontend/src/App.jsx`
+(mesma seção "Custo da hora clínica" de dentro do card "Custos"):
+
+1. **Custos fixos mensais** — removida a menção a "material de consumo
+   fixo (luvas, máscaras, etc)" do texto de exemplo; esses materiais
+   não são custo fixo mensal na visão do Marcelo, não deveriam estar
+   nesse exemplo.
+2. **Pró-labore desejado** — o final da frase mudou de "...pra
+   calcular o preço mínimo que cobre tudo" para "...para calcular o
+   valor a ser cobrado de acordo com a margem de lucro definida".
+3. **Horas produtivas / mês** — mudança mais substancial, dois pontos:
+   - **Texto reescrito**: antes dizia pra considerar só o tempo real
+     com paciente na cadeira (não o expediente todo); o Marcelo achou
+     essa lógica difícil de aplicar na prática (o profissional não
+     sabe de antemão quantos pacientes vai atender no mês). Novo
+     texto orienta a considerar o **expediente de trabalho** mesmo
+     sem atender — ex: 8h/dia, 5 dias/semana ≈ 160h/mês.
+   - **Reposicionamento**: a descrição de "Horas produtivas" agora
+     fica logo abaixo do próprio campo (antes só aparecia depois da
+     linha "Custo / hora resultante", parecia explicar os dois campos
+     ao mesmo tempo). Foi adicionada uma descrição nova, curta, só
+     pra "Custo / hora resultante": **"Valor da hora trabalhada."**
+
+**Testado**: `npm run build` do frontend limpo, sem erros.
+
+## Atualização anterior: renovação com escolha de dias (30/365) + origem da licença no painel admin
 
 Duas melhorias no painel admin, a partir de pedido do Marcelo:
 

@@ -3021,8 +3021,8 @@ function SettingsPanel({ settings, onChange }) {
             </div>
             <p className="text-xs text-stone-400 mt-1 leading-relaxed">
               Some tudo que você paga todo mês independente de atender ou não: aluguel, água/luz/internet, salário da
-              equipe, softwares, material de consumo fixo (luvas, máscaras, etc). Não inclua o material específico de
-              cada procedimento — esse já entra separado, no cadastro de cada procedimento.
+              equipe, softwares. Não inclua o material específico de cada procedimento — esse já entra separado, no
+              cadastro de cada procedimento.
             </p>
           </div>
           <div className="mb-3">
@@ -3037,27 +3037,30 @@ function SettingsPanel({ settings, onChange }) {
             </div>
             <p className="text-xs text-stone-400 mt-1 leading-relaxed">
               Quanto você quer receber de salário/lucro líquido por mês — é a sua meta de ganho pessoal, não um custo
-              da clínica. Esse valor é somado aos custos fixos pra calcular o preço mínimo que cobre tudo.
+              da clínica. Esse valor é somado aos custos fixos para calcular o valor a ser cobrado de acordo com a
+              margem de lucro definida.
             </p>
           </div>
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <label className="text-sm text-stone-600">Horas produtivas / mês</label>
-            <input
-              type="number"
-              value={laborCalc.productiveHours}
-              onChange={(e) => updateLaborCalc({ productiveHours: Number(e.target.value) })}
-              className="w-28 text-sm font-mono border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 text-right"
-            />
+          <div className="mb-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm text-stone-600">Horas produtivas / mês</label>
+              <input
+                type="number"
+                value={laborCalc.productiveHours}
+                onChange={(e) => updateLaborCalc({ productiveHours: Number(e.target.value) })}
+                className="w-28 text-sm font-mono border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 text-right"
+              />
+            </div>
+            <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+              Considere seu expediente de trabalho, não só o tempo efetivamente com paciente na cadeira — mesmo sem
+              atender, você está no trabalho. Ex: 8h/dia, 5 dias por semana, são cerca de 160h/mês.
+            </p>
           </div>
           <div className="flex items-center justify-between border-t border-stone-100 pt-3">
             <span className="text-sm font-medium text-stone-700">Custo / hora resultante</span>
             <span className="font-mono font-semibold text-amber-700">{money(hourlyCost)}</span>
           </div>
-          <p className="text-xs text-stone-400 mt-2 leading-relaxed">
-            Horas produtivas = tempo real com paciente na cadeira, não o expediente todo. Se você atende 5h por dia,
-            4 dias por semana, são cerca de 80h/mês — não as 160h de uma jornada CLT. Esse valor calcula
-            automaticamente a mão de obra de cada procedimento a partir da duração em minutos.
-          </p>
+          <p className="text-xs text-stone-400 mt-1 leading-relaxed">Valor da hora trabalhada.</p>
         </SettingsSubSection>
 
         <SettingsSubSection
