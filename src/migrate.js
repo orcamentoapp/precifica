@@ -62,6 +62,13 @@ async function migrate() {
   // cadastro só aceita esse mesmo e-mail pra ativar a chave.
   await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS buyer_email TEXT;`);
 
+  // De onde a licença veio: 'admin' (gerada manualmente no painel), 'stripe'
+  // (assinatura por cartão) ou 'mercadopago' (Pix/Boleto/cartão avulso).
+  // Licenças criadas antes dessa coluna existir ficam com valor NULL — o
+  // painel admin infere a origem delas por outros campos (buyer_email,
+  // stripe_subscription_id) como fallback, então não precisa de backfill.
+  await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS source TEXT;`);
+
   // Registra os eventos do Stripe já processados, pra nunca gerar/renovar a
   // licença duas vezes se o mesmo webhook chegar mais de uma vez (o Stripe
   // garante "pelo menos uma entrega", ou seja, pode repetir).

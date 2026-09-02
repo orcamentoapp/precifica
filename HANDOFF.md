@@ -32,7 +32,50 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: descrições explicativas em Custos + CRO/CRM estruturado (tipo + UF + número)
+## Atualização mais recente: renovação com escolha de dias (30/365) + origem da licença no painel admin
+
+Duas melhorias no painel admin, a partir de pedido do Marcelo:
+
+1. **Renovar agora pergunta quantos dias adicionar** — antes o botão
+   "Renovar" (nas abas Usuários e Chaves) chamava a API direto, sempre
+   somando a duração padrão do TIPO da licença (30/365/7 dias). Agora
+   abre um modal pequeno perguntando "+30 dias" ou "+365 dias", e esse
+   valor é enviado no body pra API — dá pra dar um bônus de 365 dias
+   numa licença mensal, por exemplo, sem precisar mudar o tipo dela.
+   - Backend: `POST /api/admin/licenses/:id/renew`
+     (`src/routes/admin.js`) agora aceita `{ days }` no body (só aceita
+     30 ou 365 — qualquer outro valor cai no comportamento antigo,
+     baseado no tipo da licença, então é retrocompatível).
+   - Frontend: `AdminDashboard.jsx` ganhou o estado `renewModal` e o
+     modal de escolha; `handleRenew(licenseId, days)` agora recebe os
+     dias e manda no body.
+2. **Origem da licença visível na aba Chaves** — nova coluna "Origem"
+   mostra se a chave foi **gerada manualmente no painel admin** ou
+   **comprada** (e nesse caso, com qual forma de pagamento: "Cartão
+   (assinatura Stripe)" ou "Pix / Boleto / Cartão avulso").
+   - Backend: nova coluna `source` na tabela `licenses`
+     (`src/migrate.js`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) —
+     gravada como `'admin'` em `POST /api/admin/licenses`
+     (`src/routes/admin.js`), `'stripe'` nos dois pontos de criação de
+     licença em `src/routes/stripeWebhook.js`, e `'mercadopago'` em
+     `src/routes/mercadopagoWebhook.js`.
+   - **Licenças criadas antes dessa coluna existir** ficam com
+     `source = NULL` — não precisou de backfill porque o frontend
+     (`licenseOriginInfo()` em `AdminDashboard.jsx`) já infere a
+     origem pelos campos que sempre existiram: tem
+     `stripe_subscription_id` → veio do Stripe; senão, tem
+     `buyer_email` → veio do Mercado Pago; sem nenhum dos dois → foi
+     gerada no painel admin.
+
+**Testado**: `npm run build` do frontend limpo; `node --check` em
+`src/routes/admin.js`, `src/routes/stripeWebhook.js`,
+`src/routes/mercadopagoWebhook.js` e `src/migrate.js`, todos sem erro.
+Não foi possível testar ponta a ponta com um webhook real do
+Stripe/Mercado Pago chegando de verdade nesta sessão — vale o Marcelo
+conferir depois de uma compra real que a coluna "Origem" aparece
+certinha pra uma licença nova.
+
+## Atualização anterior: descrições explicativas em Custos + CRO/CRM estruturado (tipo + UF + número)
 
 Duas melhorias em Configurações, a partir de pedido do Marcelo:
 

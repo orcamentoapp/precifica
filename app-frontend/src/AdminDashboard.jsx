@@ -41,6 +41,24 @@ function licenseBadge(user) {
   return <StatusBadge tone="teal">Ativa · {daysLeft}d restantes</StatusBadge>;
 }
 
+// De onde a licença veio e qual forma de pagamento (quando aplicável).
+// Licenças criadas depois da coluna `source` existir já vêm com o valor
+// certo direto do banco; pra licenças mais antigas (source == null), infere
+// pelos campos que já existiam antes: se tem stripe_subscription_id, veio do
+// Stripe; senão, se tem buyer_email, veio de uma compra (só sobra o Mercado
+// Pago, já que o Stripe sempre grava o subscription_id também); sem nenhum
+// dos dois, foi gerada manualmente no painel admin.
+function licenseOriginInfo(lic) {
+  const source = lic.source || (lic.stripe_subscription_id ? "stripe" : lic.buyer_email ? "mercadopago" : "admin");
+  if (source === "stripe") {
+    return { label: "Compra", detail: "Cartão (assinatura Stripe)", tone: "indigo" };
+  }
+  if (source === "mercadopago") {
+    return { label: "Compra", detail: "Pix / Boleto / Cartão avulso", tone: "teal" };
+  }
+  return { label: "Painel admin", detail: "Gerada manualmente", tone: "stone" };
+}
+
 export default function AdminDashboard({ onLogout }) {
   const [tab, setTab] = useState("users"); // users | licenses
   const [users, setUsers] = useState([]);
@@ -48,6 +66,7 @@ export default function AdminDashboard({ onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [newLicenseModal, setNewLicenseModal] = useState(null); // { code, expires... } | null
+  const [renewModal, setRenewModal] = useState(null); // licenseId | null
   const [toast, setToast] = useState("");
 
   async function loadUsers() {
@@ -97,10 +116,14 @@ export default function AdminDashboard({ onLogout }) {
     }
   }
 
-  async function handleRenew(licenseId) {
+  async function handleRenew(licenseId, days) {
     try {
-      await apiRequest(`/api/admin/licenses/${licenseId}/renew`, { method: "POST" });
-      showToast("Licença renovada.");
+      await apiRequest(`/api/admin/licenses/${licenseId}/renew`, {
+        method: "POST",
+        body: JSON.stringify({ days }),
+      });
+      showToast(`Licença renovada (+${days} dias).`);
+      setRenewModal(null);
       loadAll();
     } catch (err) {
       showToast("Erro: " + err.message);
@@ -304,7 +327,7 @@ export default function AdminDashboard({ onLogout }) {
                           {user.license_id && (
                             <>
                               <button
-                                onClick={() => handleRenew(user.license_id)}
+                                onClick={() => setRenewModal(user.license_id)}
                                 className="text-xs font-medium border border-stone-200 px-2 py-1 rounded-lg hover:bg-stone-50"
                               >
                                 Renovar
@@ -350,6 +373,7 @@ export default function AdminDashboard({ onLogout }) {
                     <th className="px-5 py-2 font-medium">Código</th>
                     <th className="px-3 py-2 font-medium">Tipo</th>
                     <th className="px-3 py-2 font-medium">Dono</th>
+                    <th className="px-3 py-2 font-medium">Origem</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium">Validade</th>
                     <th className="px-3 py-2 font-medium">Ações</th>
@@ -358,7 +382,7 @@ export default function AdminDashboard({ onLogout }) {
                 <tbody className="divide-y divide-stone-50">
                   {licenses.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-5 py-10 text-center text-stone-400">
+                      <td colSpan={7} className="px-5 py-10 text-center text-stone-400">
                         Nenhuma chave gerada ainda. Clique em "+ Chave mensal" ou "+ Chave trial".
                       </td>
                     </tr>
@@ -379,6 +403,10 @@ export default function AdminDashboard({ onLogout }) {
                       </td>
                       <td className="px-3 py-3 text-stone-600">{lic.user_email || "— (ainda não usada)"}</td>
                       <td className="px-3 py-3">
+                        <div className="text-xs font-medium text-stone-700">{licenseOriginInfo(lic).label}</div>
+                        <div className="text-[11px] text-stone-400">{licenseOriginInfo(lic).detail}</div>
+                      </td>
+                      <td className="px-3 py-3">
                         {lic.status === "unused" && <StatusBadge tone="stone">Não usada</StatusBadge>}
                         {lic.status === "active" && <StatusBadge tone="teal">Ativa</StatusBadge>}
                         {lic.status === "expired" && <StatusBadge tone="rose">Expirada</StatusBadge>}
@@ -392,7 +420,7 @@ export default function AdminDashboard({ onLogout }) {
                           {lic.status !== "unused" && lic.user_id && (
                             <>
                               <button
-                                onClick={() => handleRenew(lic.id)}
+                                onClick={() => setRenewModal(lic.id)}
                                 className="text-xs font-medium border border-stone-200 px-2 py-1 rounded-lg hover:bg-stone-50"
                               >
                                 Renovar
@@ -468,6 +496,35 @@ export default function AdminDashboard({ onLogout }) {
                 Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {renewModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setRenewModal(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-bold text-stone-800 mb-1">Renovar licença</h2>
+            <p className="text-xs text-stone-500 mb-4">Quantos dias você quer adicionar a partir de hoje?</p>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <button
+                onClick={() => handleRenew(renewModal, 30)}
+                className="text-sm font-semibold border border-teal-200 text-teal-700 rounded-xl py-3 hover:bg-teal-50 transition"
+              >
+                +30 dias
+              </button>
+              <button
+                onClick={() => handleRenew(renewModal, 365)}
+                className="text-sm font-semibold border border-indigo-200 text-indigo-700 rounded-xl py-3 hover:bg-indigo-50 transition"
+              >
+                +365 dias
+              </button>
+            </div>
+            <button
+              onClick={() => setRenewModal(null)}
+              className="w-full text-xs font-medium text-stone-500 py-2 hover:text-stone-700"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}

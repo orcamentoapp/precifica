@@ -90,7 +90,7 @@ router.post("/licenses", async (req, res) => {
   try {
     const code = generateLicenseCode();
     const { rows } = await pool.query(
-      "INSERT INTO licenses (code, status, type) VALUES ($1, 'unused', $2) RETURNING *",
+      "INSERT INTO licenses (code, status, type, source) VALUES ($1, 'unused', $2, 'admin') RETURNING *",
       [code, licenseType]
     );
     res.status(201).json(rows[0]);
@@ -116,14 +116,17 @@ router.get("/licenses", async (req, res) => {
   }
 });
 
-// Renova uma licença: soma os dias correspondentes ao TIPO dela (mensal,
-// trial ou anual) a partir de agora — cada tipo renova pela sua própria
-// duração, não um valor fixo pra todas.
+// Renova uma licença: por padrão soma os dias correspondentes ao TIPO dela
+// (mensal, trial ou anual) a partir de agora — mas o admin pode escolher
+// explicitamente 30 ou 365 dias pelo body (`days`), independente do tipo
+// original da licença (ex: dar 365 dias de bônus numa licença mensal).
 router.post("/licenses/:id/renew", async (req, res) => {
+  const { days } = req.body || {};
+  const customDays = [30, 365].includes(Number(days)) ? Number(days) : null;
   try {
     const { rows: currentRows } = await pool.query("SELECT type FROM licenses WHERE id = $1", [req.params.id]);
     if (!currentRows[0]) return res.status(404).json({ error: "Licença não encontrada" });
-    const expiresAt = addDays(new Date(), durationDaysForType(currentRows[0].type));
+    const expiresAt = addDays(new Date(), customDays || durationDaysForType(currentRows[0].type));
     const { rows } = await pool.query(
       "UPDATE licenses SET expires_at = $1, status = 'active' WHERE id = $2 RETURNING *",
       [expiresAt, req.params.id]

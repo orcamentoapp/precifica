@@ -79,8 +79,8 @@ async function stripeWebhookHandler(req, res) {
       const licenseType = isTrial ? "trial" : plan;
       const code = generateLicenseCode();
       await pool.query(
-        `INSERT INTO licenses (code, status, type, stripe_customer_id, stripe_subscription_id, buyer_email)
-         VALUES ($1, 'unused', $2, $3, $4, $5)`,
+        `INSERT INTO licenses (code, status, type, stripe_customer_id, stripe_subscription_id, buyer_email, source)
+         VALUES ($1, 'unused', $2, $3, $4, $5, 'stripe')`,
         [code, licenseType, customerId, subscriptionId, buyerEmail.trim().toLowerCase()]
       );
       await sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || "");
@@ -137,8 +137,8 @@ async function stripeWebhookHandler(req, res) {
         // motivo. Cria aqui como rede de segurança, do jeito que sempre foi.
         const code = generateLicenseCode();
         await pool.query(
-          `INSERT INTO licenses (code, status, type, stripe_customer_id, stripe_subscription_id, buyer_email)
-           VALUES ($1, 'unused', $2, $3, $4, $5)`,
+          `INSERT INTO licenses (code, status, type, stripe_customer_id, stripe_subscription_id, buyer_email, source)
+           VALUES ($1, 'unused', $2, $3, $4, $5, 'stripe')`,
           [code, plan, customerId, subscriptionId, buyerEmail.trim().toLowerCase()]
         );
         await sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || "");

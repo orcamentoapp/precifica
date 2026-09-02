@@ -92,11 +92,10 @@ async function mercadopagoWebhookHandler(req, res) {
       await sendLicenseRenewedEmail(buyerEmail, expiresAt.toLocaleDateString("pt-BR"));
     } else {
       const code = generateLicenseCode();
-      await pool.query(`INSERT INTO licenses (code, status, type, buyer_email) VALUES ($1, 'unused', $2, $3)`, [
-        code,
-        plan,
-        buyerEmail.trim().toLowerCase(),
-      ]);
+      await pool.query(
+        `INSERT INTO licenses (code, status, type, buyer_email, source) VALUES ($1, 'unused', $2, $3, 'mercadopago')`,
+        [code, plan, buyerEmail.trim().toLowerCase()]
+      );
       await sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || "");
     }
 
