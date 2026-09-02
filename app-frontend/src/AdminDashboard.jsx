@@ -59,6 +59,16 @@ function licenseOriginInfo(lic) {
   return { label: "Painel admin", detail: "Gerada manualmente", tone: "stone" };
 }
 
+// Mesma lógica de origem, só que a partir das colunas prefixadas "license_"
+// que a rota GET /users devolve (em vez das colunas cruas de GET /licenses).
+function userLicenseOriginInfo(user) {
+  return licenseOriginInfo({
+    source: user.license_source,
+    stripe_subscription_id: user.license_stripe_subscription_id,
+    buyer_email: user.license_buyer_email,
+  });
+}
+
 export default function AdminDashboard({ onLogout }) {
   const [tab, setTab] = useState("users"); // users | licenses
   const [users, setUsers] = useState([]);
@@ -266,18 +276,19 @@ export default function AdminDashboard({ onLogout }) {
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-stone-400 border-b border-stone-100">
                     <th className="px-5 py-2 font-medium">E-mail</th>
+                    <th className="px-3 py-2 font-medium">Origem</th>
                     <th className="px-3 py-2 font-medium">Nome / Clínica</th>
                     <th className="px-3 py-2 font-medium">Cliente desde</th>
-                    <th className="px-3 py-2 font-medium">Conta</th>
                     <th className="px-3 py-2 font-medium">Licença</th>
+                    <th className="px-3 py-2 font-medium">Validade</th>
                     <th className="px-3 py-2 font-medium">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-5 py-10 text-center text-stone-400">
-                        Nenhum usuário cadastrado ainda.
+                      <td colSpan={7} className="px-5 py-10 text-center text-stone-400">
+                        Nenhum usuário ativo no momento.
                       </td>
                     </tr>
                   )}
@@ -289,18 +300,20 @@ export default function AdminDashboard({ onLogout }) {
                           <div className="text-xs text-amber-600 mt-0.5">E-mail não confirmado</div>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-stone-600">
-                        {user.name || "—"}
-                        {user.clinic_name && <div className="text-xs text-stone-400">{user.clinic_name}</div>}
-                      </td>
-                      <td className="px-3 py-3 text-stone-500 text-xs">{formatDate(user.created_at)}</td>
                       <td className="px-3 py-3">
-                        {user.status === "blocked" ? (
-                          <StatusBadge tone="rose">Bloqueada</StatusBadge>
+                        {user.license_id ? (
+                          <>
+                            <div className="text-xs font-medium text-stone-700">{userLicenseOriginInfo(user).label}</div>
+                            <div className="text-[11px] text-stone-400">{userLicenseOriginInfo(user).detail}</div>
+                          </>
                         ) : (
-                          <StatusBadge tone="teal">Ativa</StatusBadge>
+                          <span className="text-stone-400 text-xs">—</span>
                         )}
                       </td>
+                      <td className="px-3 py-3 text-stone-600">
+                        {user.settings_clinic_name || user.clinic_name || user.name || "—"}
+                      </td>
+                      <td className="px-3 py-3 text-stone-500 text-xs">{formatDate(user.created_at)}</td>
                       <td className="px-3 py-3">
                         {user.license_code && (
                           <div className="flex items-center gap-1.5 mb-1">
@@ -321,6 +334,9 @@ export default function AdminDashboard({ onLogout }) {
                           </div>
                         )}
                         <div>{licenseBadge(user)}</div>
+                      </td>
+                      <td className="px-3 py-3 text-stone-500 text-xs">
+                        {user.license_expires_at ? formatDate(user.license_expires_at) : "—"}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-1.5">

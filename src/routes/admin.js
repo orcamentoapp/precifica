@@ -24,7 +24,12 @@ function durationDaysForType(type) {
 // Tudo aqui embaixo exige um usuário logado com role = 'admin'
 router.use(requireAdmin);
 
-// Lista os usuários (clientes), já trazendo a licença mais recente de cada um
+// Lista os usuários ATIVOS (clientes com a conta não bloqueada), já trazendo
+// a licença mais recente de cada um (com origem/forma de aquisição) e o
+// nome/clínica de verdade, tirado das configurações que o próprio usuário
+// preenche dentro do app (não do cadastro — o formulário de cadastro nunca
+// coletou nome/clínica, então users.name/users.clinic_name sempre ficavam
+// vazios; quem tem esse dado de verdade é o app_data, chave 'settings').
 router.get("/users", async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -34,15 +39,32 @@ router.get("/users", async (req, res) => {
         l.code AS license_code,
         l.status AS license_status,
         l.type AS license_type,
-        l.expires_at AS license_expires_at
+        l.expires_at AS license_expires_at,
+        l.source AS license_source,
+        l.buyer_email AS license_buyer_email,
+        l.stripe_subscription_id AS license_stripe_subscription_id,
+        a.value AS settings_json
       FROM users u
       LEFT JOIN LATERAL (
         SELECT * FROM licenses WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1
       ) l ON true
-      WHERE u.role = 'user'
+      LEFT JOIN app_data a ON a.user_id = u.id AND a.key = 'settings'
+      WHERE u.role = 'user' AND u.status = 'active'
       ORDER BY u.created_at DESC
     `);
-    res.json(rows);
+    const result = rows.map((row) => {
+      const { settings_json, ...rest } = row;
+      let settingsClinicName = null;
+      if (settings_json) {
+        try {
+          settingsClinicName = JSON.parse(settings_json).clinicName || null;
+        } catch (e) {
+          // configurações salvas num formato inesperado — ignora e segue sem esse dado
+        }
+      }
+      return { ...rest, settings_clinic_name: settingsClinicName };
+    });
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao listar usuários" });
@@ -100,13 +122,17 @@ router.post("/licenses", async (req, res) => {
   }
 });
 
-// Lista todas as licenças (usadas ou não), com o e-mail do dono quando existir
+// Lista as licenças AINDA NÃO UTILIZADAS (status = 'unused') — chaves geradas
+// (manualmente ou por compra) que ainda não foram reivindicadas por ninguém
+// no cadastro. Licenças já em uso ficam de fora dessa lista de propósito;
+// pra ver o que cada cliente tem, é a aba "Usuários" que traz essa info.
 router.get("/licenses", async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT l.*, u.email AS user_email, u.name AS user_name, u.clinic_name
       FROM licenses l
       LEFT JOIN users u ON u.id = l.user_id
+      WHERE l.status = 'unused'
       ORDER BY l.created_at DESC
     `);
     res.json(rows);
@@ -120,13 +146,21 @@ router.get("/licenses", async (req, res) => {
 // (mensal, trial ou anual) a partir de agora — mas o admin pode escolher
 // explicitamente 30 ou 365 dias pelo body (`days`), independente do tipo
 // original da licença (ex: dar 365 dias de bônus numa licença mensal).
+// Os dias são SOMADOS à validade atual (se ela ainda não venceu) — uma
+// licença com 7 dias restantes que ganha +365 fica com 372 dias, não 365.
+// Só reinicia a contagem a partir de hoje se a licença já tiver expirado.
 router.post("/licenses/:id/renew", async (req, res) => {
   const { days } = req.body || {};
   const customDays = [30, 365].includes(Number(days)) ? Number(days) : null;
   try {
-    const { rows: currentRows } = await pool.query("SELECT type FROM licenses WHERE id = $1", [req.params.id]);
+    const { rows: currentRows } = await pool.query("SELECT type, expires_at FROM licenses WHERE id = $1", [
+      req.params.id,
+    ]);
     if (!currentRows[0]) return res.status(404).json({ error: "Licença não encontrada" });
-    const expiresAt = addDays(new Date(), customDays || durationDaysForType(currentRows[0].type));
+    const current = currentRows[0];
+    const currentExpiry = current.expires_at ? new Date(current.expires_at) : null;
+    const base = currentExpiry && currentExpiry > new Date() ? currentExpiry : new Date();
+    const expiresAt = addDays(base, customDays || durationDaysForType(current.type));
     const { rows } = await pool.query(
       "UPDATE licenses SET expires_at = $1, status = 'active' WHERE id = $2 RETURNING *",
       [expiresAt, req.params.id]

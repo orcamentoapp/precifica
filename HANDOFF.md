@@ -32,7 +32,65 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: deixar explícito que o imposto é sempre uma aproximação (nos dois regimes)
+## Atualização mais recente: correção de bug crítico na renovação + reformulação das abas Usuários e Chaves no painel admin
+
+Três mudanças no painel admin, a partir de feedback do Marcelo:
+
+1. **BUG CORRIGIDO: renovar substituía a validade em vez de somar** —
+   o Marcelo percebeu que uma licença com 7 dias restantes, ao ser
+   renovada com "+365 dias", ficava com 365 dias (não 372). A rota
+   `POST /api/admin/licenses/:id/renew` (`src/routes/admin.js`)
+   sempre calculava `expires_at` a partir de `new Date()` (agora),
+   descartando a validade que já existia. Corrigido pra usar a mesma
+   lógica que o webhook do Mercado Pago já usava pra renovação
+   (`src/routes/mercadopagoWebhook.js`): se a licença ainda não
+   expirou, os dias novos somam a partir da **data de expiração
+   atual**; só reinicia a contagem a partir de hoje se ela já tiver
+   vencido. Vale conferir se alguma licença ficou com validade errada
+   por causa desse bug numa renovação anterior a essa correção.
+2. **Aba "Chaves de licença" agora só mostra chaves não utilizadas** —
+   `GET /api/admin/licenses` (`src/routes/admin.js`) ganhou
+   `WHERE l.status = 'unused'`. Chaves já em uso (vinculadas a uma
+   conta ativa) não aparecem mais aqui — pra ver o que cada cliente
+   tem, é a aba "Usuários" que traz essa informação agora.
+3. **Aba "Usuários" reformulada** — só lista contas com
+   `status = 'active'` (`WHERE u.status = 'active'` no
+   `GET /api/admin/users`), e as colunas viraram: E-mail, Origem,
+   Nome/Clínica, Cliente desde, Licença (chave + dias restantes),
+   Validade, Ações.
+   - **Bug corrigido: "Nome/Clínica" sempre vinha vazio** — a causa
+     era que a tela de cadastro (`Register.jsx`) nunca coletou
+     nome/clínica do usuário, então `users.name`/`users.clinic_name`
+     ficavam sempre `NULL`. Quem tem esse dado de verdade é o próprio
+     usuário, preenchido em Configurações → "Nome" dentro do app — e
+     isso fica salvo em `app_data` (chave `'settings'`), não na
+     tabela `users`. A rota agora faz `LEFT JOIN app_data` e extrai
+     `clinicName` de dentro do JSON salvo lá, com fallback pra
+     `users.clinic_name`/`users.name` se algum dia isso vier
+     preenchido por outro caminho.
+   - **Coluna "Origem" nova** — mesma informação (gerada no painel
+     admin / comprada via Stripe / comprada via Mercado Pago) que já
+     existia na aba Chaves, agora também na aba Usuários. Precisou
+     trazer `l.source`, `l.buyer_email`, `l.stripe_subscription_id` da
+     licença mais recente de cada usuário no `GET /api/admin/users`, e
+     um helper novo no frontend (`userLicenseOriginInfo`, em
+     `AdminDashboard.jsx`) que adapta os nomes de coluna prefixados
+     `license_*` pro mesmo `licenseOriginInfo()` já usado na aba
+     Chaves.
+   - **Coluna "Validade" nova** — data de expiração da licença
+     (`license_expires_at`) formatada, separada da coluna "Licença"
+     (que continua mostrando o código + dias restantes).
+   - A antiga coluna "Conta" (badge Ativa/Bloqueada) foi removida —
+     ficou redundante já que a lista inteira agora só mostra contas
+     ativas.
+
+**Testado**: `npm run build` do frontend limpo; `node --check` em
+`src/routes/admin.js` sem erros. Não testado com dados reais de
+produção nesta sessão (exigiria um banco Postgres populado) — vale o
+Marcelo conferir depois do deploy que a coluna "Nome/Clínica" aparece
+certinha pra clientes que já preencheram esse campo em Configurações.
+
+## Atualização anterior: deixar explícito que o imposto é sempre uma aproximação (nos dois regimes)
 
 Complemento direto da sessão anterior (regime tributário CNPJ). O
 Marcelo perguntou duas coisas, e a resposta virou texto mais explícito
