@@ -32,7 +32,41 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: auto-salvar orçamento ao exportar, bloquear e-mail duplicado na compra, margem de segurança no toggle da vista Paciente
+## Atualização mais recente: descrições explicativas em Custos + CRO/CRM estruturado (tipo + UF + número)
+
+Duas melhorias em Configurações, a partir de pedido do Marcelo:
+
+1. **Descrições explicativas no card "Custos"** — os campos "Custos
+   fixos mensais" e "Pró-labore desejado" (dentro de "Custo da hora
+   clínica", `app-frontend/src/App.jsx`) não tinham nenhuma explicação
+   de como o usuário deveria chegar nesse valor; agora cada um tem um
+   parágrafo curto embaixo explicando o que somar/considerar. O texto
+   de "Horas produtivas / mês" também foi expandido com um exemplo
+   numérico (5h/dia, 4 dias/semana ≈ 80h/mês). O card "Imposto" e o
+   card "Formas de Pagamento/Taxas" já tinham descrições boas, não
+   precisou mexer neles.
+2. **CRO/CRM virou campo estruturado, não mais texto livre** — antes
+   era um único `<input type="text">` onde o usuário digitava
+   "CRO-SP 12345" à mão (sujeito a erro de formatação). Agora é o
+   componente novo `ProfessionalRegistrationField`
+   (`app-frontend/src/App.jsx`, definido logo antes de
+   `ProfileSettingsPage`): dois `<select>` (Tipo: CRO/CRM — Estado: as
+   27 UFs do Brasil, constante `BRAZIL_UF_LIST`) mais um campo numérico
+   que só aceita dígitos e trava em 6 caracteres. Os três só se
+   combinam e são salvos em `settings.professionalRegistration` quando
+   estão completos e o número tem entre 4 e 6 dígitos — formato final
+   idêntico ao de antes (`"CRO-SP 123456"`), então nada mais no app
+   (footers de PDF/PNG/WhatsApp, exibição no orçamento) precisou
+   mudar. Ao abrir a tela com um valor já salvo no formato antigo, o
+   componente faz o parse de volta pros três campos automaticamente
+   (regex `/^(CRO|CRM)-([A-Z]{2})\s+(\d{4,6})$/`) — se o valor salvo
+   não bater com esse padrão (ex: ficou vazio, ou foi digitado num
+   formato diferente antes dessa mudança), os três campos simplesmente
+   começam vazios e o usuário preenche de novo.
+
+**Testado**: `npm run build` do frontend limpo, sem erros.
+
+## Atualização anterior: auto-salvar orçamento ao exportar, bloquear e-mail duplicado na compra, margem de segurança no toggle da vista Paciente
 
 Três correções pontuais, a partir de feedback do Marcelo:
 

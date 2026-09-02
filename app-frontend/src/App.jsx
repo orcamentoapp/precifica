@@ -4,6 +4,11 @@ import { apiRequest } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
 
+const BRAZIL_UF_LIST = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
+  "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+];
+
 const DEFAULT_INSTALLMENT_FEES = [
   { n: 1, fee: 3.5 },
   { n: 2, fee: 4.5 },
@@ -2332,6 +2337,77 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }
   );
 }
 
+// Campo estruturado de registro profissional: obriga escolher CRO ou CRM,
+// o estado (UF) do conselho, e um número de 4 a 6 dígitos — em vez de texto
+// livre. Some as três partes automaticamente no formato "CRO-SP 123456"
+// (mesmo formato de string que já era salvo em settings.professionalRegistration,
+// então nada mais no app precisou mudar).
+function ProfessionalRegistrationField({ value, onChange }) {
+  const parsed = (() => {
+    const m = /^(CRO|CRM)-([A-Z]{2})\s+(\d{4,6})$/.exec((value || "").trim().toUpperCase());
+    return m ? { type: m[1], uf: m[2], number: m[3] } : { type: "", uf: "", number: "" };
+  })();
+
+  const [type, setType] = useState(parsed.type);
+  const [uf, setUf] = useState(parsed.uf);
+  const [number, setNumber] = useState(parsed.number);
+
+  // Só recompõe e salva a string final quando os três campos estão completos
+  // e válidos — evita gravar um registro pela metade enquanto o usuário
+  // ainda está preenchendo.
+  useEffect(() => {
+    if (type && uf && /^\d{4,6}$/.test(number)) {
+      const combined = `${type}-${uf} ${number}`;
+      if (combined !== (value || "")) onChange(combined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, uf, number]);
+
+  return (
+    <div>
+      <div className="text-xs text-stone-500 mb-1">CRO / CRM</div>
+      <div className="flex gap-2">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="text-sm border border-stone-200 rounded-lg pl-2.5 pr-1.5 py-2 outline-none focus:border-teal-400 bg-white shrink-0"
+        >
+          <option value="">Tipo</option>
+          <option value="CRO">CRO</option>
+          <option value="CRM">CRM</option>
+        </select>
+        <select
+          value={uf}
+          onChange={(e) => setUf(e.target.value)}
+          className="text-sm border border-stone-200 rounded-lg pl-2.5 pr-1.5 py-2 outline-none focus:border-teal-400 bg-white shrink-0"
+        >
+          <option value="">UF</option>
+          {BRAZIL_UF_LIST.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={number}
+          onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="Número"
+          className="flex-1 min-w-0 text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+        />
+      </div>
+      <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
+        Tipo, estado do conselho e número (4 a 6 dígitos) — vira automaticamente{" "}
+        <strong>
+          {type || "CRO"}-{uf || "SP"} {number || "123456"}
+        </strong>{" "}
+        nos orçamentos exportados.
+      </p>
+    </div>
+  );
+}
+
 function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
   const profilePhotoInputRef = useRef(null);
   const account = useAccount();
@@ -2442,16 +2518,10 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
           />
         </div>
 
-        <div>
-          <div className="text-xs text-stone-500 mb-1">CRO / CRM</div>
-          <input
-            type="text"
-            value={settings.professionalRegistration}
-            onChange={(e) => onChange({ ...settings, professionalRegistration: e.target.value })}
-            placeholder="Ex: CRO-SP 12345"
-            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-          />
-        </div>
+        <ProfessionalRegistrationField
+          value={settings.professionalRegistration}
+          onChange={(v) => onChange({ ...settings, professionalRegistration: v })}
+        />
 
         <div>
           <div className="text-xs text-stone-500 mb-1">Endereço</div>
@@ -2939,23 +3009,36 @@ function SettingsPanel({ settings, onChange }) {
     <>
       <SettingsCard icon={<Banknote className="w-4 h-4 text-teal-700" />} title="Custos">
         <SettingsSubSection icon={<Banknote className="w-4 h-4 text-teal-700" />} title="Custo da hora clínica" first>
-          <div className="flex items-center justify-between gap-2 mb-2.5">
-            <label className="text-sm text-stone-600">Custos fixos mensais (R$)</label>
-            <input
-              type="number"
-              value={laborCalc.fixedCosts}
-              onChange={(e) => updateLaborCalc({ fixedCosts: Number(e.target.value) })}
-              className="w-28 text-sm font-mono border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 text-right"
-            />
+          <div className="mb-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm text-stone-600">Custos fixos mensais (R$)</label>
+              <input
+                type="number"
+                value={laborCalc.fixedCosts}
+                onChange={(e) => updateLaborCalc({ fixedCosts: Number(e.target.value) })}
+                className="w-28 text-sm font-mono border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 text-right"
+              />
+            </div>
+            <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+              Some tudo que você paga todo mês independente de atender ou não: aluguel, água/luz/internet, salário da
+              equipe, softwares, material de consumo fixo (luvas, máscaras, etc). Não inclua o material específico de
+              cada procedimento — esse já entra separado, no cadastro de cada procedimento.
+            </p>
           </div>
-          <div className="flex items-center justify-between gap-2 mb-2.5">
-            <label className="text-sm text-stone-600">Pró-labore desejado (R$)</label>
-            <input
-              type="number"
-              value={laborCalc.desiredIncome}
-              onChange={(e) => updateLaborCalc({ desiredIncome: Number(e.target.value) })}
-              className="w-28 text-sm font-mono border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 text-right"
-            />
+          <div className="mb-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm text-stone-600">Pró-labore desejado (R$)</label>
+              <input
+                type="number"
+                value={laborCalc.desiredIncome}
+                onChange={(e) => updateLaborCalc({ desiredIncome: Number(e.target.value) })}
+                className="w-28 text-sm font-mono border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 text-right"
+              />
+            </div>
+            <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+              Quanto você quer receber de salário/lucro líquido por mês — é a sua meta de ganho pessoal, não um custo
+              da clínica. Esse valor é somado aos custos fixos pra calcular o preço mínimo que cobre tudo.
+            </p>
           </div>
           <div className="flex items-center justify-between gap-2 mb-3">
             <label className="text-sm text-stone-600">Horas produtivas / mês</label>
@@ -2971,8 +3054,9 @@ function SettingsPanel({ settings, onChange }) {
             <span className="font-mono font-semibold text-amber-700">{money(hourlyCost)}</span>
           </div>
           <p className="text-xs text-stone-400 mt-2 leading-relaxed">
-            Horas produtivas = tempo real com paciente na cadeira, não o expediente todo. Esse valor calcula automaticamente a mão de obra de
-            cada procedimento a partir da duração em minutos.
+            Horas produtivas = tempo real com paciente na cadeira, não o expediente todo. Se você atende 5h por dia,
+            4 dias por semana, são cerca de 80h/mês — não as 160h de uma jornada CLT. Esse valor calcula
+            automaticamente a mão de obra de cada procedimento a partir da duração em minutos.
           </p>
         </SettingsSubSection>
 
