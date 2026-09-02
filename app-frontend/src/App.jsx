@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { Plus, Stethoscope, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut } from "lucide-react";
+import { Plus, Stethoscope, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList } from "lucide-react";
 import { apiRequest } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
@@ -1524,7 +1524,7 @@ function SimulationPanel({
       <div className="bg-white border border-stone-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
           <div className="text-sm font-semibold text-stone-700">Orçamento</div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             {budgetProcs.length > 0 && (
               <div className="relative" ref={saveMenuRef}>
                 <button
@@ -1920,9 +1920,9 @@ function TabNav({ tab, setTab, secondaryColor }) {
   const [pillStyle, setPillStyle] = useState(null);
 
   const tabs = [
-    { key: "simulation", label: "Simulação" },
-    { key: "procedures", label: "Procedimentos" },
-    { key: "history", label: "Histórico" },
+    { key: "simulation", label: "Simulação", icon: Calculator },
+    { key: "procedures", label: "Procedimentos", icon: ClipboardList },
+    { key: "history", label: "Histórico", icon: Clock },
   ];
 
   useLayoutEffect(() => {
@@ -1941,25 +1941,57 @@ function TabNav({ tab, setTab, secondaryColor }) {
   }, [tab]);
 
   return (
-    <nav ref={containerRef} className="relative flex flex-wrap gap-1 rounded-full p-1" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
-      {pillStyle && (
-        <div
-          className="absolute top-1 bottom-1 bg-stone-50 rounded-full transition-all duration-300 ease-out"
-          style={{ left: `${pillStyle.left}px`, width: `${pillStyle.width}px` }}
-        />
-      )}
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          ref={(el) => (tabRefs.current[t.key] = el)}
-          onClick={() => setTab(t.key)}
-          className="relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300"
-          style={{ color: tab === t.key ? "#134e4a" : secondaryColor || "#71CFFE" }}
-        >
-          {t.label}
-        </button>
-      ))}
-    </nav>
+    <>
+      {/* Desktop / telas largas: menu em pílula no cabeçalho */}
+      <nav
+        ref={containerRef}
+        className="hidden md:flex relative flex-wrap gap-1 rounded-full p-1"
+        style={{ backgroundColor: "rgba(0,0,0,0.25)" }}
+      >
+        {pillStyle && (
+          <div
+            className="absolute top-1 bottom-1 bg-stone-50 rounded-full transition-all duration-300 ease-out"
+            style={{ left: `${pillStyle.left}px`, width: `${pillStyle.width}px` }}
+          />
+        )}
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            ref={(el) => (tabRefs.current[t.key] = el)}
+            onClick={() => setTab(t.key)}
+            className="relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300"
+            style={{ color: tab === t.key ? "#134e4a" : secondaryColor || "#71CFFE" }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Mobile: barra de navegação fixa na parte inferior, padrão de app nativo */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch bg-white border-t border-stone-200 z-40"
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          boxShadow: "0 -2px 8px rgba(0,0,0,0.06)",
+        }}
+      >
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+              style={{ color: active ? "#0f766e" : "#a8a29e" }}
+            >
+              <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
+              <span className="text-[11px] font-medium">{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 
@@ -3549,7 +3581,9 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-5 py-6">
+      <main
+        className="max-w-6xl mx-auto px-5 py-6 pb-[calc(1.5rem+64px+env(safe-area-inset-bottom,0px))] md:pb-6"
+      >
         {reopenWarning && (
           <div className="mb-4 flex items-start justify-between gap-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">
             <span>{reopenWarning}</span>

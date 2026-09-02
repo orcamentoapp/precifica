@@ -23,11 +23,41 @@ nesse projeto segue este padrão fixo, sem exceção**:
 - Isso vale mesmo que a mudança da sessão tenha sido pequena: o zip
   inteiro sempre carrega o projeto todo, porque é ele que vai virar o
   upload pra continuar numa instância nova.
+- **Não pergunte antes de gerar o zip.** Assim que uma mudança nessa
+  sessão for concluída e testada, gere e entregue o zip direto, sem
+  perguntar "quer que eu gere o zip?" — essa pergunta não é mais
+  necessária, o Marcelo já confirmou que quer sempre o zip depois de
+  cada atualização.
 
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: correções de mobile — status bar sobrepondo o cabeçalho, zoom automático do iOS em inputs, e zoom manual travado
+## Atualização mais recente: botões do orçamento cortados no mobile + barra de navegação inferior (padrão app nativo)
+
+Sessão curta de ajustes de mobile, a partir de prints do Marcelo:
+
+1. **Botões da barra "Orçamento" (Salvar/Exportar/estrelas/Profissional-
+   Paciente/Limpar) ficavam pra fora da tela no celular** — a `div` que
+   agrupa esses botões (`app-frontend/src/App.jsx`, dentro do painel de
+   Orçamento) não tinha `flex-wrap`, então empurrava tudo numa linha só
+   pra fora da tela em telas estreitas. Adicionado `flex-wrap
+   justify-end`.
+2. **Abas Simulação/Procedimentos/Histórico viraram barra de navegação
+   inferior fixa no mobile** (padrão de app nativo, a pedido do
+   Marcelo) — `TabNav` em `App.jsx` agora renderiza dois layouts: o
+   menu em pílula de sempre continua em telas ≥768px (`md:flex`), e
+   abaixo disso vira uma barra fixa no rodapé com ícone (Calculator /
+   ClipboardList / Clock, de `lucide-react`) + rótulo, com
+   `env(safe-area-inset-bottom)` reservado pra não colidir com a barra
+   de gestos do iPhone. O `<main>` ganhou padding-bottom extra nesses
+   breakpoints pra nenhum conteúdo ficar escondido atrás da barra fixa.
+
+**Testado**: `npm run build` do frontend rodou limpo. Não testado em
+dispositivo real nesta sessão — vale o Marcelo confirmar visualmente
+que (a) os botões do orçamento não saem mais da tela e (b) a barra
+inferior aparece só no celular, sem sobrepor conteúdo.
+
+## Atualização anterior: correções de mobile — status bar sobrepondo o cabeçalho, zoom automático do iOS em inputs, e zoom manual travado
 
 Sessão curta, focada em bugs visuais no celular reportados pelo
 Marcelo com print de tela. Dois problemas distintos, os dois
