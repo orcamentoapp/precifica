@@ -27,7 +27,81 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: PWA — "Adicionar app na tela inicial"
+## Atualização mais recente: tela de compra com planos Mensal/Anual + teste grátis de 7 dias (com cartão)
+
+Pedido do Marcelo: a tela de "Assinar agora" (`Buy.jsx`) tinha só assinatura
+mensal e nenhum trial. Agora tem 2 cards de plano (Mensal R$99,90 / Anual
+R$599,90 — economia de 50%) e um botão de teste grátis de 7 dias.
+
+**Proteção contra abuso do trial — decisão tomada com o Marcelo**: entre as
+opções discutidas (fingerprint de navegador, CPF obrigatório, cartão
+obrigatório via Stripe), ele escolheu **cartão obrigatório via Stripe**.
+Expliquei pra ele antes de implementar: não existe "serial do
+celular/PC" acessível por navegador (bloqueado por privacidade em todo
+navegador moderno) — fingerprint é só uma aproximação, contornável trocando
+de aparelho/navegador. Cartão é o mais forte porque é um recurso real e
+escasso, e o Stripe já tem detecção de fraude embutida.
+
+**Como funciona tecnicamente**: o checkout do Stripe é criado com
+`trial_period_days` (7 dias) E `payment_method_collection: "always"` — isso
+força a coleta do cartão MESMO com o total dando zero na hora (é esse
+parâmetro que garante "cartão obrigatório mesmo de graça"). O trial segue o
+plano que a pessoa escolheu no card (mensal ou anual) — depois dos 7 dias,
+vira cobrança de verdade nesse mesmo plano, automaticamente, sem nada
+manual.
+
+**Arquivos alterados:**
+- `src/utils/stripe.js` — `createCheckoutSession` agora aceita `plan`
+  ("monthly"/"annual") e `trial` (boolean). Preço/recorrência montados
+  dinamicamente (sem Price ID fixo no Stripe, como já era). Valores padrão
+  agora são os reais: `PRECIFICA_MONTHLY_PRICE` 99.90,
+  `PRECIFICA_ANNUAL_PRICE` 599.90 (nova env var, documentada no
+  `.env.example`).
+- `src/routes/payments.js` — `POST /api/payments/stripe/checkout` agora
+  recebe `plan` e `trial` no corpo e repassa.
+- `src/routes/stripeWebhook.js` — **mudança importante de arquitetura**:
+  antes só tratava `invoice.paid` (o que não funcionaria pro trial, já que o
+  Stripe não gera fatura nenhuma durante os 7 dias grátis — só depois).
+  Agora também trata `checkout.session.completed`, que é quem cria a
+  licença na hora (`type = 'trial'` se for trial, senão `'monthly'`/
+  `'annual'` — isso vem dos METADADOS que a gente mesmo colocou ao criar o
+  checkout, não precisa consultar o Stripe de novo). O `invoice.paid`
+  continua existindo, mas agora: (1) quando o trial vira cobrança de
+  verdade (dia 7), ele detecta que a licença estava `type='trial'` e troca
+  pro plano de verdade automaticamente, com a duração certa (30 ou 365
+  dias, calculado a partir do `interval` do preço dentro da própria
+  fatura); (2) segue servindo de rede de segurança pra criar a licença se
+  por acaso o `checkout.session.completed` não tiver chegado.
+- `app-frontend/src/screens/Buy.jsx` — reescrita: 2 cards de plano
+  selecionáveis, nome/e-mail, botão "Assinar agora" e botão secundário
+  "Testar grátis por 7 dias", com aviso de que o cartão é pedido mas só
+  cobra depois dos 7 dias.
+
+**⚠️ PASSO MANUAL OBRIGATÓRIO NO PAINEL DO STRIPE** (isso não dá pra fazer
+por código): o endpoint de webhook configurado no Stripe (Painel Stripe →
+Desenvolvedores → Webhooks → seu endpoint) precisa estar recebendo o evento
+**`checkout.session.completed`** além do `invoice.paid` que já estava
+configurado — senão o Stripe nem manda esse evento pro nosso servidor, e o
+trial nunca libera acesso na hora (só funcionaria a cobrança 7 dias depois,
+sem o usuário ter tido acesso nenhum antes disso). **Confirme isso antes de
+testar.**
+
+**Testado**: build do frontend sem erros, `node --check` em todos os
+arquivos de backend alterados sem erros de sintaxe. **NÃO testado
+end-to-end contra o Stripe de verdade** — não tenho acesso de rede ao
+`api.stripe.com` neste ambiente (só domínios de pacotes/GitHub são
+liberados aqui), e mesmo com acesso seria um checkout de pagamento real.
+Antes de considerar isso pronto, o Marcelo precisa testar manualmente em
+modo teste do Stripe: (1) assinar mensal sem trial, confirma que o e-mail
+com a chave chega e a licença nasce `type='monthly'`; (2) mesma coisa pro
+anual; (3) começar o trial, confirmar que o e-mail com a chave chega
+IMEDIATAMENTE (sem esperar 7 dias) e que a licença nasce `type='trial'`
+com 7 dias; (4) o mais importante e mais difícil de testar de verdade:
+avançar o relógio da assinatura de teste no painel do Stripe (dá pra fazer
+isso em modo teste) e confirmar que quando a cobrança real acontece, a
+licença vira `type='monthly'` (ou `'annual'`) com a duração certa.
+
+## Atualização anterior: PWA — "Adicionar app na tela inicial"
 
 Implementado o pedido de transformar o Precifica num app instalável
 (PWA), depois de descartar a ideia de "baixar pra Android/iOS" (não

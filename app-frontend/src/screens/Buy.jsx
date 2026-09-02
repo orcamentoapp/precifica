@@ -1,65 +1,105 @@
 import { useState } from "react";
-import { screenStyle, cardStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle, labelStyle } from "../authStyles";
+import { screenStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle, labelStyle } from "../authStyles";
+
+const MONTHLY_PRICE = 99.9;
+const ANNUAL_PRICE = 599.9;
+const ANNUAL_MONTHLY_EQUIVALENT = (ANNUAL_PRICE / 12).toFixed(2).replace(".", ",");
+
+function formatBRL(value) {
+  return value.toFixed(2).replace(".", ",");
+}
 
 export default function Buy({ onBackToLogin }) {
+  const [plan, setPlan] = useState("monthly"); // "monthly" | "annual"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(""); // "" | "subscribe" | "trial"
   const [error, setError] = useState("");
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function startCheckout(trial) {
+    if (!name.trim() || !email.trim()) {
+      setError("Preencha nome e e-mail antes de continuar.");
+      return;
+    }
     setError("");
-    setSubmitting(true);
+    setSubmitting(trial ? "trial" : "subscribe");
     try {
       const res = await fetch("/api/payments/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), plan, trial }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o pagamento.");
       window.location.href = data.checkoutUrl;
     } catch (err) {
       setError(err.message);
-      setSubmitting(false);
+      setSubmitting("");
     }
   }
 
   return (
     <div style={screenStyle}>
-      <div style={cardStyle}>
+      <div className="bg-white border border-stone-200 rounded-2xl p-7 w-full" style={{ maxWidth: 460 }}>
         <div style={{ fontSize: 24, fontWeight: 800, color: "#0f766e", letterSpacing: "-0.02em" }}>Precifica</div>
         <p style={{ fontSize: 12.5, color: "#a8a29e", margin: "2px 0 20px", fontStyle: "italic" }}>
           Precifique seus procedimentos com inteligência.
         </p>
-        <p style={{ fontSize: 13, color: "#57534e", margin: "0 0 20px", lineHeight: 1.5 }}>
-          Assinatura mensal. Pague com cartão ou boleto. Depois de confirmado o pagamento, você recebe sua chave
-          de licença por e-mail em instantes.
-        </p>
 
         {error && <div style={errorBoxStyle}>{error}</div>}
 
-        <form onSubmit={handleSubmit}>
-          <label style={labelStyle}>Nome</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={inputStyle}
-            autoFocus
-            required
-          />
-
-          <label style={{ ...labelStyle, marginTop: 12 }}>E-mail</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} required />
-
-          <button type="submit" disabled={submitting} style={buttonStyle}>
-            {submitting ? "Preparando pagamento..." : "Assinar agora"}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <button
+            type="button"
+            onClick={() => setPlan("monthly")}
+            className={`text-left rounded-xl border p-3.5 transition ${
+              plan === "monthly" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
+            }`}
+          >
+            <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Mensal</div>
+            <div className="text-lg font-bold text-stone-800 mt-1">R$ {formatBRL(MONTHLY_PRICE)}</div>
+            <div className="text-xs text-stone-400">por mês</div>
           </button>
-        </form>
+          <button
+            type="button"
+            onClick={() => setPlan("annual")}
+            className={`relative text-left rounded-xl border p-3.5 transition ${
+              plan === "annual" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
+            }`}
+          >
+            <span className="absolute -top-2 right-2 text-[10px] font-bold bg-amber-500 text-white px-2 py-0.5 rounded-full">
+              ECONOMIZE 50%
+            </span>
+            <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Anual</div>
+            <div className="text-lg font-bold text-stone-800 mt-1">R$ {formatBRL(ANNUAL_PRICE)}</div>
+            <div className="text-xs text-stone-400">por ano · equivale a R$ {ANNUAL_MONTHLY_EQUIVALENT}/mês</div>
+          </button>
+        </div>
 
-        <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#78716c" }}>
+        <label style={labelStyle}>Nome</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
+
+        <label style={{ ...labelStyle, marginTop: 12 }}>E-mail</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+
+        <button type="button" disabled={!!submitting} onClick={() => startCheckout(false)} style={buttonStyle}>
+          {submitting === "subscribe" ? "Preparando pagamento..." : "Assinar agora"}
+        </button>
+
+        <button
+          type="button"
+          disabled={!!submitting}
+          onClick={() => startCheckout(true)}
+          className="w-full mt-2.5 text-sm font-medium text-teal-700 border border-teal-200 rounded-lg py-2.5 hover:bg-teal-50 transition disabled:opacity-50"
+        >
+          {submitting === "trial" ? "Preparando..." : "Testar grátis por 7 dias"}
+        </button>
+        <p className="text-[11px] text-stone-400 text-center mt-2 leading-relaxed">
+          Pedimos o cartão pra iniciar o teste, mas você só é cobrado depois dos 7 dias — cancele antes disso e não
+          paga nada.
+        </p>
+
+        <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "#78716c" }}>
           Já recebeu uma chave de licença?{" "}
           <button type="button" onClick={onBackToLogin} style={{ ...linkStyle, fontWeight: 600 }}>
             Ativar / entrar
