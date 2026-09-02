@@ -5,7 +5,81 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## Atualização mais recente: Configurações reduzida a 3 cards, 1 coluna só
+## Atualização mais recente: altura do cabeçalho + backup movido pra Procedimentos (só a lista)
+
+Só mexeu em `app-frontend/src/App.jsx`. Pedidos do Marcelo depois de ver o
+app em produção:
+
+1. **Foto de perfil vazando pra fora da barra azul**: a foto (72px) estava
+   maior que o espaço vertical que a barra azul reservava pra ela
+   (`pb-2 pt-1` = só 12px de respiro no total). Troquei pra `py-4` (16px
+   em cima e embaixo, 32px no total) na linha do cabeçalho que contém a
+   foto/nome/abas — dá folga de sobra pra foto caber inteira dentro do
+   azul, e a barra fica visivelmente mais alta (era exatamente o pedido).
+2. **Botão "Backup" do menu da foto**: ao conferir o código pra tirar
+   esse botão, percebi que **ele já não existia mais** no arquivo — sumiu
+   em alguma reorganização de uma sessão anterior (bem provavelmente
+   durante a limpeza da tela de Configurações) sem eu registrar isso no
+   handoff na hora. Ou seja, esse pedido específico ("remove o botão
+   Backup do menu") já estava feito; sobrou só a função
+   `handleImportData` órfã (sem nenhum botão chamando ela), que eu
+   aproveitei e transformei no item 3 abaixo.
+3. **Exportar/Importar movido pra aba Procedimentos, só da lista de
+   procedimentos** (não mais configurações + histórico juntos, como era
+   o Backup antigo): novos botões "Exportar" e "Importar" na barra de
+   ações da aba Procedimentos, ao lado de "Desfazer"/"Salvar"/"Novo
+   procedimento". `handleExportProcedures` baixa só o array de
+   procedimentos em `.json`; `handleImportProceduresFile` lê o arquivo e
+   aceita tanto esse formato novo (array direto) quanto o formato antigo
+   de backup completo (`{ procedures: [...] }`), pra não quebrar arquivos
+   de backup que alguém já tenha baixado antes dessa mudança.
+4. **Confirmei pro Marcelo**: com a migração pro banco (sessão de duas
+   atrás), configurações e histórico de orçamento já não precisam mais de
+   backup manual — são salvos automaticamente na nuvem, por conta. O
+   export/import de procedimentos que sobrou não é "backup de segurança"
+   no mesmo sentido (os procedimentos TAMBÉM já são salvos na nuvem); é
+   mais uma ferramenta de portabilidade — exportar de uma conta e
+   importar em outra, por exemplo.
+
+**Testado**: build do frontend sem erros. Não testado visualmente no
+navegador (sem ambiente gráfico aqui) — vale conferir que a foto cabe
+inteira na barra azul em telas largas E estreitas (o header usa
+`flex-wrap`, então as abas podem quebrar pra uma segunda linha no mobile —
+confirme que não gerou nenhum espaço estranho ali), e que
+Exportar/Importar na aba Procedimentos funcionam (baixa um `.json` com
+só a lista, e reimportar populate certo).
+
+## IMPORTANTE — incidente: repositório GitHub do Marcelo estava incompleto
+
+Entre as sessões acima, o deploy no Railway começou a falhar
+("Deployment failed during build process" / Railpack não achava
+`package.json`). Investigando o zip do repositório GitHub dele
+(`orcamentoapp/precifica`), descobri que **o repositório só tinha os
+arquivos que vieram dos meus zips de entrega incremental** (só os
+arquivos alterados de cada sessão) — faltava o projeto inteiro:
+`package.json`, `screens/`, `AuthGate.jsx`, `AccountContext.jsx`,
+`api.js`, `db.js`, `middleware/`, `utils/`, `payments.js`,
+`stripeWebhook.js`, `vite.config.js`, `index.html`, etc. Ele estava
+subindo cada zip de entrega como se fosse o projeto inteiro, em vez de
+mesclar com o projeto completo que ele já tinha.
+
+**Resolvido** entregando um zip com o PROJETO COMPLETO (todo o conteúdo
+de `/home/claude/precifica_project/precifica` nessa sessão, que é a
+cópia de trabalho que reflete o projeto original + todas as mudanças de
+todas as sessões — sem `node_modules`, `dist`, `.git`, `.env`), que ele
+subiu substituindo tudo no repositório. Depois disso o build e a
+migração funcionaram, e a sincronização entre PC e celular passou a
+funcionar (confirmado por ele).
+
+**Lição pra próximas sessões**: se o Marcelo relatar de novo algo que
+parece "minha mudança não teve efeito nenhum" ou erros de build/deploy,
+vale perguntar cedo se o repositório GitHub dele tem o projeto INTEIRO
+ou só os arquivos dos meus zips — e, se tiver dúvida, é mais seguro
+entregar o projeto completo (como o pacote de
+`/home/claude/precifica_project/precifica` nessa sessão, sempre que ele
+existir) do que só os arquivos alterados.
+
+## Atualização anterior: Configurações reduzida a 3 cards, 1 coluna só
 
 Só mexeu em `app-frontend/src/App.jsx`. O Marcelo achou a tela de
 Configurações da sessão anterior com "muita coisa" (7 cards em 2 colunas) e

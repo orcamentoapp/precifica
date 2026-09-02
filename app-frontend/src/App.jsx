@@ -2103,17 +2103,14 @@ function ImageCropModal({ imageSrc, onCancel, onSave }) {
   );
 }
 
-function OptionsMenu({ settings, onChange, procedures, onImportData, budgetHistory, onLogoUpload, onOpenProfileSettings }) {
+function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }) {
   const [open, setOpen] = useState(false);
   const [showAppearance, setShowAppearance] = useState(false);
   const [showContact, setShowContact] = useState(false);
-  const [showBackup, setShowBackup] = useState(false);
-  const [importFeedback, setImportFeedback] = useState("");
   const [contactSubject, setContactSubject] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [contactSending, setContactSending] = useState(false);
   const [contactFeedback, setContactFeedback] = useState(""); // "" | "sucesso" | "erro"
-  const fileInputRef = useRef(null);
   const ref = useRef(null);
   const account = useAccount();
 
@@ -2123,7 +2120,6 @@ function OptionsMenu({ settings, onChange, procedures, onImportData, budgetHisto
         setOpen(false);
         setShowAppearance(false);
         setShowContact(false);
-        setShowBackup(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -2148,40 +2144,6 @@ function OptionsMenu({ settings, onChange, procedures, onImportData, budgetHisto
     } finally {
       setContactSending(false);
     }
-  }
-
-  function handleExport() {
-    const payload = { exportedAt: new Date().toISOString(), settings, procedures, budgetHistory: budgetHistory || [] };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const fileNameBase = (settings.clinicName || "simulador-de-valores-a-cobrar")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-");
-    a.href = url;
-    a.download = `${fileNameBase}-backup.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  async function handleImportFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object") throw new Error("invalid");
-      onImportData(parsed);
-      setImportFeedback("Importado!");
-    } catch (err) {
-      setImportFeedback("Arquivo inválido");
-    }
-    setTimeout(() => setImportFeedback(""), 2500);
-    e.target.value = "";
   }
 
   return (
@@ -2297,40 +2259,6 @@ function OptionsMenu({ settings, onChange, procedures, onImportData, budgetHisto
                   <div className="text-xs text-rose-600 text-center">Não foi possível enviar. Tente de novo.</div>
                 )}
               </form>
-            </div>
-          )}
-
-          <button
-            onClick={() => setShowBackup((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm hover:bg-stone-50 transition border-t border-stone-100"
-          >
-            <span>Backup</span>
-            <ChevronRight className={`w-3.5 h-3.5 text-stone-400 transition-transform ${showBackup ? "rotate-90" : ""}`} />
-          </button>
-          {showBackup && (
-            <div className="px-4 pb-4 pt-1 border-t border-stone-100 space-y-2">
-              <button
-                onClick={handleExport}
-                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-stone-600 border border-stone-200 rounded-lg py-1.5 hover:bg-stone-50 transition"
-              >
-                <Download className="w-3.5 h-3.5" /> Exportar dados
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-stone-600 border border-stone-200 rounded-lg py-1.5 hover:bg-stone-50 transition"
-              >
-                <Upload className="w-3.5 h-3.5" /> Importar dados
-              </button>
-              <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} className="hidden" />
-              {importFeedback && (
-                <div className={`text-xs text-center ${importFeedback === "Importado!" ? "text-teal-600" : "text-rose-600"}`}>
-                  {importFeedback}
-                </div>
-              )}
-              <p className="text-xs text-stone-400 leading-relaxed">
-                Exporta procedimentos e configurações num arquivo .json pra guardar ou restaurar depois num outro
-                navegador/computador.
-              </p>
             </div>
           )}
 
@@ -3326,16 +3254,44 @@ export default function App() {
     }
   }
 
-  function handleImportData(parsed) {
-    if (parsed && typeof parsed.settings === "object" && parsed.settings !== null) {
-      persistSettings({ ...DEFAULT_SETTINGS, ...parsed.settings });
+  const proceduresFileInputRef = useRef(null);
+  const [proceduresImportFeedback, setProceduresImportFeedback] = useState(""); // "" | "sucesso" | "erro"
+
+  function handleExportProcedures() {
+    const blob = new Blob([JSON.stringify(procedures, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const fileNameBase = (settings.clinicName || "procedimentos")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-");
+    a.href = url;
+    a.download = `${fileNameBase}-procedimentos.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportProceduresFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      // Aceita tanto um arquivo só com a lista de procedimentos (formato novo)
+      // quanto um backup completo antigo (formato { procedures: [...] }),
+      // pra não quebrar backups feitos antes dessa mudança.
+      const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.procedures) ? parsed.procedures : null;
+      if (!list) throw new Error("invalid");
+      persistProcedures(list);
+      setProceduresImportFeedback("Importado!");
+    } catch (err) {
+      setProceduresImportFeedback("Arquivo inválido");
     }
-    if (Array.isArray(parsed?.procedures)) {
-      persistProcedures(parsed.procedures);
-    }
-    if (Array.isArray(parsed?.budgetHistory)) {
-      persistBudgetHistory(parsed.budgetHistory);
-    }
+    setTimeout(() => setProceduresImportFeedback(""), 2500);
+    e.target.value = "";
   }
 
   function flushHistoryBaseline() {
@@ -3484,27 +3440,15 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-5 pt-1.5 flex justify-end">
           <span style={{ fontSize: "9px", color: settings.secondaryColor || "#71CFFE" }}>Desenvolvido por Marcelo Zap</span>
         </div>
-        <div className="max-w-6xl mx-auto px-5 pb-2 pt-1 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="relative w-12 h-12 shrink-0">
-              <div
-                className="absolute z-20"
-                style={{
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                }}
-              >
-                <OptionsMenu
-                  settings={settings}
-                  onChange={persistSettings}
-                  procedures={procedures}
-                  onImportData={handleImportData}
-                  budgetHistory={budgetHistory}
-                  onLogoUpload={handleLogoUpload}
-                  onOpenProfileSettings={() => setTab("profile-settings")}
-                />
-              </div>
+            <div className="relative z-20 w-[72px] h-[72px] shrink-0">
+              <OptionsMenu
+                settings={settings}
+                onChange={persistSettings}
+                onLogoUpload={handleLogoUpload}
+                onOpenProfileSettings={() => setTab("profile-settings")}
+              />
             </div>
             <div className="min-w-0 ml-3">
               <div
@@ -3569,9 +3513,9 @@ export default function App() {
           />
         ) : (
           <div className="space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-stone-700">Procedimentos</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={undo}
                   disabled={!canUndo}
@@ -3601,6 +3545,34 @@ export default function App() {
                     </>
                   )}
                 </button>
+                <button
+                  onClick={handleExportProcedures}
+                  title="Exportar a lista de procedimentos num arquivo .json"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                >
+                  <Download className="w-4 h-4" /> Exportar
+                </button>
+                <button
+                  onClick={() => proceduresFileInputRef.current?.click()}
+                  title="Importar uma lista de procedimentos de um arquivo .json"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                >
+                  <Upload className="w-4 h-4" /> Importar
+                </button>
+                <input
+                  ref={proceduresFileInputRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={handleImportProceduresFile}
+                  className="hidden"
+                />
+                {proceduresImportFeedback && (
+                  <span
+                    className={`text-xs ${proceduresImportFeedback === "Importado!" ? "text-teal-600" : "text-rose-600"}`}
+                  >
+                    {proceduresImportFeedback}
+                  </span>
+                )}
                 <button
                   onClick={addProcedure}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-700 text-white text-sm font-medium hover:bg-teal-800 transition"
