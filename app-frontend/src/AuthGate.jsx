@@ -9,6 +9,7 @@ import ResetPassword from "./screens/ResetPassword";
 import LicenseBlocked from "./screens/LicenseBlocked";
 import AdminDashboard from "./AdminDashboard";
 import TrialBanner from "./TrialBanner";
+import RenewalWarningBanner from "./RenewalWarningBanner";
 import { AccountContext } from "./AccountContext";
 
 const RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // revalida a sessão/licença a cada 6 horas
@@ -199,6 +200,13 @@ export default function AuthGate({ children }) {
       }}
     >
       {session?.license?.type === "trial" && <TrialBanner daysLeft={session.license.daysLeft} />}
+      {session?.license &&
+        session.license.type !== "trial" &&
+        !session.license.hasStripeSubscription &&
+        typeof session.license.daysLeft === "number" &&
+        session.license.daysLeft <= 7 && (
+          <RenewalWarningBanner daysLeft={session.license.daysLeft} plan={session.license.type} />
+        )}
       {children}
     </AccountContext.Provider>
   );

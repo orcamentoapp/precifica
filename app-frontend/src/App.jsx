@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
   secondaryColor: "#71CFFE",
   taxProvisionPercent: 15,
   taxRegime: "liberal", // "liberal" (pessoa física, Carnê-Leão) | "cnpj" (Simples Nacional / Lucro Presumido)
+  darkMode: false,
   pixFeePercent: 0,
   cardPresets: [
     {
@@ -2223,6 +2224,13 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }
           {account?.user && (
             <div className="px-4 py-3 border-b border-stone-100">
               <div className="text-sm font-semibold text-stone-800 truncate">{account.user.email}</div>
+              {account?.license && typeof account.license.daysLeft === "number" && (
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {account.license.daysLeft <= 0
+                    ? "Licença vence hoje"
+                    : `${account.license.daysLeft} ${account.license.daysLeft === 1 ? "dia restante" : "dias restantes"} na licença`}
+                </div>
+              )}
             </div>
           )}
 
@@ -2235,6 +2243,25 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }
           </button>
           {showAppearance && (
             <div className="px-4 pb-4 pt-1 border-t border-stone-100">
+              <div className="flex items-center justify-between gap-2 py-2.5 mb-1">
+                <div>
+                  <div className="text-sm text-stone-700">Modo escuro</div>
+                  <div className="text-[11px] text-stone-400">Aplica em todo o app</div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!!settings.darkMode}
+                  onClick={() => onChange({ ...settings, darkMode: !settings.darkMode })}
+                  className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+                  style={{ backgroundColor: settings.darkMode ? "#0f766e" : "#d6d3d1" }}
+                >
+                  <span
+                    className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                    style={{ transform: settings.darkMode ? "translateX(20px)" : "translateX(0)" }}
+                  />
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-stone-500 mb-1">Cor primária</div>
@@ -3377,6 +3404,12 @@ export default function App() {
   const historyBaselineRef = useRef(null);
   const historyTimerRef = useRef(null);
   const [cropImageSrc, setCropImageSrc] = useState(null);
+
+  // Aplica/remove a classe "dark" no <html> conforme a preferência salva —
+  // é essa classe que os overrides de tema escuro em index.css usam.
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", !!settings.darkMode);
+  }, [settings.darkMode]);
 
   useEffect(() => {
     (async () => {

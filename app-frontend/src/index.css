@@ -18,3 +18,180 @@ body {
   }
 }
 
+/* ===================== MODO ESCURO ===================== */
+/* Em vez de reescrever milhares de linhas de JSX trocando cada classe
+   Tailwind por uma variante "dark:", sobrescrevemos aqui as classes de cor
+   (neutras + chips de status) que o app já usa em todo lugar, sob o seletor
+   ".dark" (aplicado no <html> via App.jsx quando settings.darkMode = true).
+   Isso cobre a esmagadora maioria das telas automaticamente. Se algum canto
+   específico ainda ficar com contraste ruim, é só reportar pra gente ajustar
+   pontualmente — um app desse tamanho é difícil de auditar 100% de uma vez. */
+
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+
+/* Fundos neutros */
+.dark .bg-white {
+  background-color: #27272a;
+}
+.dark .bg-stone-50 {
+  background-color: #18181b;
+}
+.dark .bg-stone-100 {
+  background-color: #302f2d;
+}
+.dark .bg-stone-200 {
+  background-color: #3f3f46;
+}
+.dark .hover\:bg-stone-50:hover {
+  background-color: #302f2d;
+}
+.dark .hover\:bg-stone-100:hover {
+  background-color: #3a3a3d;
+}
+.dark .hover\:bg-stone-200:hover {
+  background-color: #46464a;
+}
+
+/* Textos neutros */
+.dark .text-stone-900,
+.dark .text-stone-800 {
+  color: #f4f4f5;
+}
+.dark .text-stone-700,
+.dark .text-stone-600 {
+  color: #d4d4d8;
+}
+.dark .text-stone-500,
+.dark .text-stone-400 {
+  color: #a1a1aa;
+}
+.dark .text-stone-300 {
+  color: #71717a;
+}
+.dark .text-stone-50 {
+  color: #f4f4f5;
+}
+.dark .hover\:text-stone-600:hover,
+.dark .hover\:text-stone-700:hover {
+  color: #f4f4f5;
+}
+
+/* Bordas e divisores */
+.dark .border-stone-100,
+.dark .border-stone-200,
+.dark .border-stone-300 {
+  border-color: #3f3f46;
+}
+.dark .divide-stone-50 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #3f3f46;
+}
+
+/* Campos de formulário — muitos inputs no app não têm classe bg- explícita
+   (herdam branco do body), então o fundo escuro precisa vir do elemento. */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #27272a;
+  color: #f4f4f5;
+  border-color: #3f3f46;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #71717a;
+}
+.dark .focus\:border-teal-400:focus {
+  border-color: #2dd4bf;
+}
+
+/* Chips e acentos de cor (teal/amber/rose/indigo) — clareados pra manter
+   contraste sobre fundo escuro, sem perder a associação de cor original. */
+.dark .bg-teal-50 {
+  background-color: rgba(45, 212, 191, 0.12);
+}
+.dark .text-teal-600,
+.dark .text-teal-700,
+.dark .text-teal-800,
+.dark .text-teal-900 {
+  color: #5eead4;
+}
+.dark .border-teal-200,
+.dark .border-teal-300,
+.dark .border-teal-400 {
+  border-color: #0f766e;
+}
+.dark .hover\:bg-teal-50:hover {
+  background-color: rgba(45, 212, 191, 0.18);
+}
+.dark .hover\:text-teal-700:hover,
+.dark .hover\:text-teal-900:hover {
+  color: #99f6e4;
+}
+.dark .bg-teal-700 {
+  background-color: #0d9488;
+}
+.dark .bg-teal-800,
+.dark .hover\:bg-teal-800:hover {
+  background-color: #0f766e;
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(251, 191, 36, 0.12);
+}
+.dark .text-amber-600,
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  color: #fcd34d;
+}
+.dark .border-amber-200,
+.dark .border-amber-300 {
+  border-color: #92400e;
+}
+.dark .hover\:text-amber-700:hover {
+  color: #fde68a;
+}
+
+.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.12);
+}
+.dark .text-rose-500,
+.dark .text-rose-600,
+.dark .text-rose-700 {
+  color: #fda4af;
+}
+.dark .border-rose-200,
+.dark .border-rose-600 {
+  border-color: #9f1239;
+}
+.dark .hover\:bg-rose-50:hover {
+  background-color: rgba(244, 63, 94, 0.18);
+}
+.dark .hover\:text-rose-600:hover {
+  color: #fecdd3;
+}
+
+.dark .bg-indigo-50 {
+  background-color: rgba(129, 140, 248, 0.12);
+}
+.dark .text-indigo-600,
+.dark .text-indigo-700 {
+  color: #a5b4fc;
+}
+.dark .border-indigo-200 {
+  border-color: #3730a3;
+}
+.dark .hover\:bg-indigo-50:hover {
+  background-color: rgba(129, 140, 248, 0.18);
+}
+
+/* Sombras e overlays de modal já usam preto translúcido — funcionam bem
+   sobre fundo escuro sem precisar de ajuste. */
+
+

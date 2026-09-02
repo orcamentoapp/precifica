@@ -32,7 +32,58 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: correção de bug crítico na renovação + reformulação das abas Usuários e Chaves no painel admin
+## Atualização mais recente: dias restantes no menu de perfil + modo escuro + aviso de vencimento próximo com "Renovar agora"
+
+Três pedidos do Marcelo, todos no app do cliente (não no painel admin):
+
+1. **Dias restantes da licença no menu de perfil** — abrindo o menu ao
+   clicar na foto (componente `OptionsMenu` em
+   `app-frontend/src/App.jsx`), logo abaixo do e-mail agora aparece
+   "X dias restantes na licença" (ou "Licença vence hoje"), usando
+   `account.license.daysLeft` que já vinha do backend mas não era
+   exibido ali.
+
+2. **Modo escuro** — novo toggle em Aparência (dentro do mesmo menu),
+   salvo em `settings.darkMode` (persistido por conta, como
+   `headerColor`/`secondaryColor` já eram). Um `useEffect` no
+   componente `App` (`app-frontend/src/App.jsx`) aplica/remove a
+   classe `dark` no `<html>` conforme esse valor.
+   **Decisão de abordagem, importante pra próxima sessão**: em vez de
+   reescrever cada className do app com variantes `dark:` do Tailwind
+   (inviável com segurança num arquivo de ~3900 linhas numa sessão só,
+   risco alto de esquecer cantos), o tema escuro foi implementado como
+   **overrides de CSS** em `app-frontend/src/index.css`, sob o seletor
+   `.dark`, sobrescrevendo diretamente as classes Tailwind que o app já
+   usa (`bg-white`, `bg-stone-50/100`, `text-stone-400` a
+   `text-stone-900`, `border-stone-100/200/300`, os `hover:`/`focus:`
+   mais comuns, e os chips de cor teal/amber/rose/indigo). Isso cobre a
+   grande maioria das telas automaticamente, mas **não é garantido
+   100% dos cantos** — se algum lugar específico ficar com contraste
+   ruim ou fundo branco "vazando" no escuro, é reportar pra ajuste
+   pontual (provavelmente falta a classe usada ali na lista de
+   overrides).
+
+3. **Aviso de licença perto de vencer + "Renovar agora"** — componente
+   novo `RenewalWarningBanner.jsx` (mesmo padrão visual/estrutural do
+   `TrialBanner.jsx` já existente: barra fixa no topo + espaçador,
+   `env(safe-area-inset-top)` reservado). Aparece quando
+   `daysLeft <= 7` **e** a licença NÃO é trial **e** NÃO tem assinatura
+   Stripe ativa (`hasStripeSubscription`) — ou seja, só pra licença
+   mensal/anual que não renova sozinha (comprada via Mercado Pago ou
+   concedida pelo admin). O botão "Renovar agora" chama a mesma rota
+   que já existia em Configurações → Licença
+   (`POST /api/payments/mercadopago/renew-checkout`, com
+   `plan: license.type`) e redireciona pro checkout do Mercado Pago.
+   Ligado em `AuthGate.jsx`, ao lado de onde o `TrialBanner` já era
+   decidido (mutuamente exclusivos, então nunca aparecem os dois ao
+   mesmo tempo).
+
+**Testado**: `npm run build` do frontend limpo, sem erros. Não testado
+visualmente o modo escuro em cada tela nem o fluxo de pagamento do
+"Renovar agora" ponta a ponta nesta sessão — vale o Marcelo dar uma
+olhada geral no app com o modo escuro ligado depois do deploy.
+
+## Atualização anterior: correção de bug crítico na renovação + reformulação das abas Usuários e Chaves no painel admin
 
 Três mudanças no painel admin, a partir de feedback do Marcelo:
 
