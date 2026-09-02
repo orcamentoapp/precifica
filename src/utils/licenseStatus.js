@@ -39,6 +39,7 @@ async function getLicenseStatusForUser(pool, userId) {
     type: license.type,
     expiresAt: license.expires_at,
     daysLeft,
+    hasStripeSubscription: !!license.stripe_subscription_id,
   };
 }
 

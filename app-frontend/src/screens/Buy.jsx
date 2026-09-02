@@ -11,23 +11,28 @@ function formatBRL(value) {
 
 export default function Buy({ onBackToLogin }) {
   const [plan, setPlan] = useState("monthly"); // "monthly" | "annual"
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(""); // "" | "subscribe" | "trial"
   const [error, setError] = useState("");
 
-  async function startCheckout(trial) {
-    if (!name.trim() || !email.trim()) {
-      setError("Preencha nome e e-mail antes de continuar.");
+  async function startCheckout(mode) {
+    // mode: "subscribe" (cartão, recorrente) | "trial" (cartão, 7 dias grátis) | "pix_boleto" (pagamento único)
+    if (!email.trim()) {
+      setError("Preencha o e-mail antes de continuar.");
       return;
     }
     setError("");
-    setSubmitting(trial ? "trial" : "subscribe");
+    setSubmitting(mode);
     try {
       const res = await fetch("/api/payments/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), plan, trial }),
+        body: JSON.stringify({
+          email: email.trim(),
+          plan,
+          trial: mode === "trial",
+          method: mode === "pix_boleto" ? "pix_boleto" : "card",
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o pagamento.");
@@ -76,20 +81,30 @@ export default function Buy({ onBackToLogin }) {
           </button>
         </div>
 
-        <label style={labelStyle}>Nome</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
+        <label style={labelStyle}>E-mail</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} autoFocus />
 
-        <label style={{ ...labelStyle, marginTop: 12 }}>E-mail</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-
-        <button type="button" disabled={!!submitting} onClick={() => startCheckout(false)} style={buttonStyle}>
-          {submitting === "subscribe" ? "Preparando pagamento..." : "Assinar agora"}
+        <button type="button" disabled={!!submitting} onClick={() => startCheckout("subscribe")} style={buttonStyle}>
+          {submitting === "subscribe" ? "Preparando pagamento..." : "Assinar agora (cartão)"}
         </button>
 
         <button
           type="button"
           disabled={!!submitting}
-          onClick={() => startCheckout(true)}
+          onClick={() => startCheckout("pix_boleto")}
+          className="w-full mt-2.5 text-sm font-medium text-stone-700 border border-stone-200 rounded-lg py-2.5 hover:bg-stone-50 transition disabled:opacity-50"
+        >
+          {submitting === "pix_boleto" ? "Preparando..." : "Pagar com Pix ou Boleto"}
+        </button>
+        <p className="text-[11px] text-stone-400 text-center mt-1.5 leading-relaxed">
+          Pagamento único — libera {plan === "annual" ? "365" : "30"} dias de acesso. Não renova sozinho: quando
+          acabar, é só pagar de novo.
+        </p>
+
+        <button
+          type="button"
+          disabled={!!submitting}
+          onClick={() => startCheckout("trial")}
           className="w-full mt-2.5 text-sm font-medium text-teal-700 border border-teal-200 rounded-lg py-2.5 hover:bg-teal-50 transition disabled:opacity-50"
         >
           {submitting === "trial" ? "Preparando..." : "Testar grátis por 7 dias"}

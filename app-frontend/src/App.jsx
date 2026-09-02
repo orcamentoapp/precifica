@@ -2291,13 +2291,14 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }
 function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
   const profilePhotoInputRef = useRef(null);
   const account = useAccount();
-  const [renewSending, setRenewSending] = useState(false);
-  const [renewFeedback, setRenewFeedback] = useState(""); // "" | "sucesso" | "erro"
+  const [renewingPlan, setRenewingPlan] = useState(""); // "" | "monthly" | "annual"
+  const [renewError, setRenewError] = useState("");
+  const [cancelSending, setCancelSending] = useState(false);
+  const [cancelFeedback, setCancelFeedback] = useState(""); // "" | "sucesso" | "erro"
 
   const license = account?.license;
   const licenseTypeLabel = license?.type === "trial" ? "Teste" : license?.type === "annual" ? "Anual" : "Mensal";
   const daysLeft = license?.daysLeft;
-  const showRenewButton = license && typeof daysLeft === "number" && daysLeft <= 7;
 
   const { available: installAvailable, promptInstall } = useInstallPrompt();
   const [installed, setInstalled] = useState(false);
@@ -2309,24 +2310,31 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
     if (accepted) setInstalled(true);
   }
 
-  async function handleRequestRenewal() {
-    setRenewSending(true);
-    setRenewFeedback("");
+  async function handleRenew(plan) {
+    setRenewingPlan(plan);
+    setRenewError("");
     try {
-      await apiRequest("/api/support/contact", {
+      const data = await apiRequest("/api/payments/stripe/renew-checkout", {
         method: "POST",
-        body: JSON.stringify({
-          subject: "Renovação de licença",
-          message: `Minha licença (${licenseTypeLabel}) está a ${daysLeft} ${
-            daysLeft === 1 ? "dia" : "dias"
-          } de expirar — gostaria de renová-la.`,
-        }),
+        body: JSON.stringify({ plan }),
       });
-      setRenewFeedback("sucesso");
+      window.location.href = data.checkoutUrl;
     } catch (err) {
-      setRenewFeedback("erro");
+      setRenewError("Não foi possível iniciar o pagamento. Tente de novo.");
+      setRenewingPlan("");
+    }
+  }
+
+  async function handleCancelSubscription() {
+    setCancelSending(true);
+    setCancelFeedback("");
+    try {
+      await apiRequest("/api/payments/stripe/cancel-subscription", { method: "POST" });
+      setCancelFeedback("sucesso");
+    } catch (err) {
+      setCancelFeedback("erro");
     } finally {
-      setRenewSending(false);
+      setCancelSending(false);
     }
   }
 
@@ -2466,24 +2474,56 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
                 </span>
               </div>
             )}
-            {showRenewButton && (
-              <div className="pt-2 border-t border-stone-100">
+
+            <div className="pt-3 border-t border-stone-100">
+              <p className="text-xs text-stone-500 mb-2">
+                Renovar a qualquer momento (Pix, Boleto ou cartão — você escolhe na próxima tela):
+              </p>
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={handleRequestRenewal}
-                  disabled={renewSending}
-                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-teal-700 text-white rounded-lg py-2 hover:bg-teal-800 transition disabled:opacity-50"
+                  onClick={() => handleRenew("monthly")}
+                  disabled={!!renewingPlan}
+                  className="text-xs font-semibold border border-teal-200 text-teal-700 rounded-lg py-2 hover:bg-teal-50 transition disabled:opacity-50"
                 >
-                  {renewSending ? "Enviando pedido..." : "Renovar licença"}
+                  {renewingPlan === "monthly" ? "Preparando..." : "+30 dias"}
                 </button>
-                {renewFeedback === "sucesso" && (
-                  <div className="text-xs text-teal-600 text-center mt-2">
-                    Pedido enviado! A gente entra em contato pra renovar.
-                  </div>
-                )}
-                {renewFeedback === "erro" && (
-                  <div className="text-xs text-rose-600 text-center mt-2">
-                    Não foi possível enviar o pedido. Tente de novo.
-                  </div>
+                <button
+                  onClick={() => handleRenew("annual")}
+                  disabled={!!renewingPlan}
+                  className="text-xs font-semibold border border-teal-200 text-teal-700 rounded-lg py-2 hover:bg-teal-50 transition disabled:opacity-50"
+                >
+                  {renewingPlan === "annual" ? "Preparando..." : "+365 dias"}
+                </button>
+              </div>
+              {renewError && <div className="text-xs text-rose-600 text-center mt-2">{renewError}</div>}
+            </div>
+
+            {license.hasStripeSubscription && (
+              <div className="pt-3 border-t border-stone-100">
+                {cancelFeedback === "sucesso" ? (
+                  <p className="text-xs text-teal-600 leading-relaxed">
+                    Sua assinatura não vai renovar automaticamente. Você continua com acesso até{" "}
+                    {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString("pt-BR") : "a data já paga"}.
+                  </p>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleCancelSubscription}
+                      disabled={cancelSending}
+                      className="w-full text-xs font-medium text-rose-600 border border-rose-200 rounded-lg py-2 hover:bg-rose-50 transition disabled:opacity-50"
+                    >
+                      {cancelSending ? "Cancelando..." : "Cancelar assinatura (cartão)"}
+                    </button>
+                    <p className="text-[11px] text-stone-400 mt-1.5 leading-relaxed">
+                      Você continua com acesso até o fim do período já pago — só a próxima cobrança automática é
+                      cancelada.
+                    </p>
+                    {cancelFeedback === "erro" && (
+                      <div className="text-xs text-rose-600 text-center mt-2">
+                        Não foi possível cancelar agora. Tente de novo.
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

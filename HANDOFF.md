@@ -27,7 +27,107 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: tela de compra com planos Mensal/Anual + teste grátis de 7 dias (com cartão)
+## Atualização mais recente: renovação manual via Pix/Boleto + cancelar assinatura + ajustes na compra
+
+Pedidos do Marcelo nessa sessão:
+
+1. **Tela de compra (`Buy.jsx`) só pede e-mail agora** — tirei o campo Nome
+   (não tinha uso real além do metadado do Stripe).
+2. **Preço do plano anual não precisa ser cadastrado no Stripe** — expliquei
+   pro Marcelo que o Precifica nunca usou Price ID fixo do Stripe; o preço é
+   montado na hora via `price_data`, a partir da variável de ambiente
+   `PRECIFICA_ANNUAL_PRICE` (só precisa existir no Railway, nada no Stripe).
+3. **Por que só aparece cartão na assinatura**: expliquei que é porque é
+   **recorrente** — Boleto nunca suportou cobrança automática recorrente no
+   Stripe, e Pix só ganhou isso recentemente (Pix Automático, lançado esse
+   ano) e ainda por convite pra contas BR + integração própria (mandatos) —
+   não é só uma configuração pra ligar. Card continua sendo a única opção
+   realista pra recorrência automática.
+4. **Pedido novo — pagamento único via Pix/Boleto/cartão, sem assinatura**:
+   o Marcelo quer que, além da assinatura recorrente por cartão, dê pra
+   comprar/renovar +30 ou +365 dias com um pagamento ÚNICO (Pix, Boleto ou
+   cartão avulso) — sem virar assinatura, sem cobrança automática depois.
+   Quando a licença vence, o acesso já era bloqueado (comportamento que já
+   existia); agora a pessoa pode voltar e comprar mais dias a qualquer
+   momento, por conta própria.
+5. **Pedido novo — cancelar assinatura**: botão pra quem está na assinatura
+   por cartão cancelar a renovação automática (sem perder o acesso já
+   pago).
+
+**O que foi implementado:**
+
+- `src/utils/stripe.js` — duas funções novas:
+  - `createOneTimePaymentCheckout({ email, plan, userId })`: cria um
+    Checkout do Stripe em `mode: "payment"` (pagamento único, não
+    assinatura), com `payment_method_types: ["card", "boleto", "pix"]`
+    explícito (precisa Boleto e Pix habilitados no painel do Stripe —
+    Pix também depende da liberação por convite mencionada acima).
+    `userId` vazio = compra nova (sem conta ainda); preenchido = renovação
+    de quem já está logado.
+  - `cancelSubscriptionAtPeriodEnd(subscriptionId)`: chama
+    `stripe.subscriptions.update(id, { cancel_at_period_end: true })` —
+    não cancela na hora, só impede a próxima cobrança.
+- `src/routes/payments.js`:
+  - `POST /stripe/checkout` ganhou o campo `method` (`"card"` ou
+    `"pix_boleto"`) — se for `pix_boleto`, ignora `trial` (não faz sentido
+    trial sem cartão) e usa o pagamento único.
+  - `POST /stripe/renew-checkout` (NOVA, autenticada) — pagamento único
+    pra quem já está logado renovar a própria conta.
+  - `POST /stripe/cancel-subscription` (NOVA, autenticada) — cancela a
+    renovação automática da licença mais recente do usuário logado (dá erro
+    claro se ela não tiver `stripe_subscription_id`, isto é, se não for uma
+    assinatura por cartão).
+- `src/routes/stripeWebhook.js` — `checkout.session.completed` com
+  `session.mode === "payment"` agora é tratado: se veio com `userId` nos
+  metadados (renovação de conta existente), soma os dias na licença mais
+  recente dessa conta — **somando a partir da data de expiração atual, não
+  de hoje**, se ela ainda não tinha vencido (quem renova adiantado não
+  perde os dias que já tinha) — e atualiza o `type` pro plano pago. Se veio
+  sem `userId` (compra nova), cria uma licença `'unused'` do jeito que já
+  acontecia com a assinatura por cartão, e manda o código por e-mail.
+- `src/utils/licenseStatus.js` — a licença retornada pro front agora inclui
+  `hasStripeSubscription: !!license.stripe_subscription_id`, usado pra só
+  mostrar o botão de cancelar assinatura em quem realmente tem uma.
+- `app-frontend/src/screens/Buy.jsx` — novo botão "Pagar com Pix ou Boleto"
+  (pagamento único, sem trial) ao lado do "Assinar agora" (cartão,
+  recorrente) e do "Testar grátis" (trial, cartão).
+- `app-frontend/src/App.jsx` (seção "Licença" dentro de Configurações da
+  Conta) — **substitui** o antigo botão único "Renovar licença" (que só
+  mandava mensagem pro suporte) por dois botões reais de renovação
+  self-service, **sempre visíveis** (não só quando falta pouco tempo):
+  "+30 dias" e "+365 dias", cada um abrindo um Checkout de pagamento único
+  (a pessoa escolhe Pix/Boleto/cartão na própria tela do Stripe). E, só pra
+  quem tem `hasStripeSubscription`, um botão "Cancelar assinatura (cartão)"
+  com aviso claro de que o acesso continua até a data já paga.
+
+**⚠️ Passos manuais no painel do Stripe** (nenhum dá pra fazer por código):
+- Verificar se **Boleto** e **Pix** estão habilitados em
+  Configurações → Payment methods. Sem isso, `createOneTimePaymentCheckout`
+  vai dar erro do Stripe (ele recusa `payment_method_types` que a conta não
+  tem habilitado).
+- Pix pra contas do Brasil ainda é por convite da própria Stripe — se não
+  tiver liberado, o Marcelo pode tentar solicitar (ou simplesmente deixar
+  só Boleto + cartão habilitados por enquanto, funciona igual, só sem Pix).
+
+**Testado**: build do frontend sem erros; `node --check` em todos os
+arquivos de backend alterados; testei localmente com Postgres real (subi
+de novo o ambiente de teste): confirmei que `hasStripeSubscription: false`
+aparece certo pra uma licença sem assinatura Stripe, que
+`renew-checkout`/`cancel-subscription` exigem login (401 sem token) e
+respondem com erro tratado (não crasham) quando o Stripe não está
+configurado, que `cancel-subscription` dá 400 com mensagem clara quando a
+licença não tem `stripe_subscription_id`, e rodei manualmente a MESMA
+consulta SQL que o webhook usa pra renovar (some dias + troca `type`) —
+confirmei que funciona certo contra o schema real. **NÃO testado**: o
+fluxo completo passando por um Checkout de verdade do Stripe (sem acesso a
+`api.stripe.com` neste ambiente) — o Marcelo precisa testar em modo teste:
+(1) logado, clicar em "+30 dias" e pagar com Pix/Boleto/cartão de teste do
+Stripe, conferir que a licença soma os dias certos; (2) clicar em
+"Cancelar assinatura" numa conta que tenha assinatura de teste ativa,
+conferir no painel do Stripe que ficou marcada `cancel_at_period_end` e
+que o acesso no app continua até a data de expiração.
+
+## Atualização anterior: tela de compra com planos Mensal/Anual + teste grátis de 7 dias (com cartão)
 
 Pedido do Marcelo: a tela de "Assinar agora" (`Buy.jsx`) tinha só assinatura
 mensal e nenhum trial. Agora tem 2 cards de plano (Mensal R$99,90 / Anual

@@ -46,10 +46,64 @@ async function stripeWebhookHandler(req, res) {
     // "checkout.session.completed" é o ponto em que a conta é criada de
     // verdade — inclusive pra teste grátis (que NÃO gera fatura paga até o
     // trial acabar, então "invoice.paid" sozinho demoraria 7 dias pra
-    // liberar acesso). Aqui a gente já sabe o plano e se é trial pelos
-    // metadados que a GENTE mesma colocou ao criar a sessão (createCheckoutSession).
+    // liberar acesso) e pra pagamento único via Pix/Boleto (que nunca gera
+    // fatura de assinatura nenhuma). Aqui a gente já sabe o plano e se é
+    // trial/pagamento-único pelos metadados que a GENTE mesma colocou ao
+    // criar a sessão (createCheckoutSession / createOneTimePaymentCheckout).
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
+
+      // Pagamento ÚNICO (Pix/Boleto/cartão avulso, sem assinatura) — soma
+      // dias numa licença existente (se veio de alguém já logado) ou cria
+      // uma licença nova (se foi uma compra sem conta ainda).
+      if (session.mode === "payment") {
+        const buyerEmail = session.customer_details?.email || session.customer_email;
+        const plan = session.metadata?.plan === "annual" ? "annual" : "monthly";
+        const userId = session.metadata?.userId || null;
+        const durationDays = durationDaysForPlan(plan);
+
+        if (!buyerEmail) {
+          console.error("Webhook Stripe: pagamento único sem e-mail, session:", session.id);
+          return res.status(200).json({ received: true, error: "session_without_email" });
+        }
+
+        if (userId) {
+          // Renovação de quem já tem conta: soma os dias na licença mais
+          // recente dela. Se ainda não tinha expirado, soma a partir da
+          // data de expiração atual (não perde os dias que já tinha); se já
+          // tinha expirado (ou nunca teve data), soma a partir de agora.
+          const { rows } = await pool.query(
+            "SELECT * FROM licenses WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+            [userId]
+          );
+          const license = rows[0];
+          if (!license) {
+            console.error("Webhook Stripe: renovação sem licença encontrada, userId:", userId);
+            return res.status(200).json({ received: true, error: "license_not_found_for_renewal" });
+          }
+          const currentExpiry = license.expires_at ? new Date(license.expires_at) : null;
+          const base = currentExpiry && currentExpiry > new Date() ? currentExpiry : new Date();
+          const expiresAt = addDays(base, durationDays);
+          await pool.query("UPDATE licenses SET expires_at = $1, status = 'active', type = $2 WHERE id = $3", [
+            expiresAt,
+            plan,
+            license.id,
+          ]);
+          await sendLicenseRenewedEmail(buyerEmail, expiresAt.toLocaleDateString("pt-BR"));
+        } else {
+          // Compra nova, sem conta ainda: cria a licença (igual já
+          // acontece na assinatura por cartão) e manda o código por e-mail.
+          const code = generateLicenseCode();
+          await pool.query(
+            `INSERT INTO licenses (code, status, type, buyer_email)
+             VALUES ($1, 'unused', $2, $3)`,
+            [code, plan, buyerEmail.trim().toLowerCase()]
+          );
+          await sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || "");
+        }
+        return res.status(200).json({ received: true });
+      }
+
       if (session.mode !== "subscription") {
         return res.status(200).json({ received: true, ignored: true });
       }
