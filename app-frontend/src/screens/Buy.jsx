@@ -16,7 +16,8 @@ export default function Buy({ onBackToLogin }) {
   const [error, setError] = useState("");
 
   async function startCheckout(mode) {
-    // mode: "subscribe" (cartão, recorrente) | "trial" (cartão, 7 dias grátis) | "pix_boleto" (pagamento único)
+    // mode: "subscribe" (cartão, recorrente, Stripe) | "trial" (cartão, 7 dias grátis, Stripe)
+    //     | "pix_boleto" (pagamento único, Mercado Pago)
     if (!email.trim()) {
       setError("Preencha o e-mail antes de continuar.");
       return;
@@ -24,15 +25,13 @@ export default function Buy({ onBackToLogin }) {
     setError("");
     setSubmitting(mode);
     try {
-      const res = await fetch("/api/payments/stripe/checkout", {
+      const endpoint = mode === "pix_boleto" ? "/api/payments/mercadopago/checkout" : "/api/payments/stripe/checkout";
+      const body =
+        mode === "pix_boleto" ? { email: email.trim(), plan } : { email: email.trim(), plan, trial: mode === "trial" };
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          plan,
-          trial: mode === "trial",
-          method: mode === "pix_boleto" ? "pix_boleto" : "card",
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o pagamento.");

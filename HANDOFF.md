@@ -27,7 +27,122 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros projetos do Marcelo.
 
-## Atualização mais recente: renovação manual via Pix/Boleto + cancelar assinatura + ajustes na compra
+## Atualização mais recente: Mercado Pago pro pagamento único (Pix/Boleto/cartão avulso), Stripe só assinatura
+
+Sessão longa de decisão + implementação. Resumo da conversa com o
+Marcelo, pra não repetir a mesma investigação numa sessão futura:
+
+**Contexto/decisão**: o Marcelo queria Pix na tela de compra. Pix no
+Stripe pra contas BR é por convite — ainda não liberado nessa conta.
+Avaliamos juntos: Mercado Pago, PagSeguro/PagBank, e plataformas
+"Merchant of Record" (Hotmart/Eduzz). Achados importantes (pesquisados
+ao vivo, vale conferir se mudou):
+- **PagBank bloqueia CONTA PESSOA FÍSICA de usar a API de Pagamento
+  Recorrente** (confirmado na doc oficial deles) — eliminado de cara,
+  já que o Marcelo não tem CNPJ.
+- **Mercado Pago**: Pix pra ASSINATURA (recorrente) não é confiável hoje
+  — achamos um relato técnico oficial (GitHub) dizendo que a API de
+  Assinaturas (`/preapproval`) só aceita cartão ou boleto, não Pix de
+  verdade (o que os blogs chamam de "Pix recorrente" parece ser reenvio
+  manual, não débito automático). Pix pra PAGAMENTO ÚNICO funciona bem e
+  sem fila de espera.
+- **Hotmart/Eduzz** (Merchant of Record) resolveriam tudo (Pix + esconder
+  nome pessoal + sem CNPJ), mas têm taxa mais alta e são pensados pra
+  infoprodutos — ficou como opção descartada por enquanto, não
+  implementada.
+- **Nome no extrato**: com conta pessoa física (sem CNPJ) no Mercado
+  Pago, o nome do Marcelo (não um nome fantasia) tende a aparecer pro
+  cliente que paga — achamos um relato de outro vendedor com a mesma
+  reclamação, mas não uma confirmação 100% oficial de que não dá pra
+  configurar diferente. Vale ele mesmo checar no painel
+  (Configurações → nome da loja/descritor) antes de bater o martelo. Se
+  incomodar, abrir um MEI resolve (rápido, grátis, sozinho, pelo Portal
+  do Empreendedor).
+- **Decisão final do Marcelo**: manter a ASSINATURA (cartão + trial) no
+  Stripe — já funciona, não tem os bloqueios acima — e usar o Mercado
+  Pago **só pro pagamento único** (Pix, Boleto, cartão avulso — os
+  botões "Pagar com Pix ou Boleto" na compra e "+30 dias"/"+365 dias" em
+  Configurações → Licença).
+
+**⚠️ Segurança encontrada durante a implementação — CVE-2026-76842**: o
+SDK oficial do Mercado Pago pra Node.js (`mercadopago` no npm) tinha uma
+vulnerabilidade de **path injection** (severidade alta), publicada há
+poucos dias, corrigida a partir da versão 3.5.0. Fixei `^3.6.0` no
+`package.json` (testei: instala e importa certinho). Além disso, **por
+segurança em profundidade**, `src/utils/mercadopago.js` valida
+manualmente que qualquer ID de pagamento vindo de fora (do corpo de um
+webhook, por exemplo) é só dígitos antes de passar pra qualquer chamada
+da SDK — **nunca remova essa validação**, mesmo que a SDK já esteja
+corrigida.
+
+**O que foi implementado:**
+- `package.json` — dependência `mercadopago: ^3.6.0`.
+- `src/utils/mercadopago.js` (NOVO) — `createOneTimePaymentPreference`
+  (cria uma Preference via Checkout Pro do Mercado Pago, retorna o
+  `init_point`/`sandbox_init_point` pra redirecionar o cliente — mesmo
+  papel que `session.url` tinha no Stripe), `getPayment` (busca um
+  pagamento por ID, com o ID sempre validado antes), e
+  `verifyWebhookSignature` (confere a assinatura HMAC que o Mercado Pago
+  manda no header `x-signature`, comparação em tempo constante).
+- `src/routes/mercadopagoWebhook.js` (NOVO) — recebe a notificação,
+  confere a assinatura (rejeita com 401 se inválida), busca o pagamento,
+  e se `status === "approved"`: soma os dias na licença existente (se
+  veio de renovação de conta logada) ou cria uma licença nova + manda o
+  código por e-mail (se veio de compra nova) — exatamente o mesmo padrão
+  que o pagamento único já tinha no Stripe antes de mudar de provedor.
+  Reaproveita a tabela `stripe_processed_events` pra idempotência
+  (prefixando a chave com `mp_payment_` pra não colidir com eventos do
+  Stripe).
+- `src/routes/payments.js` — `POST /stripe/checkout` voltou a ser só
+  assinatura (tirei o parâmetro `method`/`pix_boleto` que tinha
+  entrado); duas rotas novas: `POST /mercadopago/checkout` (pública,
+  compra nova) e `POST /mercadopago/renew-checkout` (autenticada,
+  renovação); e `POST /mercadopago/webhook` montado aqui também (cai em
+  `/api/payments/mercadopago/webhook`, sem precisar mexer no
+  `server.js` — o Mercado Pago não exige corpo "cru" como o Stripe pra
+  verificar assinatura, então não precisou de tratamento especial de
+  `express.raw`).
+- `src/utils/stripe.js` — removida a função `createOneTimePaymentCheckout`
+  (não é mais dele). `createCheckoutSession` (assinatura) e
+  `cancelSubscriptionAtPeriodEnd` continuam iguais.
+- `src/routes/stripeWebhook.js` — removido o bloco que tratava
+  `session.mode === "payment"` (pagamento único não passa mais pelo
+  Stripe).
+- `.env.example` e `README.md` — documentadas as variáveis novas
+  (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`) e o passo a
+  passo de onde pegar cada uma no painel do Mercado Pago, incluindo o
+  aviso sobre nome pessoal no extrato e a nota da CVE.
+- `app-frontend/src/screens/Buy.jsx` — botão "Pagar com Pix ou Boleto"
+  agora chama `/api/payments/mercadopago/checkout` (antes ia pro Stripe
+  com `method: "pix_boleto"`).
+- `app-frontend/src/App.jsx` — os botões "+30 dias"/"+365 dias" em
+  Configurações → Licença agora chamam
+  `/api/payments/mercadopago/renew-checkout`.
+
+**Testado**: build do frontend sem erros; `node --check` em todos os
+arquivos de backend alterados; **instalei o pacote de verdade** (`npm
+install`) e confirmei que a versão instalada é 3.6.0 (corrigida) e que
+os imports (`MercadoPagoConfig`, `Preference`, `Payment`) funcionam;
+**testei a validação de segurança isoladamente**: `validatePaymentId`
+rejeita um payload malicioso de path traversal e aceita um ID numérico
+normal; `verifyWebhookSignature` aceita uma assinatura HMAC válida
+(gerada com o mesmo algoritmo do Mercado Pago) e rejeita uma forjada.
+Subi o servidor com Postgres real e testei as rotas: checkout do Mercado
+Pago com token falso dá 500 tratado (não crasha); `renew-checkout` sem
+login dá 401; o webhook sem assinatura válida dá 401; o webhook com um
+tipo de evento irrelevante é ignorado com 200; e confirmei que a
+assinatura por cartão do Stripe continua respondendo normalmente (não
+quebrou nada ao tirar o pagamento único de lá).
+
+**NÃO testado**: o fluxo completo contra a API real do Mercado Pago (sem
+acesso a `api.mercadopago.com` neste ambiente) — o Marcelo ainda precisa
+criar a conta/aplicação de desenvolvedor, colocar
+`MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_WEBHOOK_SECRET` no Railway,
+cadastrar o webhook no painel do Mercado Pago apontando pro endpoint
+certo (ver README), e testar pagar de verdade em modo teste antes de ir
+pra produção.
+
+## Atualização anterior: renovação manual via Pix/Boleto + cancelar assinatura + ajustes na compra
 
 Pedidos do Marcelo nessa sessão:
 

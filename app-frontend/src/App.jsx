@@ -2314,7 +2314,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
     setRenewingPlan(plan);
     setRenewError("");
     try {
-      const data = await apiRequest("/api/payments/stripe/renew-checkout", {
+      const data = await apiRequest("/api/payments/mercadopago/renew-checkout", {
         method: "POST",
         body: JSON.stringify({ plan }),
       });
