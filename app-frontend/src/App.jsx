@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react
 import { Plus, Stethoscope, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut } from "lucide-react";
 import { apiRequest } from "./api";
 import { useAccount } from "./AccountContext";
+import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
 
 const DEFAULT_INSTALLMENT_FEES = [
   { n: 1, fee: 3.5 },
@@ -2298,6 +2299,16 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
   const daysLeft = license?.daysLeft;
   const showRenewButton = license && typeof daysLeft === "number" && daysLeft <= 7;
 
+  const { available: installAvailable, promptInstall } = useInstallPrompt();
+  const [installed, setInstalled] = useState(false);
+  const alreadyInstalled = isRunningInstalled();
+  const onIOS = isIOS();
+
+  async function handleInstallClick() {
+    const accepted = await promptInstall();
+    if (accepted) setInstalled(true);
+  }
+
   async function handleRequestRenewal() {
     setRenewSending(true);
     setRenewFeedback("");
@@ -2479,6 +2490,30 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
           </div>
         </SettingsSubSection>
       )}
+
+      <SettingsSubSection icon={<Download className="w-4 h-4 text-teal-700" />} title="Adicionar app na tela inicial">
+        {alreadyInstalled || installed ? (
+          <p className="text-sm text-stone-600">Você já está usando o Precifica instalado como app. 🎉</p>
+        ) : onIOS ? (
+          <div className="text-sm text-stone-600 leading-relaxed">
+            No iPhone/iPad, abra o Precifica pelo <strong>Safari</strong>, toque no ícone de compartilhar
+            (<span className="inline-block">⬆️</span>) na barra de baixo e escolha{" "}
+            <strong>"Adicionar à Tela de Início"</strong>.
+          </div>
+        ) : installAvailable ? (
+          <button
+            onClick={handleInstallClick}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-teal-700 text-white rounded-lg py-2 hover:bg-teal-800 transition"
+          >
+            <Download className="w-3.5 h-3.5" /> Adicionar à tela inicial
+          </button>
+        ) : (
+          <p className="text-sm text-stone-600 leading-relaxed">
+            No Android, abra o menu do navegador (⋮) e procure por <strong>"Instalar aplicativo"</strong> ou{" "}
+            <strong>"Adicionar à tela inicial"</strong>.
+          </p>
+        )}
+      </SettingsSubSection>
     </SettingsCard>
   );
 }

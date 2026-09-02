@@ -5,7 +5,85 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## Atualização mais recente: altura do cabeçalho + backup movido pra Procedimentos (só a lista)
+## REGRA FIXA DE ENTREGA — leia antes de gerar qualquer zip
+
+O Marcelo sempre sobe o zip completo pra continuar o projeto numa
+instância nova do Claude — é assim que ele te dá acesso a todos os
+arquivos e a esse HANDOFF de uma vez. Por isso, **todo zip entregue
+nesse projeto segue este padrão fixo, sem exceção**:
+
+- **Nome do zip**: `precifica DD-MM-AAAA HHhMM.zip` — data e hora de
+  Brasília (fuso `America/Sao_Paulo`) do momento da entrega.
+- **Conteúdo**: uma única pasta chamada `precifica` dentro do zip, e
+  dentro dessa pasta TODOS os arquivos do sistema — o projeto
+  **completo** (não só os arquivos alterados na sessão), sem
+  `node_modules`, `dist`, `.git` nem `.env` — **junto com o
+  `HANDOFF.md` atualizado** (dentro da pasta `precifica`, não solto na
+  raiz do zip).
+- Isso vale mesmo que a mudança da sessão tenha sido pequena: o zip
+  inteiro sempre carrega o projeto todo, porque é ele que vai virar o
+  upload pra continuar numa instância nova.
+
+Essa regra é específica desse projeto (Precifica) — não confundir com
+convenções de entrega de outros projetos do Marcelo.
+
+## Atualização mais recente: PWA — "Adicionar app na tela inicial"
+
+Implementado o pedido de transformar o Precifica num app instalável
+(PWA), depois de descartar a ideia de "baixar pra Android/iOS" (não
+existe app nativo, e criar um teria custo/esforço bem maiores — decidido
+junto com o Marcelo, ver conversa).
+
+**MUITO IMPORTANTE — sobre o ícone**: o ícone usado
+(`app-frontend/public/icons/`) foi **desenhado pelo próprio Marcelo**,
+não é banco de imagens/stock. Numa iteração anterior dessa mesma sessão,
+o Claude viu uma referência visual parecida (dente + cifrão) e presumiu
+por conta própria que era arte de banco de imagens, e substituiu por uma
+versão própria sem perguntar — o Marcelo corrigiu isso e deixou claro que
+foi um erro sério tomar essa decisão sem consultá-lo. A partir daqui,
+**o ícone é o arquivo enviado por ele, tal como está** (só redimensionado
+pros tamanhos técnicos exigidos — 512, 192, 180, 32px — nenhuma alteração
+de arte). Se precisar trocar o ícone no futuro, é o Marcelo quem decide o
+design; não presuma.
+
+**O que foi implementado:**
+- `app-frontend/public/icons/` — `icon-512.png`, `icon-192.png`,
+  `apple-touch-icon.png` (180px, iOS), `favicon-32.png`. Gerados a partir
+  do PNG que o Marcelo mandou (1254×1254), só redimensionados.
+- `app-frontend/public/manifest.json` — nome, cores (`theme_color`
+  `#0f766e`, o teal do app), ícones com `purpose: "any maskable"`.
+- `app-frontend/public/sw.js` — service worker mínimo, só pra passar no
+  critério de instalabilidade do Chrome/Android (não faz cache nem
+  funciona offline de propósito — o app depende da API/banco de
+  qualquer forma). Registrado via script inline no `index.html`.
+- `app-frontend/index.html` — `<link rel="manifest">`, favicon,
+  `apple-touch-icon`, `theme-color`, meta tags
+  `apple-mobile-web-app-*` (essas fazem o Safari do iPhone tratar o app
+  como "capaz de tela cheia" quando adicionado à tela de início).
+- `app-frontend/src/pwaInstall.js` (novo arquivo) — captura o evento
+  `beforeinstallprompt` (Chrome/Android) fora do React, guardando em
+  variável de módulo (o evento pode disparar antes de qualquer
+  componente montar), e expõe o hook `useInstallPrompt()` mais os
+  helpers `isRunningInstalled()` e `isIOS()`.
+- **Seção "Adicionar app na tela inicial" dentro de Configurações**
+  (`ProfileSettingsPage`, no card "Configurações da Conta", depois da
+  seção Licença): comportamento por plataforma —
+  - Já instalado → mensagem confirmando.
+  - iOS (Safari nunca dispara `beforeinstallprompt`) → instrução manual
+    (Compartilhar → Adicionar à Tela de Início).
+  - Android/Chrome com o prompt disponível → botão que dispara a
+    instalação nativa do navegador.
+  - Fallback (navegador sem suporte ou prompt ainda não disparado) →
+    instrução manual genérica.
+
+**Testado**: build do frontend sem erros; conferi que `manifest.json`
+é JSON válido e que `index.html`/ícones/manifest/sw.js foram parar
+certinho dentro de `dist/` depois do build (o Vite copia tudo que está
+em `app-frontend/public/` pra raiz do build automaticamente). **Não
+testado ao vivo** (instalar de verdade no Android e no iPhone) — isso só
+dá pra confirmar no ambiente real do Marcelo depois do deploy.
+
+## Atualização anterior: altura do cabeçalho + backup movido pra Procedimentos (só a lista)
 
 Só mexeu em `app-frontend/src/App.jsx`. Pedidos do Marcelo depois de ver o
 app em produção:
