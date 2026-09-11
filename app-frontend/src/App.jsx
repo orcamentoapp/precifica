@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } fr
 import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users } from "lucide-react";
 import { apiRequest, clearToken } from "./api";
 import Chart from "chart.js/auto";
+import html2canvas from "html2canvas";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
 
@@ -59,11 +60,18 @@ function tabFromPath(pathname) {
 const DEFAULT_SETTINGS = {
   clinicName: "Nome",
   logoDataUrl: "",
+  clinicLogoDataUrl: "", // logo do consultório/clínica (marca) — diferente de logoDataUrl, que é a foto de perfil da pessoa
+  specialty: "", // aparece embaixo do nome no orçamento exportado (ex: "Ortodontia", "Odontologia Geral")
+  instagramHandle: "", // aparece no rodapé do orçamento exportado, junto do telefone
   orgLabel: "Consultório",
   professionalRegistration: "",
   address: "",
   phone: "",
   quoteValidityMonths: 3,
+  // Cor de destaque escolhida pela pessoa — usada tanto no realce das abas
+  // do próprio app quanto nas partes coloridas do orçamento exportado
+  // (cabeçalho, tabela, total, rodapé). Já existia, mas até agora não tinha
+  // nenhum seletor de cor na tela pra mudar ela.
   headerColor: "#005580",
   secondaryColor: "#71CFFE",
   taxProvisionPercent: 15,
@@ -120,6 +128,360 @@ function readFileAsDataUrl(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+// ============ Modelo novo do orçamento exportado ============
+// Validado antes com o Marcelo como protótipo separado (fora do código,
+// só HTML/CSS) — essa é a versão de produção da mesma coisa: gera o HTML
+// de verdade com os dados reais do orçamento, pra depois:
+//  (a) ser capturado em canvas (html2canvas) e virar PNG/PDF, do mesmo
+//      jeito que o desenho manual em canvas fazia antes — só troca COMO
+//      o canvas nasce, o resto do pipeline de exportação (PNG/PDF/Print)
+//      continua exatamente igual;
+//  (b) ser aberto direto numa aba nova, sem nenhum orçamento de verdade,
+//      só pra pré-visualizar o modelo com dados de exemplo (botão
+//      "Visualizar modelo de orçamento" em Configurações).
+
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function hexToHslTuple(hex) {
+  const clean = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#0f6e56";
+  const r = parseInt(clean.slice(1, 3), 16) / 255;
+  const g = parseInt(clean.slice(3, 5), 16) / 255;
+  const b = parseInt(clean.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h;
+  let s;
+  const l = (max + min) / 2;
+  if (max === min) {
+    h = 0;
+    s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  return [h * 360, s * 100, l * 100];
+}
+function hslCss(h, s, l) {
+  return `hsl(${h.toFixed(1)} ${s.toFixed(1)}% ${l.toFixed(1)}%)`;
+}
+
+// A cor escolhida pela pessoa vira a base ("brand"); as variações (mais
+// escura pra texto/títulos, bem clara pra fundos suaves, rodapé) são
+// calculadas a partir dela, sempre no mesmo tom — assim qualquer cor
+// escolhida já sai com contraste legível, sem pedir 4 cores na mão.
+function budgetTemplateColorVars(accentHex) {
+  const [h, s] = hexToHslTuple(accentHex);
+  return {
+    brand: hslCss(h, Math.max(s, 35), 32),
+    brandDark: hslCss(h, Math.max(s, 35), 22),
+    brandSoft: hslCss(h, Math.min(s, 45), 94),
+    footerBg: hslCss(h, Math.max(s * 0.5, 20), 20),
+    footerText: hslCss(h, 20, 88),
+    footerSub: hslCss(h, 15, 72),
+    footerIcon: hslCss(h, 30, 62),
+  };
+}
+
+const BUDGET_TEMPLATE_FONTS_LINK =
+  '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">';
+
+function budgetTemplateCSS(vars) {
+  return `
+  * { box-sizing: border-box; }
+  .bt-page {
+    width: 780px;
+    background: #fbfaf7;
+    font-family: 'Inter', sans-serif;
+    color: #1c2b27;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bt-blob { position: absolute; top: -60px; right: -80px; width: 320px; height: 320px; background: radial-gradient(circle at 30% 30%, ${vars.brandSoft}, transparent 70%); border-radius: 50%; pointer-events: none; }
+  .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; }
+  .bt-brand-row { display: flex; align-items: center; gap: 16px; }
+  .bt-logo-mark { width: 56px; height: 56px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #dde7e3; }
+  .bt-logo-mark img { width: 100%; height: 100%; object-fit: cover; }
+  .bt-logo-mark svg { width: 30px; height: 30px; color: ${vars.brand}; }
+  .bt-clinic-name { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; letter-spacing: 0.01em; color: ${vars.brandDark}; line-height: 1.25; }
+  .bt-clinic-specialty { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-top: 2px; }
+  .bt-clinic-cro { font-size: 11px; color: #5c6b67; margin-top: 4px; }
+  .bt-hero { padding: 8px 48px 32px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; position: relative; }
+  .bt-hero-label { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: ${vars.brand}; font-weight: 600; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .bt-hero-label::after { content: ""; flex: 1; height: 1px; background: #dde7e3; }
+  .bt-hero h1 { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 500; margin: 0 0 10px; color: #1c2b27; }
+  .bt-hero p { font-size: 14px; color: #5c6b67; line-height: 1.6; margin: 0; max-width: 340px; }
+  .bt-meta-col { display: flex; flex-direction: column; gap: 16px; border-left: 1px solid #dde7e3; padding-left: 24px; }
+  .bt-meta-item { display: flex; align-items: center; gap: 12px; }
+  .bt-meta-icon { width: 34px; height: 34px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${vars.brand}; }
+  .bt-meta-icon svg { width: 16px; height: 16px; }
+  .bt-meta-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; }
+  .bt-meta-value { font-size: 14px; font-weight: 600; color: #1c2b27; }
+  .bt-meta-sub { font-size: 11px; color: #5c6b67; }
+  .bt-table-wrap { margin: 0 48px; border: 1px solid #dde7e3; border-radius: 10px; overflow: hidden; }
+  .bt-table { width: 100%; border-collapse: collapse; }
+  .bt-table thead tr { background: ${vars.brandSoft}; }
+  .bt-table th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: ${vars.brandDark}; padding: 12px 18px; font-weight: 600; }
+  .bt-table th:last-child, .bt-table td:last-child { text-align: right; }
+  .bt-table th:first-child, .bt-table td:first-child { width: 60px; text-align: center; }
+  .bt-table td { padding: 16px 18px; border-top: 1px solid #dde7e3; font-size: 14px; }
+  .bt-proc-name { font-weight: 600; color: #1c2b27; }
+  .bt-proc-value { font-family: 'Fraunces', serif; font-weight: 500; font-size: 15px; }
+  .bt-total-bar { margin: 24px 48px 0; background: ${vars.brandSoft}; border-radius: 10px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .bt-total-label { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; }
+  .bt-total-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; color: ${vars.brandDark}; }
+  .bt-info-row { margin: 32px 48px 0; display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px; }
+  .bt-info-block { display: flex; gap: 14px; }
+  .bt-info-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-bottom: 6px; font-weight: 600; }
+  .bt-info-block ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: #5c6b67; line-height: 1.7; }
+  .bt-payment-line { font-size: 14px; color: #1c2b27; line-height: 1.6; }
+  .bt-closing { text-align: center; margin: 40px 48px 0; padding-top: 20px; border-top: 1px solid #dde7e3; }
+  .bt-closing-title { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; margin-bottom: 4px; }
+  .bt-closing-sub { font-size: 13px; color: #5c6b67; }
+  .bt-footer { margin-top: 32px; background: ${vars.footerBg}; color: ${vars.footerText}; padding: 22px 48px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; font-size: 12px; }
+  .bt-footer-item { display: flex; align-items: flex-start; gap: 8px; }
+  .bt-footer-item svg { width: 14px; height: 14px; margin-top: 2px; flex-shrink: 0; color: ${vars.footerIcon}; }
+  .bt-footer-name { color: #fff; font-weight: 600; font-family: 'Fraunces', serif; }
+  .bt-footer-sub { color: ${vars.footerSub}; font-size: 11px; margin-top: 2px; }
+  `;
+}
+
+const BT_ICON_TOOTH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3c-2.5 0-4.5 1.6-4.5 4 0 1 .3 1.7.6 2.6.5 1.4.9 3 .9 6.4 0 1.3.4 2 1 2s1-.9 1-2.5c0-1.3.4-2 1-2s1 .7 1 2c0 1.6.4 2.5 1 2.5s1-.7 1-2c0-3.4.4-5 .9-6.4.3-.9.6-1.6.6-2.6 0-2.4-2-4-4.5-4z"/></svg>';
+const BT_ICON_CALENDAR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+const BT_ICON_CLOCK =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+const BT_ICON_CARD =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/></svg>';
+const BT_ICON_NOTE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="5" y="3" width="14" height="18" rx="2"/></svg>';
+const BT_ICON_PIN =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+const BT_ICON_PHONE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 2 .7 2.9a2 2 0 0 1-.4 2.1L8 10a16 16 0 0 0 6 6l1.3-1.4a2 2 0 0 1 2.1-.4c.9.4 1.9.6 2.9.7a2 2 0 0 1 1.7 2.1z"/></svg>';
+const BT_ICON_INSTAGRAM =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>';
+
+// Monta o HTML do orçamento em si (a "página"), pronto tanto pra injetar
+// numa aba de pré-visualização quanto num container escondido pra
+// capturar em canvas na exportação de verdade.
+function buildBudgetTemplateBodyHTML({
+  settings,
+  patientName,
+  procedures, // [{ name, value }]
+  total,
+  paymentLine,
+  dateLabel,
+  validityLabel,
+  validityMonthsLabel,
+}) {
+  const orgKind = settings.orgLabel || "Consultório";
+  const logoInner = settings.clinicLogoDataUrl
+    ? `<img src="${escapeHtml(settings.clinicLogoDataUrl)}" alt="Logo" />`
+    : BT_ICON_TOOTH;
+  const rows = (procedures && procedures.length > 0 ? procedures : [{ name: "Procedimento", value: 0 }])
+    .map(
+      (p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td><div class="bt-proc-name">${escapeHtml(p.name || "Sem nome")}</div></td>
+        <td class="bt-proc-value">${escapeHtml(money(p.value || 0))}</td>
+      </tr>`
+    )
+    .join("");
+  const firstName = (patientName || "").trim().split(" ")[0] || "";
+  const address = settings.address ? `${escapeHtml(settings.address)}` : "";
+  const cro = settings.professionalRegistration ? escapeHtml(settings.professionalRegistration) : "";
+
+  return `
+  <div class="bt-page">
+    <div class="bt-blob"></div>
+    <div class="bt-header">
+      <div class="bt-brand-row">
+        <div class="bt-logo-mark">${logoInner}</div>
+        <div>
+          <div class="bt-clinic-name">${escapeHtml(settings.clinicName || "Nome")}</div>
+          ${settings.specialty ? `<div class="bt-clinic-specialty">${escapeHtml(settings.specialty)}</div>` : ""}
+          ${cro ? `<div class="bt-clinic-cro">${cro}</div>` : ""}
+        </div>
+      </div>
+    </div>
+
+    <div class="bt-hero">
+      <div>
+        <div class="bt-hero-label">Plano de tratamento</div>
+        <h1>${firstName ? `Olá, ${escapeHtml(firstName)}!` : "Seu plano de tratamento"}</h1>
+        <p>Preparamos seu plano de tratamento com todo o cuidado, pensando na sua saúde, conforto e bem-estar.</p>
+      </div>
+      <div class="bt-meta-col">
+        <div class="bt-meta-item">
+          <div class="bt-meta-icon">${BT_ICON_CALENDAR}</div>
+          <div>
+            <div class="bt-meta-label">Data do plano</div>
+            <div class="bt-meta-value">${escapeHtml(dateLabel)}</div>
+          </div>
+        </div>
+        <div class="bt-meta-item">
+          <div class="bt-meta-icon">${BT_ICON_CLOCK}</div>
+          <div>
+            <div class="bt-meta-label">Validade do plano</div>
+            <div class="bt-meta-value">${escapeHtml(validityLabel)}</div>
+            <div class="bt-meta-sub">(${escapeHtml(validityMonthsLabel)})</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bt-table-wrap">
+      <table class="bt-table">
+        <thead><tr><th>Item</th><th>Procedimento</th><th>Valor</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+
+    <div class="bt-total-bar">
+      <span class="bt-total-label">Valor total do plano de tratamento</span>
+      <span class="bt-total-value">${escapeHtml(money(total))}</span>
+    </div>
+
+    <div class="bt-info-row">
+      <div class="bt-info-block">
+        <div class="bt-meta-icon">${BT_ICON_CARD}</div>
+        <div>
+          <div class="bt-info-title">Forma de pagamento</div>
+          <div class="bt-payment-line">${escapeHtml(paymentLine || "A combinar")}</div>
+        </div>
+      </div>
+      <div class="bt-info-block">
+        <div class="bt-meta-icon">${BT_ICON_NOTE}</div>
+        <div>
+          <div class="bt-info-title">Informações importantes</div>
+          <ul>
+            <li>Este plano de tratamento é válido pelo prazo indicado.</li>
+            <li>Os procedimentos descritos foram definidos com base na avaliação clínica realizada.</li>
+            <li>Em caso de dúvidas, estamos à disposição para esclarecimentos.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="bt-closing">
+      <div class="bt-closing-title">Cuidar do seu sorriso é sempre um prazer</div>
+      <div class="bt-closing-sub">Conte conosco para realizar o seu tratamento com segurança, qualidade e atenção em cada etapa.</div>
+    </div>
+
+    <div class="bt-footer">
+      <div class="bt-footer-item">
+        ${BT_ICON_PIN}
+        <div>${address || "Endereço não informado"}</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="bt-footer-item">${BT_ICON_PHONE}<div>${escapeHtml(settings.phone || "—")}</div></div>
+        ${
+          settings.instagramHandle
+            ? `<div class="bt-footer-item">${BT_ICON_INSTAGRAM}<div>@${escapeHtml(settings.instagramHandle)}</div></div>`
+            : ""
+        }
+      </div>
+      <div class="bt-footer-item" style="justify-content: flex-end; text-align: right; flex-direction: column; align-items: flex-end;">
+        <div class="bt-footer-name">${escapeHtml(settings.clinicName || "Nome")}</div>
+        <div class="bt-footer-sub">${cro ? cro + " · " : ""}${escapeHtml(orgKind)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Injeta as fontes do modelo (Fraunces/Inter) uma vez só — usado tanto na
+// exportação de verdade quanto na pré-visualização em aba nova.
+function ensureBudgetTemplateFontsLoaded() {
+  if (document.getElementById("budget-template-fonts")) return;
+  const div = document.createElement("div");
+  div.id = "budget-template-fonts";
+  div.style.display = "none";
+  div.innerHTML = BUDGET_TEMPLATE_FONTS_LINK;
+  document.head.appendChild(div);
+}
+
+// Desenha o modelo novo (HTML/CSS de verdade) escondido fora da tela, espera
+// as fontes carregarem, e captura tudo num canvas — o mesmo tipo de objeto
+// que o desenho manual em canvas produzia antes, então o resto do pipeline
+// de exportação (handleExportPNG/PDF/Print, canvasToPDFBlob) não precisa
+// mudar nada, só passa a receber um canvas "melhor".
+async function renderBudgetTemplateToCanvas(data) {
+  ensureBudgetTemplateFontsLoaded();
+
+  const styleEl = document.createElement("style");
+  styleEl.textContent = budgetTemplateCSS(budgetTemplateColorVars(data.settings.headerColor));
+  document.head.appendChild(styleEl);
+
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.left = "-99999px";
+  container.style.top = "0";
+  container.innerHTML = buildBudgetTemplateBodyHTML(data);
+  document.body.appendChild(container);
+
+  try {
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+    // pequena espera extra pra imagem da logo (se houver) terminar de decodificar
+    await new Promise((r) => setTimeout(r, 60));
+    const canvas = await html2canvas(container.querySelector(".bt-page"), {
+      scale: 2,
+      backgroundColor: "#fbfaf7",
+      useCORS: true,
+    });
+    return canvas;
+  } finally {
+    document.body.removeChild(container);
+    document.head.removeChild(styleEl);
+  }
+}
+
+// Abre o modelo de orçamento numa aba nova, com dados de EXEMPLO — usado
+// pelo botão "Visualizar modelo de orçamento" em Configurações, pra
+// conferir o resultado (logo, cor, especialidade, redes sociais) sem
+// precisar simular um orçamento de verdade toda vez que mexe nas
+// configurações. Não usa html2canvas (não precisa virar imagem/PDF aqui,
+// só mostrar na tela) — abre o HTML/CSS puro numa aba, do jeito que o
+// protótipo original também fazia.
+function previewBudgetTemplate(settings) {
+  const validityMonths = settings.quoteValidityMonths || 3;
+  const validityDate = new Date();
+  validityDate.setMonth(validityDate.getMonth() + validityMonths);
+
+  const sampleData = {
+    settings,
+    patientName: "Maria",
+    procedures: [
+      { name: "Limpeza e profilaxia", value: 180 },
+      { name: "Prótese Móvel", value: 1300 },
+    ],
+    total: 1480,
+    paymentLine: "3x de R$ 493,33 no cartão",
+    dateLabel: new Date().toLocaleDateString("pt-BR"),
+    validityLabel: validityDate.toLocaleDateString("pt-BR"),
+    validityMonthsLabel: `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`,
+  };
+
+  const css = budgetTemplateCSS(budgetTemplateColorVars(settings.headerColor));
+  const body = buildBudgetTemplateBodyHTML(sampleData);
+  const fullHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Modelo de orçamento — pré-visualização</title>${BUDGET_TEMPLATE_FONTS_LINK}<style>body{margin:0;background:#eef1ef;padding:32px 16px;display:flex;justify-content:center;font-family:sans-serif;}${css}</style></head><body>${body}</body></html>`;
+
+  const blob = new Blob([fullHtml], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 function computeHourlyCost(laborCalc) {
@@ -2885,6 +3247,44 @@ function SimulationPanel({
     handleSaveBudget(currentEntryId ? "update" : "new");
   }
 
+  // Junta os dados reais deste orçamento (procedimentos, valores, forma de
+  // pagamento, validade) e desenha no modelo novo (HTML/CSS). A função
+  // antiga (buildExportCanvas, logo abaixo) continua existindo — não é mais
+  // chamada em lugar nenhum, mas fica de reserva caso algo dê errado com o
+  // motor novo e o Marcelo precise voltar rápido pro anterior.
+  async function buildExportCanvasFromTemplate() {
+    if (!row) return null;
+
+    const dateLabel = new Date().toLocaleDateString("pt-BR");
+    const validityMonths = settings.quoteValidityMonths || 3;
+    const validityDate = new Date();
+    validityDate.setMonth(validityDate.getMonth() + validityMonths);
+    const validityLabel = validityDate.toLocaleDateString("pt-BR");
+    const validityMonthsLabel = `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`;
+
+    const procedures = budgetProcs.map((p) => ({ name: p.name, value: (Number(p.valorBase) || 0) * markupMult }));
+    const total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
+
+    let paymentLine = row.label + (showMachineName ? ` · ${activePreset.name}` : "");
+    if (perInstallment) {
+      paymentLine += ` — ${installments}x de ${money(perInstallment)}${isInterestFree ? " sem juros" : ""}`;
+    }
+    if (safeDownPayment > 0) {
+      paymentLine += ` (entrada de ${money(safeDownPayment)})`;
+    }
+
+    return renderBudgetTemplateToCanvas({
+      settings,
+      patientName,
+      procedures,
+      total,
+      paymentLine,
+      dateLabel,
+      validityLabel,
+      validityMonthsLabel,
+    });
+  }
+
   function buildExportCanvas() {
     if (!row) return null;
 
@@ -3210,8 +3610,8 @@ function SimulationPanel({
     return new Blob(parts, { type: "application/pdf" });
   }
 
-  function handleExportPNG() {
-    const canvas = buildExportCanvas();
+  async function handleExportPNG() {
+    const canvas = await buildExportCanvasFromTemplate();
     if (!canvas) return;
     autoSaveOnExport();
     const link = document.createElement("a");
@@ -3224,8 +3624,8 @@ function SimulationPanel({
     setTimeout(() => setCopyFeedback(false), 1800);
   }
 
-  function handleExportPDF() {
-    const canvas = buildExportCanvas();
+  async function handleExportPDF() {
+    const canvas = await buildExportCanvasFromTemplate();
     if (!canvas) return;
     autoSaveOnExport();
     const blob = canvasToPDFBlob(canvas);
@@ -3241,8 +3641,16 @@ function SimulationPanel({
     setTimeout(() => setCopyFeedback(false), 1800);
   }
 
-  function handlePrint() {
-    const canvas = buildExportCanvas();
+  // Nota: como o navegador abre uma aba nova aqui (target="_blank"), e essa
+  // função agora é assíncrona (espera o html2canvas terminar antes de ter o
+  // canvas pra imprimir), existe uma chance pequena de algum navegador mais
+  // restritivo bloquear a aba por não considerar mais "clique direto do
+  // usuário" depois da espera — não tem como testar isso sem abrir de
+  // verdade num navegador real. Se acontecer, o jeito de resolver é abrir a
+  // aba (window.open) ANTES do await, com uma tela de carregando, e só
+  // trocar o conteúdo dela depois que o canvas ficar pronto.
+  async function handlePrint() {
+    const canvas = await buildExportCanvasFromTemplate();
     if (!canvas) return;
     autoSaveOnExport();
     const blob = canvasToPDFBlob(canvas);
@@ -3300,7 +3708,7 @@ function SimulationPanel({
   }
 
   async function handleShareWhatsApp() {
-    const canvas = buildExportCanvas();
+    const canvas = await buildExportCanvasFromTemplate();
     if (!canvas) return;
     autoSaveOnExport();
     const shareText = buildShareText();
@@ -4381,8 +4789,9 @@ function ProfessionalRegistrationField({ value, onChange }) {
 // rota que o formulário de Contato/Suporte já usa) — usado quando não tem
 // nenhum jeito de self-service pra resolver algo (ex: renovar uma licença
 // sem assinatura Stripe).
-function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
+function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpload }) {
   const profilePhotoInputRef = useRef(null);
+  const clinicLogoInputRef = useRef(null);
   const account = useAccount();
   const [cancelSending, setCancelSending] = useState(false);
   const [cancelFeedback, setCancelFeedback] = useState(""); // "" | "sucesso" | "erro"
@@ -4555,6 +4964,39 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
         </div>
 
         <div>
+          <div className="text-xs text-stone-500 mb-1">Logo do consultório/clínica</div>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 shrink-0 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-center overflow-hidden">
+              {settings.clinicLogoDataUrl ? (
+                <img src={settings.clinicLogoDataUrl} alt="Logo do consultório" className="w-full h-full object-contain" />
+              ) : (
+                <ImageIcon className="w-5 h-5 text-stone-300" />
+              )}
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={() => clinicLogoInputRef.current?.click()}
+                className="text-xs font-medium border border-stone-200 rounded-lg px-3 py-1.5 hover:bg-stone-50 transition"
+              >
+                {settings.clinicLogoDataUrl ? "Trocar logo" : "Enviar logo"}
+              </button>
+              {settings.clinicLogoDataUrl && (
+                <button
+                  type="button"
+                  onClick={() => onChange({ ...settings, clinicLogoDataUrl: "" })}
+                  className="text-xs font-medium text-rose-500 ml-2 hover:text-rose-700 transition"
+                >
+                  Remover
+                </button>
+              )}
+              <input ref={clinicLogoInputRef} type="file" accept="image/*" onChange={onClinicLogoUpload} className="hidden" />
+              <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece no cabeçalho do orçamento exportado.</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
           <div className="text-xs text-stone-500 mb-1">Nome</div>
           <input
             type="text"
@@ -4563,6 +5005,18 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
             placeholder="Nome do consultório/clínica ou da(o) profissional"
             className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
           />
+        </div>
+
+        <div>
+          <div className="text-xs text-stone-500 mb-1">Especialidade</div>
+          <input
+            type="text"
+            value={settings.specialty}
+            onChange={(e) => onChange({ ...settings, specialty: e.target.value })}
+            placeholder="Ex: Ortodontia, Odontologia Geral..."
+            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+          />
+          <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece embaixo do nome no orçamento exportado.</p>
         </div>
 
         <ProfessionalRegistrationField
@@ -4594,6 +5048,18 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
         </div>
 
         <div>
+          <div className="text-xs text-stone-500 mb-1">Instagram</div>
+          <input
+            type="text"
+            value={settings.instagramHandle}
+            onChange={(e) => onChange({ ...settings, instagramHandle: e.target.value.replace(/^@/, "") })}
+            placeholder="usuario_instagram"
+            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+          />
+          <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece no rodapé do orçamento exportado.</p>
+        </div>
+
+        <div>
           <div className="text-xs text-stone-500 mb-1">Validade do orçamento</div>
           <select
             value={settings.quoteValidityMonths || 3}
@@ -4610,6 +5076,31 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload }) {
             Aparece no rodapé dos orçamentos exportados (PDF, imagem, WhatsApp).
           </p>
         </div>
+
+        <div>
+          <div className="text-xs text-stone-500 mb-1">Cor de destaque</div>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={settings.headerColor || "#005580"}
+              onChange={(e) => onChange({ ...settings, headerColor: e.target.value })}
+              className="w-11 h-9 rounded-lg border border-stone-200 cursor-pointer p-0.5 bg-white"
+            />
+            <span className="text-sm text-stone-600 font-mono">{settings.headerColor || "#005580"}</span>
+          </div>
+          <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
+            Usada nas abas do sistema e nas partes coloridas do orçamento exportado (cabeçalho, tabela, total,
+            rodapé) — escolha a que mais combina com o seu consultório/clínica.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => previewBudgetTemplate(settings)}
+          className="w-full text-sm font-medium text-teal-700 border border-teal-200 rounded-lg py-2.5 hover:bg-teal-50 transition"
+        >
+          Visualizar modelo de orçamento
+        </button>
       </div>
 
       {license && (
@@ -6118,6 +6609,19 @@ export default function App() {
     e.target.value = "";
   }
 
+  // Logo do consultório/clínica (marca) — diferente da foto de perfil
+  // (handleLogoUpload acima), que passa por um recorte circular. Uma logo
+  // pode ser retangular/quadrada, então aqui é upload direto, sem recorte.
+  async function handleClinicLogoUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      persistSettings({ ...settings, clinicLogoDataUrl: dataUrl });
+    } catch (err) {}
+    e.target.value = "";
+  }
+
   const persistProcedures = useCallback(async (next) => {
     const safeNext = Array.isArray(next) ? next : [];
     setProcedures(safeNext);
@@ -6825,7 +7329,12 @@ export default function App() {
           <div className="flex gap-6 items-start max-w-4xl mx-auto">
             <SettingsSideNav />
             <div className="flex-1 min-w-0 grid grid-cols-1 gap-5">
-              <ProfileSettingsPage settings={settings} onChange={persistSettings} onLogoUpload={handleLogoUpload} />
+              <ProfileSettingsPage
+                settings={settings}
+                onChange={persistSettings}
+                onLogoUpload={handleLogoUpload}
+                onClinicLogoUpload={handleClinicLogoUpload}
+              />
               <SettingsPanel settings={settings} onChange={persistSettings} />
             </div>
           </div>

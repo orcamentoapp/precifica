@@ -49,7 +49,163 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: rótulos certos em "Gerenciar Assinatura" — "Próxima cobrança dia" (cartão) vs "Expira em" + "Dias restantes" (licença do admin)
+## Atualização mais recente: modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade
+
+O Marcelo mandou um exemplo de orçamento de outra clínica (visual bem
+mais elaborado — logo, formas decorativas, ícones em círculo, rodapé
+com redes sociais) e perguntou se dava pra chegar nesse nível. Antes
+de implementar, montei um protótipo separado (fora do código) pra
+validar o estilo com ele — depois de aprovado (com dois ajustes:
+rodapé mais leve, e a cor virando escolha do usuário), essa sessão foi
+a implementação de verdade.
+
+**Descoberta que definiu a abordagem**: o orçamento hoje era
+desenhado manualmente em canvas (`ctx.fillText`, coordenadas em pixel
+calculadas na mão, PDF gerado escrevendo os bytes na mão também, sem
+nenhuma biblioteca). Reproduzir esse nível de visual (fontes
+diferentes, formas translúcidas, ícones) desenhando manualmente seria
+extremamente trabalhoso. **Troquei o motor**: agora o orçamento é
+montado como HTML/CSS de verdade (a mesma técnica do protótipo
+validado) e só DEPOIS virado em imagem, usando a biblioteca
+`html2canvas` (nova dependência, `npm install html2canvas`) — o
+resultado ainda é um canvas no final, então o resto do pipeline (o
+gerador de PDF escrito à mão, `canvasToPDFBlob`, que só embrulha uma
+imagem crua num PDF de uma página) **não precisou mudar nada**.
+
+**Peças novas** (`app-frontend/src/App.jsx`):
+- `buildBudgetTemplateBodyHTML()` — monta o HTML do orçamento (logo,
+  nome, especialidade, tabela de procedimentos, total, forma de
+  pagamento, rodapé com telefone/Instagram) com os dados reais.
+- `budgetTemplateCSS()` / `budgetTemplateColorVars()` — o CSS do
+  modelo e o cálculo das cores derivadas a partir da cor escolhida
+  (mesmo sistema do protótipo: a cor escolhida vira a base, e as
+  variações — mais escura pra texto, bem clara pra fundo, tom do
+  rodapé — são calculadas em HSL a partir dela).
+- `renderBudgetTemplateToCanvas()` — desenha esse HTML escondido fora
+  da tela, espera as fontes carregarem (Fraunces + Inter, do Google
+  Fonts), captura com `html2canvas`, e limpa tudo depois.
+- `buildExportCanvasFromTemplate()` (dentro do `SimulationPanel`) —
+  junta os dados REAIS do orçamento atual (procedimentos, valores,
+  forma de pagamento, validade) e chama as funções acima. Conectada
+  nos 4 lugares que exportam: **PNG, PDF, Imprimir e Compartilhar no
+  WhatsApp** — os quatro agora usam o motor novo.
+- A função antiga (`buildExportCanvas`, o desenho manual) **continua
+  no código, só sem uso** — fica de reserva, caso precise voltar rápido
+  pro motor anterior por algum motivo.
+- `previewBudgetTemplate()` — abre o modelo numa aba nova, com dados
+  de EXEMPLO (paciente "Maria", 2 procedimentos fictícios), sem passar
+  pelo `html2canvas` (não precisa virar imagem aqui, só mostrar na
+  tela) — é o que o botão novo "Visualizar modelo de orçamento" chama.
+
+**Configurações novas** (tela de Perfil):
+- **Logo do consultório/clínica** — upload direto (sem recorte,
+  diferente da foto de perfil circular que já existia — uma logo pode
+  ser retangular). Campo novo, `clinicLogoDataUrl`, propositalmente
+  separado de `logoDataUrl` (que é a foto de perfil da pessoa, outra
+  coisa).
+- **Especialidade** — campo de texto novo, aparece embaixo do nome no
+  orçamento.
+- **Instagram** — campo de texto novo, aparece no rodapé.
+- **Cor de destaque** — um seletor de cor de verdade, ligado ao campo
+  `headerColor` que **já existia** no sistema (usado só no realce das
+  abas do próprio app) mas nunca tinha um seletor na tela — agora essa
+  mesma cor também colore o cabeçalho/tabela/total/rodapé do orçamento
+  exportado. Uma cor só, todas as variações calculadas automaticamente.
+- **Botão "Visualizar modelo de orçamento"** — abre o modelo com dados
+  de exemplo, pra conferir o resultado sem precisar simular um
+  orçamento de verdade toda vez que mexe nas configurações.
+
+**Custo dessa mudança**: o `html2canvas` aumentou o tamanho do arquivo
+final do frontend de forma perceptível (~594KB → ~809KB minificado) —
+esperado, é uma biblioteca de verdade que precisa entender e desenhar
+DOM/CSS complexo, bem mais pesada que o desenho manual anterior. Não
+fiz nada a respeito (dividir em chunks menores) porque não foi pedido,
+mas fica registrado.
+
+**Testado**: `npm run build` do frontend limpo, sem erros. **Não
+testei manualmente** o resultado final da exportação (precisaria abrir
+o app de verdade num navegador, criar um orçamento, e exportar pra
+ver o PNG/PDF saindo com o visual novo) — a lógica segue exatamente o
+protótipo já validado visualmente com o Marcelo, e o `html2canvas` é
+uma biblioteca madura e amplamente usada pra esse tipo de conversão,
+mas vale ele confirmar ao vivo depois do deploy, principalmente:
+(a) se a logo aparece certinha quando enviada; (b) se as fontes
+(Fraunces/Inter) carregam a tempo da captura, já que dependem de
+internet no momento da exportação; (c) o botão "Imprimir" especificamente
+— ele abre uma aba nova depois de esperar o `html2canvas` terminar, e
+alguns navegadores mais restritivos PODEM bloquear isso por não
+considerar mais "clique direto" depois da espera (deixei uma nota no
+código explicando como resolver se isso acontecer).
+
+## Atualização anterior: painel admin — modo escuro corrigido de vez (causa raiz) + logo + tooltips nas métricas + chave de licença escondida atrás de um clique + ações agrupadas num menu só
+
+O Marcelo mandou print do painel admin: modo escuro não escurecia o
+fundo (só alguns elementos), e pediu mais 4 coisas pra deixar a tela
+de Usuários mais enxuta.
+
+**1. Modo escuro — causa raiz encontrada.** A div de fora tinha as
+classes `dark` E `bg-stone-50` **no mesmo elemento**
+(`app-frontend/src/AdminDashboard.jsx`). O CSS que já existia pro
+modo escuro (`index.css`) usa seletor descendente
+(`.dark .bg-stone-50 { ... }`) — que só funciona quando `.bg-stone-50`
+está DENTRO de um elemento com `.dark`, nunca quando são a mesma tag.
+Por isso o fundo nunca escurecia, mesmo com o estado interno já
+correto. Corrigido aplicando `.dark` no `<html>` via `useEffect`
+(`document.documentElement.classList.toggle(...)`) — exatamente o
+mesmo padrão que o app principal já usa (`App.jsx`) e que já
+funcionava lá. Como resultado, o pedido de "abrir sempre no modo
+escuro por padrão" **já estava certo** desde a sessão anterior
+(`localStorage.getItem("admin_theme") || "dark"`) — só nunca
+aparecia por causa desse bug.
+
+**2. Logo antes do nome**, no canto superior esquerdo — mesmo ícone
+(`icon-512.png`) usado no cabeçalho do app principal.
+
+**3. Tooltip em cada card de "Visão Geral"** — passar o mouse em
+qualquer um dos 9 cartões (Usuários totais, MRR, Conversão trial→pago,
+etc.) explica o que aquele número representa e como é calculado.
+
+**4. Chave de licença escondida, só abre num popup.** Na tabela de
+Usuários, a chave em texto puro sumiu — agora só aparece o badge do
+tipo (ex: "Mensal · 30d"), e clicar nele abre um popup pequeno com a
+chave completa + botão "Copiar". Componente novo,
+`LicenseKeyModal`. (Na aba "Chaves de licença" o código continua
+visível direto na lista — lá ele já É o identificador principal da
+linha, esconder não faria sentido.)
+
+**5. Ações agrupadas num botão só**, nas duas tabelas (Usuários e
+Chaves de licença) — em vez de 3-4 botões (Renovar/Revogar/Bloquear/
+Remover) lado a lado disputando espaço, agora é um botão "⋮" que abre
+um menuzinho com as mesmas ações. Componente novo, `RowActionsMenu`
+(fecha sozinho ao clicar fora, via listener de `click` no
+`document`). O padrão de confirmação em dois cliques pras ações
+destrutivas continua funcionando (só que agora precisa reabrir o
+menu pra ver "Confirmar exclusão?" na segunda vez, já que o menu
+fecha a cada clique — pequena troca aceitável pelo ganho de espaço).
+
+**6. Coluna nova "Próxima cobrança"** na tabela de Usuários — só
+preenche quando é uma assinatura Stripe ativa e NÃO marcada pra
+cancelar (mesmo critério já usado em "Gerenciar Assinatura" dentro do
+app do cliente); pros outros casos (trial, licença manual do admin,
+assinatura já cancelada) fica vazia, e a coluna "Validade" ao lado
+continua mostrando a expiração de sempre pra esses casos. Precisou
+expor um campo novo no backend
+(`l.cancel_at_period_end AS license_cancel_at_period_end`, rota `GET
+/api/admin/users` em `src/routes/admin.js`) que já existia na tabela
+mas nunca tinha sido incluído nessa consulta específica.
+
+**De brinde**: achei e removi um import não usado (`RefreshCw`, já
+estava sem uso antes desta sessão).
+
+**Testado**: `npm run build` do frontend limpo; `node --check
+src/routes/admin.js` sem erros. **Não testei visualmente ao vivo** o
+modo escuro (precisaria abrir o painel de verdade num navegador) —
+a correção é logicamente sólida (mesmo padrão que já funciona no app
+principal, aplicado no mesmo lugar), mas vale o Marcelo conferir com
+os próprios olhos depois do deploy, junto com o popup da chave e o
+menu de ações agrupado.
+
+## Atualização anterior: rótulos certos em "Gerenciar Assinatura" — "Próxima cobrança dia" (cartão) vs "Expira em" + "Dias restantes" (licença do admin)
 
 Ajuste fino em cima da sessão anterior. O Marcelo deixou explícito
 exatamente como cada caso deve aparecer em Gerenciar Assinatura
@@ -196,126 +352,6 @@ criei a conta vitalícia do zero e confirmei os três campos e o "Custo
 descrito acima, os fluxos 1 e 3 testados de ponta a ponta com o
 sistema rodando de verdade, não só por leitura de código.
 
-## Atualização anterior: autocomplete de marca por material (+ um bug real corrigido no caminho) + campo removido em "À vista" + datas na assinatura + reabrir orçamento direto de Pacientes
-
-Quatro pedidos do Marcelo, testados ao vivo (montei o ambiente de novo
-aqui no sandbox — Postgres + servidor rodando de verdade — pra
-confirmar cada um funcionando antes de entregar, não só pelo código).
-
-**1. Autocomplete de marca por material + BUG REAL corrigido no
-caminho.** Pedido: ao digitar o nome de um material, sugerir os já
-cadastrados (isso já existia); ao escolher a marca, sugerir só as
-marcas que aquele material específico já tem no catálogo (isso não
-existia). Implementado com uma função nova,
-`brandSuggestionsFor(catalog, materialName)`, que filtra o catálogo
-pelo nome do material (comparação sem acento/maiúscula) e devolve só
-as marcas únicas encontradas — um `<datalist>` por linha, montado
-dinamicamente conforme o material digitado naquela linha.
-**No caminho, achei um bug de verdade**: o `MaterialUsageTable` (a
-tabela de materiais usada dentro de Custos/Materiais, ao expandir um
-procedimento) referenciava um `datalistId` no atributo `list` do
-campo de material, mas **o elemento `<datalist>` correspondente nunca
-era renderizado em lugar nenhum** — ou seja, o autocomplete de nome de
-material nessa tabela específica nunca funcionou desde que foi criada
-(o campo "Marca" recebeu o mesmo tratamento agora, então os dois já
-saem funcionando).
-2. **"Desconto convênio / plano" removido** de Configurações → Formas
-   de pagamento → À vista (`app-frontend/src/App.jsx`) — só o campo da
-   tela, como pedido; o valor antigo (se alguém já tinha configurado)
-   fica salvo no banco sem efeito visível, e "Convênio / Plano"
-   continua existindo como forma de pagamento selecionável no
-   orçamento (o Marcelo não pediu pra tirar isso, só o campo de
-   desconto).
-3. **"Gerenciar Assinatura" agora mostra "Assinante desde"** (data de
-   ativação da licença) **e troca o rótulo "Expira em" por "Próxima
-   cobrança no cartão"** quando for uma assinatura Stripe ativa e não
-   cancelada (pra trial ou assinatura já cancelada, continua dizendo
-   "Expira em", que faz mais sentido nesses casos). Precisou expor um
-   campo novo do backend — `activatedAt` — que já existia gravado no
-   banco (`licenses.activated_at`) mas nunca tinha sido incluído no
-   retorno de `getLicenseStatusForUser`
-   (`src/utils/licenseStatus.js`).
-4. **Pacientes → clicar num orçamento da lista expandida agora abre
-   ele** (`app-frontend/src/App.jsx`, `PatientsPage`) — exatamente
-   como clicar no mesmo orçamento dentro do Histórico. Não precisou
-   de lógica nova: só reaproveitei a função `handleReopenBudget` que
-   o Histórico já usa, passada como prop nova (`onReopen`) pro
-   `PatientsPage`, e transformei cada linha de orçamento (que antes
-   era só uma `<div>` estática) num botão clicável.
-
-**Testado de verdade, não só por código**: recriei o ambiente
-completo (Postgres + servidor + Playwright) na conta de demonstração
-que já tinha ficado pronta numa sessão anterior, e confirmei ao vivo,
-com prints: (1) o campo de material no autocomplete agora mostra a
-setinha de sugestão (confirma que o `<datalist>` está ligado
-certinho — o bug antigo não deixava isso aparecer); (2) clicar num
-orçamento dentro de Pacientes abre ele em "Novo Orçamento" com os
-dados certos; (3) "Assinante desde: 11/09/2026" aparecendo
-corretamente em Gerenciar Assinatura. `npm run build` do frontend
-limpo; `node --check src/utils/licenseStatus.js` sem erros.
-
-## Atualização anterior: painel admin ganhou "Visão Geral" — métricas do negócio (MRR, conversão, churn, em risco) + tema claro/escuro alternável
-
-O Marcelo mandou print do painel admin de OUTRO produto dele
-(PrestaCerto, um marketplace) como referência de visual sofisticado —
-pediu pra deixar o painel do Precifica parecido, mais algumas funções
-de dashboard. Adaptei em vez de copiar: o PrestaCerto tem seções que
-não fazem sentido pro Precifica (Leads/CRM, "Indique e ganhe" — coisa
-de marketplace, não de assinatura SaaS), então mantive só o que se
-aplica de verdade ao negócio do Precifica.
-
-**Novidade principal: aba "Visão Geral"** (agora a aba padrão do
-painel admin, `AdminDashboard.jsx`), com métricas de verdade:
-- Usuários totais, assinantes pagos ativos, em teste grátis agora
-- **MRR estimado** (calculado: assinantes mensais × preço + anuais ×
-  preço/12)
-- **Receita recebida no período** — essa é de verdade, não estimada:
-  busca direto na API do Stripe (soma de faturas pagas no período),
-  não inventa número a partir do MRR
-- **Taxa de conversão trial → pago**
-- Novos cadastros e cancelamentos no período selecionado (7/30/90
-  dias, com seletor)
-- **Assinaturas em risco** (cancelamento já agendado, ainda ativas)
-- Lista de cadastros recentes
-
-**Duas colunas novas no banco** (`src/migrate.js`), necessárias pra
-calcular duas dessas métricas — sem elas seria impossível saber
-historicamente:
-- `trial_started_at` — marca quando uma licença NASCEU como trial.
-  Sem isso, não dava pra calcular conversão trial→pago depois que o
-  trial já converteu (o campo `type` muda de "trial" pra
-  "monthly"/"annual" na conversão, apagando esse rastro).
-- `cancelled_at` — marca quando o cancelamento foi pedido (ou a
-  licença revogada por disputa de cobrança). Sem isso só dava pra
-  saber SE está cancelado agora, nunca QUANTOS cancelamentos
-  aconteceram num período.
-
-**Rota nova no backend**: `GET /api/admin/dashboard-stats?days=30`
-(`src/routes/admin.js`) — calcula tudo isso numa passada só
-(`Promise.all` com várias queries em paralelo, mais a chamada pro
-Stripe pra receita real).
-
-**Tema claro/escuro alternável, só no painel admin** — botão de
-sol/lua no cabeçalho, preferência salva separada
-(`localStorage: "admin_theme"`, não mexe na preferência de modo
-escuro do app dos clientes). Detalhe técnico que economizou bastante
-trabalho: em vez de reescrever cada tabela/badge com classes
-condicionais pro tema, o painel admin agora só embrulha tudo numa
-`<div className="dark">` quando o tema é escuro — e como o app já
-tinha um conjunto grande de overrides de CSS pra classe `.dark`
-(criados pro modo escuro dos CLIENTES, sessões anteriores), o painel
-admin herda tudo isso de graça: tabelas, badges (teal/amber/rose/
-indigo), inputs, botões — tudo já fica escuro direitinho sem precisar
-tocar no JSX das tabelas de Usuários/Chaves que já existiam.
-
-**Testado**: `npm run build` do frontend limpo; `node --check` em
-`src/routes/admin.js`, `src/migrate.js` e nos outros arquivos que
-ganharam as colunas novas, sem erros. **Não testado manualmente** —
-principalmente a busca de receita real no Stripe (`invoices.list`)
-depende de ter faturas de verdade pra conferir se a soma bate, e as
-métricas de conversão/cancelamento só vão ficar interessantes depois
-de acumular mais alguns cadastros/cancelamentos reais no banco.
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -324,6 +360,8 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- autocomplete de marca por material (+ bug do datalist corrigido) + campo "Desconto convênio/plano" removido de À vista + "Assinante desde" e "Próxima cobrança no cartão" em Gerenciar Assinatura + reabrir orçamento direto de Pacientes
+- painel admin ganhou "Visão Geral" (MRR, conversão trial→pago, cancelamentos, assinaturas em risco, receita real via Stripe) + tema claro/escuro alternável no painel admin
 - modo escuro não vaza mais pro login + "lembrar e-mail" no login + clique direito (editar/excluir) nos procedimentos da Calculadora + contraste do modo escuro corrigido lá + glow nas estrelinhas selecionadas
 - **Nome do zip**: `precifica DD-MM-AAAA HHhMM.zip` — data e hora de
 - **Conteúdo**: uma única pasta chamada `precifica` dentro do zip, e
