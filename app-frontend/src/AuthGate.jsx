@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { getToken, clearToken, apiRequest } from "./api";
 import Login from "./screens/Login";
 import Register from "./screens/Register";
@@ -9,7 +9,10 @@ import ForgotPassword from "./screens/ForgotPassword";
 import ResetPassword from "./screens/ResetPassword";
 import RenewalConfirm from "./screens/RenewalConfirm";
 import LicenseBlocked from "./screens/LicenseBlocked";
-import AdminDashboard from "./AdminDashboard";
+// Carregado sob demanda — só quem é admin (uma pessoa só, o Marcelo) chega
+// nessa tela; não faz sentido todo cliente baixar o código do painel admin
+// junto do pacote principal do site.
+const AdminDashboard = lazy(() => import("./AdminDashboard"));
 import TrialBanner from "./TrialBanner";
 import RenewalWarningBanner from "./RenewalWarningBanner";
 import { AccountContext } from "./AccountContext";
@@ -322,12 +325,14 @@ export default function AuthGate({ children }) {
 
   if (screen === "admin") {
     return (
-      <AdminDashboard
-        onLogout={() => {
-          clearToken();
-          goToScreen("login");
-        }}
-      />
+      <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: "#78716c" }}>Carregando...</div>}>
+        <AdminDashboard
+          onLogout={() => {
+            clearToken();
+            goToScreen("login");
+          }}
+        />
+      </Suspense>
     );
   }
 

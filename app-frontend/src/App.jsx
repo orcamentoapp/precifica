@@ -1,8 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users } from "lucide-react";
 import { apiRequest, clearToken } from "./api";
-import Chart from "chart.js/auto";
-import html2canvas from "html2canvas";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
 
@@ -436,6 +434,11 @@ async function renderBudgetTemplateToCanvas(data) {
     }
     // pequena espera extra pra imagem da logo (se houver) terminar de decodificar
     await new Promise((r) => setTimeout(r, 60));
+    // Carrega o html2canvas só agora, na hora de exportar/pré-visualizar um
+    // orçamento de verdade — em vez de vir sempre junto do pacote principal
+    // (é uma biblioteca de peso, e a maioria das visitas ao site nem chega
+    // a exportar nada).
+    const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(container.querySelector(".bt-page"), {
       scale: 2,
       backgroundColor: "#fbfaf7",
@@ -5443,27 +5446,36 @@ function DashboardSection({ budgetHistory }) {
 
   useEffect(() => {
     if (!evolucaoCanvasRef.current) return;
-    if (evolucaoChartRef.current) evolucaoChartRef.current.destroy();
-    evolucaoChartRef.current = new Chart(evolucaoCanvasRef.current, {
-      type: "line",
-      data: {
-        labels: monthLabels,
-        datasets: [
-          { label: "Orçado", data: monthKeys.map((m) => monthBuckets[m].orcado), borderColor: "#0f766e", backgroundColor: "#0f766e1a", fill: true, tension: 0.3, pointRadius: 3 },
-          { label: "Recebido", data: monthKeys.map((m) => monthBuckets[m].recebido), borderColor: "#008300", backgroundColor: "#0083001a", fill: true, tension: 0.3, pointRadius: 3 },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { ticks: { callback: (v) => "R$ " + (v / 1000).toFixed(0) + "k", color: "#a8a29e" }, grid: { color: "#e7e5e4" } },
-          x: { ticks: { color: "#a8a29e" }, grid: { display: false } },
+    let cancelled = false;
+    // Carrega o Chart.js só agora, na hora que o Dashboard é aberto de
+    // verdade — em vez de vir sempre junto do pacote principal do site
+    // (que qualquer pessoa baixa em qualquer tela, mesmo quem nunca abre
+    // o Dashboard).
+    import("chart.js/auto").then(({ default: Chart }) => {
+      if (cancelled || !evolucaoCanvasRef.current) return;
+      if (evolucaoChartRef.current) evolucaoChartRef.current.destroy();
+      evolucaoChartRef.current = new Chart(evolucaoCanvasRef.current, {
+        type: "line",
+        data: {
+          labels: monthLabels,
+          datasets: [
+            { label: "Orçado", data: monthKeys.map((m) => monthBuckets[m].orcado), borderColor: "#0f766e", backgroundColor: "#0f766e1a", fill: true, tension: 0.3, pointRadius: 3 },
+            { label: "Recebido", data: monthKeys.map((m) => monthBuckets[m].recebido), borderColor: "#008300", backgroundColor: "#0083001a", fill: true, tension: 0.3, pointRadius: 3 },
+          ],
         },
-      },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { ticks: { callback: (v) => "R$ " + (v / 1000).toFixed(0) + "k", color: "#a8a29e" }, grid: { color: "#e7e5e4" } },
+            x: { ticks: { color: "#a8a29e" }, grid: { display: false } },
+          },
+        },
+      });
     });
     return () => {
+      cancelled = true;
       if (evolucaoChartRef.current) evolucaoChartRef.current.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5471,17 +5483,22 @@ function DashboardSection({ budgetHistory }) {
 
   useEffect(() => {
     if (!statusCanvasRef.current) return;
-    if (statusChartRef.current) statusChartRef.current.destroy();
-    const keys = Object.keys(DASHBOARD_STATUS_META);
-    statusChartRef.current = new Chart(statusCanvasRef.current, {
-      type: "doughnut",
-      data: {
-        labels: keys.map((k) => DASHBOARD_STATUS_META[k].label),
-        datasets: [{ data: keys.map((k) => statusCounts[k]), backgroundColor: keys.map((k) => DASHBOARD_STATUS_META[k].color), borderColor: "#ffffff", borderWidth: 2 }],
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+    let cancelled = false;
+    import("chart.js/auto").then(({ default: Chart }) => {
+      if (cancelled || !statusCanvasRef.current) return;
+      if (statusChartRef.current) statusChartRef.current.destroy();
+      const keys = Object.keys(DASHBOARD_STATUS_META);
+      statusChartRef.current = new Chart(statusCanvasRef.current, {
+        type: "doughnut",
+        data: {
+          labels: keys.map((k) => DASHBOARD_STATUS_META[k].label),
+          datasets: [{ data: keys.map((k) => statusCounts[k]), backgroundColor: keys.map((k) => DASHBOARD_STATUS_META[k].color), borderColor: "#ffffff", borderWidth: 2 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+      });
     });
     return () => {
+      cancelled = true;
       if (statusChartRef.current) statusChartRef.current.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -7268,7 +7285,7 @@ export default function App() {
               onClick={() => navigateTab("dashboard")}
               className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition"
             >
-              <img src="/icons/icon-512.png" alt="Precifica" className="w-11 h-11 shrink-0" />
+              <img src="/icons/logo-header.png" alt="Precifica" className="w-11 h-11 shrink-0" />
               <span className="text-xl font-semibold text-stone-800 tracking-tight">Precifica</span>
             </button>
 

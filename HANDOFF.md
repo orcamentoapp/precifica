@@ -49,7 +49,69 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade
+## Atualização mais recente: pacote principal do site 53% menor (809KB → 376KB) — bibliotecas pesadas carregando só quando usadas + logo do cabeçalho 94% menor
+
+O Marcelo perguntou se dava pra otimizar mais o sistema. Analisei de
+verdade (build real, não suposição) e achei 3 coisas concretas:
+
+**1. Chart.js e html2canvas carregavam SEMPRE, pra todo mundo** — as
+duas bibliotecas mais pesadas do site (adicionadas em sessões
+anteriores, pro Dashboard e pra exportação de orçamento) estavam
+importadas no topo do arquivo (`import Chart from "chart.js/auto"`,
+`import html2canvas from "html2canvas"`) — isso faz o bundler
+(`vite`) colocar as duas dentro do PACOTE PRINCIPAL, baixado por
+qualquer pessoa em qualquer tela, mesmo quem nunca abre o Dashboard
+nem exporta nada. Troquei pra `import()` dinâmico, carregado só na
+hora que a funcionalidade é usada de verdade:
+- Chart.js: dentro dos dois `useEffect` do `DashboardSection`
+  (`app-frontend/src/App.jsx`) — só carrega quando a aba Dashboard é
+  aberta.
+- html2canvas: dentro de `renderBudgetTemplateToCanvas` — só carrega
+  na hora de exportar ou pré-visualizar um orçamento.
+
+**2. Painel admin carregava pra TODO MUNDO, mesmo quem nunca vê
+ele** — `AdminDashboard` (só uma pessoa acessa essa tela, o próprio
+Marcelo) estava num `import` estático dentro do `AuthGate.jsx`,
+entrando no pacote principal do site pra todo cliente. Troquei pra
+`React.lazy()` + `Suspense` — agora é um pacotinho SEPARADO (25KB),
+baixado só na hora que alguém entra como admin.
+
+**3. Logo do cabeçalho, 94% menor** — reparei que os 3 lugares que
+mostram o logo no topo (app principal, painel admin, telas de login)
+carregavam o `icon-512.png` (181KB — o ícone de 512×512 pensado pra
+instalação do PWA) só pra mostrar ele em **44 pixels de altura**.
+Gerei uma versão nova só pro cabeçalho (`icons/logo-header.png`,
+96×96 — nitidez de tela retina em 44px de exibição), que ficou com
+**11KB** — e troquei os 3 lugares pra usar ela. O `icon-512.png`
+original continua existindo, intacto, pro que ele já servia
+(`manifest.json` do PWA) — só não é mais usado pro cabeçalho.
+
+**Resultado, medido antes/depois** (`npm run build`):
+- Antes: um pacote principal só, 809KB minificado.
+- Depois: pacote principal caiu pra **376KB** (53% menor), com
+  Chart.js (208KB), html2canvas (201KB) e o painel admin (25KB) agora
+  em pacotes separados, carregados só quando cada um é realmente
+  usado. O aviso do Vite sobre "chunk maior que 500KB"
+  **desapareceu por completo**.
+- Logo do cabeçalho: 181KB → 11KB por carregamento, em 3 lugares.
+
+**O que NÃO foi tocado, e por quê**: `App.jsx` (o produto principal
+em si) continua num import estático dentro do `AuthGate` — quase todo
+mundo logado precisa dele mesmo, então separar isso não economizaria
+quase nada na prática, só adicionaria uma tela de carregando extra
+sem ganho real. Não vale a complicação.
+
+**Testado**: `npm run build` do frontend limpo, sem erros, com os
+tamanhos exatos confirmados acima (rodei o build antes e depois de
+cada mudança pra medir o efeito real, não só supor). **Não testei
+manualmente num navegador** se o carregamento sob demanda do
+Chart.js/html2canvas/painel admin funciona sem nenhum atraso
+perceptível ou tela em branco — vale o Marcelo confirmar depois do
+deploy, principalmente a primeira vez que abre o Dashboard ou exporta
+um orçamento numa sessão nova (é a única hora que vai ter um
+carregamento extra, rápido, que antes não existia).
+
+## Atualização anterior: modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade
 
 O Marcelo mandou um exemplo de orçamento de outra clínica (visual bem
 mais elaborado — logo, formas decorativas, ícones em círculo, rodapé
@@ -281,77 +343,6 @@ tenho credenciais aqui pra simular; a lógica segue o mesmo padrão já
 usado com sucesso em outras integrações Stripe deste projeto (ex: a
 busca de receita real no painel admin).
 
-## Atualização anterior: contas novas com custo da hora zerado + "Dias restantes" escondido pra cartão recorrente + licença VITALÍCIA nova (pra quem ajudou a desenvolver)
-
-Quatro pedidos do Marcelo, os quatro **testados de ponta a ponta com o
-ambiente rodando de verdade aqui** (não só lidos no código) —
-recriei o Postgres + servidor, gerei uma chave vitalícia de verdade
-pelo painel admin, criei uma conta nova com ela, confirmei o e-mail
-(peguei o código direto do log do servidor, já que SMTP não está
-configurado nesse ambiente local), e conferi a tela de perfil dessa
-conta nova specificamente.
-
-**1. Custo da hora clínica zerado em contas novas** — o Marcelo
-mandou print mostrando os campos de "Custos fixos mensais",
-"Pró-labore desejado" e "Horas produtivas/mês" vindo preenchidos com
-valores de exemplo (8000/15000/100) pra toda conta nova, o que não
-fazia sentido (são números de uma clínica fictícia, não zero real).
-Corrigido em `DEFAULT_SETTINGS.laborCalc`
-(`app-frontend/src/App.jsx`) — `computeHourlyCost` já tinha uma
-proteção contra dividir por zero (retorna R$0,00 em vez de
-erro/infinito quando `productiveHours` é zero), então zerar os
-padrões foi seguro sem precisar mexer em mais nada. **Testado**:
-criei a conta vitalícia do zero e confirmei os três campos e o "Custo
-/ hora resultante" todos em 0/R$0,00, sem erro na tela.
-
-2. **"Dias restantes" escondido quando não faz sentido** — só
-   aparece pra: teste grátis, licença gerada manualmente (mensal/
-   anual pelo admin), ou assinatura por cartão JÁ CANCELADA (nesses
-   casos genuinamente está contando pra um fim real). Pra assinatura
-   Stripe ativa e não cancelada, esconder faz sentido — ela renova
-   sozinha, "dias restantes" dava a entender (errado) que ia parar de
-   funcionar. Corrigido nos dois lugares que mostravam isso: o menu
-   do avatar e "Gerenciar Assinatura" (`app-frontend/src/App.jsx`).
-
-3. **Licença Vitalícia** (o pedido maior desta leva) — pra dar acesso
-   sem cobrança e sem validade a quem ajudou a desenvolver o sistema:
-   - Painel admin ganhou um botão novo, "+ Chave vitalícia" (roxo,
-     `app-frontend/src/AdminDashboard.jsx`), ao lado dos de sempre
-     (mensal/trial/anual).
-   - Backend (`src/routes/admin.js`) aceita `type: "lifetime"` na
-     geração de chave.
-   - Na ativação (`src/routes/auth.js`), licença vitalícia grava
-     `expires_at = NULL` de propósito — o resto do sistema **já**
-     trata `NULL` como "nunca expira" (não precisou mexer em
-     `getLicenseStatusForUser`, essa lógica já existia pra outros
-     casos de licença sem prazo).
-   - "Gerenciar Assinatura" mostra uma mensagem própria pra vitalícia
-     ("Acesso vitalício — sem cobrança nenhuma, sem data de
-     vencimento. Nada pra gerenciar aqui.") em vez do bloco de
-     cancelar/renovar, que não fazem sentido nesse caso.
-   - Botão "Renovar" escondido na aba Usuários do admin pra licença
-     vitalícia (evita alguém sem querer dar uma data de validade real
-     pra uma licença que devia ser eterna).
-   - Nova cor de badge, `violet`, tanto no componente `StatusBadge`
-     do admin quanto no CSS de modo escuro (`index.css`) — as outras
-     cores já usadas (teal/amber/rose/indigo) já tinham dono, então
-     vitalícia ganhou uma só pra ela, pra se destacar nas listas.
-   - **Testado de ponta a ponta**: gerei uma chave vitalícia de
-     verdade no painel, criei uma conta com ela (e-mail
-     `dev@precifica.local`), confirmei o e-mail, e conferi a tela de
-     perfil — mostrou "Tipo: Vitalícia", "Assinante desde:
-     11/09/2026", **sem** nenhuma menção a "Dias restantes",
-     "Próxima cobrança" ou "Cancelar assinatura" (confirmei isso
-     lendo o texto da página inteira, não só olhando o print).
-
-4. **Autocomplete de material/marca** — já tinha sido implementado e
-   testado na sessão anterior, sem mudança nesta.
-
-**Testado**: `npm run build` do frontend limpo; `node --check` em
-`src/routes/admin.js` e `src/routes/auth.js` sem erros; e, como
-descrito acima, os fluxos 1 e 3 testados de ponta a ponta com o
-sistema rodando de verdade, não só por leitura de código.
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -360,6 +351,7 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- contas novas com custo da hora clínica zerado (era exemplo/fictício) + "Dias restantes" escondido pra assinatura Stripe ativa não cancelada + licença VITALÍCIA nova (badge violeta, sem cobrança nem validade)
 - autocomplete de marca por material (+ bug do datalist corrigido) + campo "Desconto convênio/plano" removido de À vista + "Assinante desde" e "Próxima cobrança no cartão" em Gerenciar Assinatura + reabrir orçamento direto de Pacientes
 - painel admin ganhou "Visão Geral" (MRR, conversão trial→pago, cancelamentos, assinaturas em risco, receita real via Stripe) + tema claro/escuro alternável no painel admin
 - modo escuro não vaza mais pro login + "lembrar e-mail" no login + clique direito (editar/excluir) nos procedimentos da Calculadora + contraste do modo escuro corrigido lá + glow nas estrelinhas selecionadas

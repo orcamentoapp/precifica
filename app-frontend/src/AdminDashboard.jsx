@@ -397,7 +397,7 @@ export default function AdminDashboard({ onLogout }) {
       <div className="max-w-6xl mx-auto px-5 py-8">
         <header className="flex items-center justify-between gap-3 mb-6 flex-wrap">
           <div className="flex items-center gap-2.5">
-            <img src="/icons/icon-512.png" alt="Precifica" className="w-9 h-9 shrink-0" />
+            <img src="/icons/logo-header.png" alt="Precifica" className="w-9 h-9 shrink-0" />
             <div>
               <div className="text-lg font-extrabold text-teal-700 leading-tight">Precifica</div>
               <p className="text-xs text-stone-400">Painel administrativo</p>
