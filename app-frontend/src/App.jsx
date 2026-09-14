@@ -207,8 +207,8 @@ function budgetTemplateCSS(vars) {
   .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; }
   .bt-brand-row { display: flex; align-items: center; gap: 16px; }
   .bt-logo-mark { width: 56px; height: 56px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #dde7e3; }
-  .bt-logo-mark img { width: 100%; height: 100%; object-fit: cover; }
   .bt-logo-mark svg { width: 30px; height: 30px; color: ${vars.brand}; }
+  .bt-logo-img { max-height: 56px; max-width: 180px; width: auto; height: auto; object-fit: contain; flex-shrink: 0; }
   .bt-clinic-name { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; letter-spacing: 0.01em; color: ${vars.brandDark}; line-height: 1.25; }
   .bt-clinic-specialty { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-top: 2px; }
   .bt-clinic-cro { font-size: 11px; color: #5c6b67; margin-top: 4px; }
@@ -283,9 +283,14 @@ function buildBudgetTemplateBodyHTML({
   validityMonthsLabel,
 }) {
   const orgKind = settings.orgLabel || "Consultório";
+  // Logo enviada pelo consultório: mostra a imagem direto, sem recortar
+  // num círculo (a logo da pessoa pode ter qualquer formato — forçar ela
+  // dentro de um círculo cortava/distorcia). Sem logo enviada: mantém o
+  // ícone padrão (dente) dentro do círculo, que foi desenhado pra caber
+  // ali.
   const logoInner = settings.clinicLogoDataUrl
-    ? `<img src="${escapeHtml(settings.clinicLogoDataUrl)}" alt="Logo" />`
-    : BT_ICON_TOOTH;
+    ? `<img class="bt-logo-img" src="${escapeHtml(settings.clinicLogoDataUrl)}" alt="Logo" />`
+    : `<div class="bt-logo-mark">${BT_ICON_TOOTH}</div>`;
   const rows = (procedures && procedures.length > 0 ? procedures : [{ name: "Procedimento", value: 0 }])
     .map(
       (p, i) => `
@@ -305,7 +310,7 @@ function buildBudgetTemplateBodyHTML({
     <div class="bt-blob"></div>
     <div class="bt-header">
       <div class="bt-brand-row">
-        <div class="bt-logo-mark">${logoInner}</div>
+        ${logoInner}
         <div>
           <div class="bt-clinic-name">${escapeHtml(settings.clinicName || "Nome")}</div>
           ${settings.specialty ? `<div class="bt-clinic-specialty">${escapeHtml(settings.specialty)}</div>` : ""}

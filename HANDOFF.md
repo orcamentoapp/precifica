@@ -49,7 +49,31 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: pacote principal do site 53% menor (809KB → 376KB) — bibliotecas pesadas carregando só quando usadas + logo do cabeçalho 94% menor
+## Atualização mais recente: logo enviada pelo consultório não fica mais presa num círculo, no orçamento exportado
+
+O Marcelo reparou que a logo do consultório (a que ele acabou de poder
+enviar em Configurações) aparecia cortada dentro de um círculo no
+orçamento exportado — fazia sentido pro ícone padrão (dente), mas não
+pra uma logo de verdade que a pessoa envia, que pode ter qualquer
+formato.
+
+**Corrigido** (`buildBudgetTemplateBodyHTML`/CSS em
+`app-frontend/src/App.jsx`): agora são dois casos diferentes —
+- **Sem logo enviada** (usando o ícone padrão do dente): continua
+  dentro do círculo de sempre, com o fundo suave — faz sentido pra um
+  ícone pensado pra caber ali.
+- **Com logo enviada**: mostra a imagem direto, sem círculo, sem
+  cortar — só limitada a uma altura máxima (56px) e largura máxima
+  (180px), mantendo a proporção original da imagem (`object-fit:
+  contain`), no mesmo canto superior esquerdo de sempre.
+
+Também atualizei o protótipo publicado com essa mudança (mesmo link
+de antes), com um novo botão "Simular logo enviada" pra comparar os
+dois estados lado a lado antes de fechar como certo.
+
+**Testado**: `npm run build` do frontend limpo, sem erros.
+
+## Atualização anterior: pacote principal do site 53% menor (809KB → 376KB) — bibliotecas pesadas carregando só quando usadas + logo do cabeçalho 94% menor
 
 O Marcelo perguntou se dava pra otimizar mais o sistema. Analisei de
 verdade (build real, não suposição) e achei 3 coisas concretas:
@@ -290,59 +314,6 @@ pequena o suficiente (só texto de um rótulo) pra não precisar de novo
 teste ao vivo — a lógica de quando mostrar cada bloco já tinha sido
 testada de ponta a ponta na sessão anterior (a da licença vitalícia).
 
-## Atualização anterior: HANDOFF enxugado (só as últimas atualizações a partir de agora) + 4 últimos dígitos e bandeira do cartão em "Gerenciar Assinatura"
-
-Dois pedidos do Marcelo nesta sessão:
-
-**1. HANDOFF enxugado** — a partir de agora, só as últimas atualizações
-ficam com o texto completo aqui (mantive as 5 mais recentes); tudo
-que era mais antigo que isso virou uma lista curta de títulos, lá
-embaixo em "Histórico resumido", só pra não perder o rastro de
-quando cada coisa foi feita sem inflar o arquivo pra sempre. Esse
-mesmo arquivo, antes desta limpeza, tinha **4722 linhas / 279KB** —
-depois da limpeza, caiu pra menos de 600 linhas. A partir de agora,
-toda vez que uma nova atualização entrar aqui, a mais antiga das 5
-detalhadas desce pra virar só uma linha no histórico condensado —
-mantendo sempre só as 5 mais recentes por extenso.
-
-**2. Últimos 4 dígitos + bandeira do cartão em "Gerenciar
-Assinatura"** — o Marcelo queria que a pessoa soubesse em qual cartão
-ela assinou, sem o Precifica precisar guardar dado de cartão nenhum
-(nem deveria, por segurança/PCI). Implementado buscando isso **direto
-na API do Stripe, na hora**, nunca armazenado no nosso banco:
-- Rota nova, `GET /api/payments/stripe/payment-method`
-  (`src/routes/payments.js`, autenticada) — busca a assinatura no
-  Stripe (`stripe.subscriptions.retrieve`, com o método de pagamento
-  padrão expandido), com fallback pra buscar no cliente
-  (`customer.invoice_settings.default_payment_method`) se não vier
-  expandido na assinatura por algum motivo. Retorna
-  `{ card: { brand, last4 } }` ou `{ card: null }` — nunca quebra a
-  tela por causa disso (erro vira `card: null`, melhor esforço).
-- Frontend (`app-frontend/src/App.jsx`, `ProfileSettingsPage`) busca
-  isso só quando a licença tem assinatura Stripe de verdade
-  (`license.hasStripeSubscription`), e mostra "Cartão cadastrado:
-  •••• 4242 · Visa" dentro de Gerenciar Assinatura, logo abaixo da
-  data de próxima cobrança.
-- **Bug pequeno corrigido no caminho**: na primeira tentativa de
-  inserir essa rota nova antes da rota de cancelar assinatura, um
-  `str_replace` mal formado apagou sem querer a linha de declaração
-  da rota de cancelar (`router.post("/stripe/cancel-subscription", ...)`,
-  ficando só o `try {` órfão) — pego na hora pelo `node --check`
-  (que já dá pra confiar: qualquer erro de sintaxe introduzido por
-  engano aparece na hora, antes de qualquer entrega), corrigido antes
-  de seguir.
-
-**Testado**: `npm run build` do frontend limpo; `node --check
-src/routes/payments.js` sem erros (depois de corrigir o bug do
-`str_replace`). Testei ao vivo o caminho "sem assinatura Stripe" —
-confirmei que a rota responde `200 {"card":null}` de forma limpa e
-que a tela de Configurações simplesmente não mostra a linha do cartão
-nesse caso, sem erro nenhum. **Não testei o caminho com cartão real**
-— isso exigiria uma assinatura Stripe de teste de verdade, que não
-tenho credenciais aqui pra simular; a lógica segue o mesmo padrão já
-usado com sucesso em outras integrações Stripe deste projeto (ex: a
-busca de receita real no painel admin).
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -351,6 +322,7 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- rótulos "Próxima cobrança dia X" (cartão Stripe) vs "Expira em" (licença dada pelo admin) corrigidos em Gerenciar Assinatura, usando confirmação síncrona direto na API do Stripe
 - contas novas com custo da hora clínica zerado (era exemplo/fictício) + "Dias restantes" escondido pra assinatura Stripe ativa não cancelada + licença VITALÍCIA nova (badge violeta, sem cobrança nem validade)
 - autocomplete de marca por material (+ bug do datalist corrigido) + campo "Desconto convênio/plano" removido de À vista + "Assinante desde" e "Próxima cobrança no cartão" em Gerenciar Assinatura + reabrir orçamento direto de Pacientes
 - painel admin ganhou "Visão Geral" (MRR, conversão trial→pago, cancelamentos, assinaturas em risco, receita real via Stripe) + tema claro/escuro alternável no painel admin
