@@ -10304,23 +10304,34 @@ export default function App() {
           setSettings(merged);
         }
       } catch (e) {}
+      // Procedimentos e catálogo de materiais são buscados em PARALELO e só
+      // aplicados no estado depois que os dois terminam. Antes, buscar um
+      // depois do outro (com `setProcedures` no meio) fazia o React desenhar
+      // um quadro intermediário com os procedimentos padrão já carregados
+      // mas o catálogo de materiais ainda vazio (estado inicial) — e como o
+      // custo dos procedimentos padrão vem dos materiais usados, aparecia
+      // R$ 0,00 de custo nesse instante, só corrigindo sozinho depois que a
+      // segunda busca terminava. Buscando os dois ao mesmo tempo, esse
+      // quadro intermediário não existe mais.
+      const [procResult, materialsResult] = await Promise.all([
+        window.storage.get("procedures", false).catch(() => null),
+        window.storage.get("materialsCatalog", false).catch(() => null),
+      ]);
       let list = DEFAULT_PROCEDURES;
       try {
-        const p = await window.storage.get("procedures", false);
-        if (p && p.value) {
-          const stored = JSON.parse(p.value);
+        if (procResult && procResult.value) {
+          const stored = JSON.parse(procResult.value);
           if (stored.length) list = stored;
         }
       } catch (e) {}
-      setProcedures(list);
       let materialsList = DEFAULT_MATERIALS_CATALOG;
       try {
-        const mc = await window.storage.get("materialsCatalog", false);
-        if (mc && mc.value) {
-          const storedCatalog = JSON.parse(mc.value);
+        if (materialsResult && materialsResult.value) {
+          const storedCatalog = JSON.parse(materialsResult.value);
           if (Array.isArray(storedCatalog) && storedCatalog.length) materialsList = storedCatalog;
         }
       } catch (e) {}
+      setProcedures(list);
       setMaterialsCatalog(materialsList);
       try {
         const bh = await window.storage.get("budgetHistory", false);

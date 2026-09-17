@@ -49,7 +49,49 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — lista padrão de procedimentos/custos/materiais pra contas novas
+## ✅ Feito nesta sessão — corrigido: custos zerados ao abrir uma conta nova
+
+O Marcelo testou (criando uma conta nova) e reportou que os valores
+apareciam zerados. Investigando, achei uma causa concreta:
+
+**Bug real encontrado e corrigido**: no carregamento inicial da conta
+(`app-frontend/src/App.jsx`, efeito que roda uma vez no login), a
+busca de `procedures` e a busca de `materialsCatalog` no banco
+(`window.storage.get`) rodavam uma DEPOIS da outra, com
+`setProcedures(list)` aplicado no meio das duas — entre a primeira e
+a segunda busca terminarem, o React desenhava um quadro com os 37
+procedimentos padrão já carregados mas o catálogo de materiais ainda
+vazio (estado inicial `[]`). Como o custo desses procedimentos vem
+dos materiais usados (não de um campo de custo direto), nesse
+instante o "Custo" aparecia R$ 0,00 pra todo mundo — corrigia sozinho
+assim que a segunda busca terminasse, mas dependendo da velocidade da
+conexão dava pra notar (ou até persistir na tela se a pessoa não
+recarregasse). Corrigi buscando os dois em paralelo
+(`Promise.all`) e só aplicando os dois estados juntos, então esse
+quadro intermediário não existe mais.
+
+**Um valor que É zero de verdade, sem ser bug**: reparei que, dentro
+do próprio JSON que o Marcelo mandou (o backup real da Dra.
+Stephanie, usado como `DEFAULT_PROCEDURES`), o procedimento "Prótese
+Total (arcada)" já vem com `valorMinimo: 0` e `valorBase: 0` — ou
+seja, na conta de origem esse procedimento nunca teve um preço
+preenchido (o mesmo procedimento aparece como R$ 0,00 no orçamento de
+exemplo que ele mesmo exportou e mandou numa sessão anterior). Isso
+não é um bug da minha parte — é o dado real, copiado fiel. Não mexi
+nesse valor porque não é uma decisão minha pra tomar (não sei qual é
+o preço certo desse procedimento) — se o Marcelo quiser, é só me
+passar o valor e eu ajusto no `DEFAULT_PROCEDURES`.
+
+**Testado**: `npm run build` do frontend limpo. **Não testei clicando
+de verdade** — como não sei se o que ele viu foi esse quadro
+intermediário (que já estava sendo corrigido sozinho) ou algo que
+ficou preso na tela, vale ele testar de novo com uma conta nova e
+conferir se os custos aparecem certos desde o primeiro instante. Se
+ainda aparecer algo zerado, importante saber: foi TODO procedimento
+zerado, ou só "Prótese Total (arcada)"? E teve algum aviso de "não
+foi possível salvar/carregar" na tela?
+
+## Log anterior — lista padrão de procedimentos/custos/materiais pra contas novas
 
 O Marcelo mandou o JSON completo da conta da Dra. Stephanie Begliomini
 (exportado pelo próprio botão "Exportar" de Procedimentos, formato
