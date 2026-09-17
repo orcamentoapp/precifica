@@ -171,6 +171,73 @@ function hslCss(h, s, l) {
   return `hsl(${h.toFixed(1)} ${s.toFixed(1)}% ${l.toFixed(1)}%)`;
 }
 
+function rgbToHex(r, g, b) {
+  const toHex = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+// Acha a cor "de marca" mais provável dentro de uma imagem de logo — ignora
+// pixels quase brancos, quase pretos ou quase sem saturação (cinza), que
+// normalmente são fundo/contorno, não a cor de verdade da marca. Agrupa os
+// pixels que sobram por matiz (faixas de 20°) e devolve a média da faixa
+// com mais pixels. Se não sobrar nenhum pixel colorido (logo em preto e
+// branco, por exemplo), cai de volta pra média geral de tudo.
+function extractDominantColorFromImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const size = 80; // não precisa da resolução real, só da distribuição de cor
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, size, size);
+        const { data } = ctx.getImageData(0, 0, size, size);
+
+        const buckets = {}; // faixa de matiz -> { count, r, g, b }
+        let fallbackR = 0;
+        let fallbackG = 0;
+        let fallbackB = 0;
+        let fallbackCount = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+          if (a < 200) continue; // pixel transparente — não conta
+          fallbackR += r;
+          fallbackG += g;
+          fallbackB += b;
+          fallbackCount++;
+
+          const [h, s, l] = hexToHslTuple(rgbToHex(r, g, b));
+          if (s < 15 || l < 12 || l > 92) continue; // cinza/preto/branco — provavelmente fundo ou contorno
+
+          const bucketKey = Math.floor(h / 20);
+          if (!buckets[bucketKey]) buckets[bucketKey] = { count: 0, r: 0, g: 0, b: 0 };
+          buckets[bucketKey].count++;
+          buckets[bucketKey].r += r;
+          buckets[bucketKey].g += g;
+          buckets[bucketKey].b += b;
+        }
+
+        const bucketList = Object.values(buckets).sort((a, b) => b.count - a.count);
+        if (bucketList.length > 0) {
+          const best = bucketList[0];
+          resolve(rgbToHex(best.r / best.count, best.g / best.count, best.b / best.count));
+        } else if (fallbackCount > 0) {
+          resolve(rgbToHex(fallbackR / fallbackCount, fallbackG / fallbackCount, fallbackB / fallbackCount));
+        } else {
+          reject(new Error("Imagem sem pixels visíveis"));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => reject(new Error("Não foi possível carregar a imagem"));
+    img.src = dataUrl;
+  });
+}
+
 // A cor escolhida pela pessoa vira a base ("brand"); as variações (mais
 // escura pra texto/títulos, bem clara pra fundos suaves, rodapé) são
 // calculadas a partir dela, sempre no mesmo tom — assim qualquer cor
@@ -203,8 +270,9 @@ function budgetTemplateCSS(vars) {
     overflow: hidden;
     position: relative;
   }
-  .bt-blob { position: absolute; top: -60px; right: -80px; width: 320px; height: 320px; background: radial-gradient(circle at 30% 30%, ${vars.brandSoft}, transparent 70%); border-radius: 50%; pointer-events: none; }
-  .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; }
+  .bt-blob { position: absolute; top: -60px; right: -80px; width: 320px; height: 320px; background: radial-gradient(circle at 30% 30%, ${vars.brandSoft}, transparent 70%); border-radius: 50%; pointer-events: none; z-index: 0; }
+  .bt-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 950px; height: 950px; object-fit: contain; opacity: 0.12; pointer-events: none; z-index: 0; }
+  .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; z-index: 1; }
   .bt-brand-row { display: flex; align-items: center; gap: 16px; }
   .bt-logo-mark { width: 56px; height: 56px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #dde7e3; }
   .bt-logo-mark svg { width: 30px; height: 30px; color: ${vars.brand}; }
@@ -212,7 +280,7 @@ function budgetTemplateCSS(vars) {
   .bt-clinic-name { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; letter-spacing: 0.01em; color: ${vars.brandDark}; line-height: 1.25; }
   .bt-clinic-specialty { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-top: 2px; }
   .bt-clinic-cro { font-size: 11px; color: #5c6b67; margin-top: 4px; }
-  .bt-hero { padding: 8px 48px 32px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; position: relative; }
+  .bt-hero { padding: 8px 48px 32px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; position: relative; z-index: 1; }
   .bt-hero-label { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: ${vars.brand}; font-weight: 600; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
   .bt-hero-label::after { content: ""; flex: 1; height: 1px; background: #dde7e3; }
   .bt-hero h1 { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 500; margin: 0 0 10px; color: #1c2b27; }
@@ -224,7 +292,7 @@ function budgetTemplateCSS(vars) {
   .bt-meta-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; }
   .bt-meta-value { font-size: 14px; font-weight: 600; color: #1c2b27; }
   .bt-meta-sub { font-size: 11px; color: #5c6b67; }
-  .bt-table-wrap { margin: 0 48px; border: 1px solid #dde7e3; border-radius: 10px; overflow: hidden; }
+  .bt-table-wrap { margin: 0 48px; border: 1px solid #dde7e3; border-radius: 10px; overflow: hidden; position: relative; z-index: 1; background: #fbfaf7; }
   .bt-table { width: 100%; border-collapse: collapse; }
   .bt-table thead tr { background: ${vars.brandSoft}; }
   .bt-table th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: ${vars.brandDark}; padding: 12px 18px; font-weight: 600; }
@@ -233,18 +301,18 @@ function budgetTemplateCSS(vars) {
   .bt-table td { padding: 16px 18px; border-top: 1px solid #dde7e3; font-size: 14px; }
   .bt-proc-name { font-weight: 600; color: #1c2b27; }
   .bt-proc-value { font-family: 'Fraunces', serif; font-weight: 500; font-size: 15px; }
-  .bt-total-bar { margin: 24px 48px 0; background: ${vars.brandSoft}; border-radius: 10px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .bt-total-bar { margin: 24px 48px 0; background: ${vars.brandSoft}; border-radius: 10px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
   .bt-total-label { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; }
   .bt-total-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; color: ${vars.brandDark}; }
-  .bt-info-row { margin: 32px 48px 0; display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px; }
+  .bt-info-row { margin: 32px 48px 0; display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px; position: relative; z-index: 1; }
   .bt-info-block { display: flex; gap: 14px; }
   .bt-info-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-bottom: 6px; font-weight: 600; }
   .bt-info-block ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: #5c6b67; line-height: 1.7; }
   .bt-payment-line { font-size: 14px; color: #1c2b27; line-height: 1.6; }
-  .bt-closing { text-align: center; margin: 40px 48px 0; padding-top: 20px; border-top: 1px solid #dde7e3; }
+  .bt-closing { text-align: center; margin: 40px 48px 0; padding-top: 20px; border-top: 1px solid #dde7e3; position: relative; z-index: 1; }
   .bt-closing-title { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; margin-bottom: 4px; }
   .bt-closing-sub { font-size: 13px; color: #5c6b67; }
-  .bt-footer { margin-top: 32px; background: ${vars.footerBg}; color: ${vars.footerText}; padding: 22px 48px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; font-size: 12px; }
+  .bt-footer { margin-top: 32px; background: ${vars.footerBg}; color: ${vars.footerText}; padding: 22px 48px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; font-size: 12px; position: relative; z-index: 1; }
   .bt-footer-item { display: flex; align-items: flex-start; gap: 8px; }
   .bt-footer-item svg { width: 14px; height: 14px; margin-top: 2px; flex-shrink: 0; color: ${vars.footerIcon}; }
   .bt-footer-name { color: #fff; font-weight: 600; font-family: 'Fraunces', serif; }
@@ -308,6 +376,7 @@ function buildBudgetTemplateBodyHTML({
   return `
   <div class="bt-page">
     <div class="bt-blob"></div>
+    ${settings.clinicLogoDataUrl ? `<img class="bt-watermark" src="${escapeHtml(settings.clinicLogoDataUrl)}" alt="" />` : ""}
     <div class="bt-header">
       <div class="bt-brand-row">
         ${logoInner}
@@ -4797,6 +4866,87 @@ function ProfessionalRegistrationField({ value, onChange }) {
 // rota que o formulário de Contato/Suporte já usa) — usado quando não tem
 // nenhum jeito de self-service pra resolver algo (ex: renovar uma licença
 // sem assinatura Stripe).
+// Seletor de cor de destaque — mostra só o quadradinho colorido; o código
+// hexadecimal e as opções (cor manual, cor extraída do logo) só aparecem
+// dentro de um popover, ao clicar no quadradinho, em vez de ficar sempre
+// visível do lado dele.
+function ColorAccentPicker({ value, onChange, logoDataUrl }) {
+  const [open, setOpen] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState(false);
+  const popoverRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  async function handleUseLogoColor() {
+    if (!logoDataUrl) return;
+    setExtracting(true);
+    setExtractError(false);
+    try {
+      const hex = await extractDominantColorFromImage(logoDataUrl);
+      onChange(hex);
+    } catch (err) {
+      setExtractError(true);
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="text-xs text-stone-500 mb-1">Cor de destaque</div>
+      <div className="relative inline-block" ref={popoverRef}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          title="Clique pra escolher a cor"
+          className="w-11 h-9 rounded-lg border border-stone-200 cursor-pointer"
+          style={{ backgroundColor: value }}
+        />
+        {open && (
+          <div className="absolute left-0 top-full mt-2 z-20 bg-white border border-stone-200 rounded-xl shadow-lg p-3 w-56">
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="color"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-9 h-9 rounded-lg border border-stone-200 cursor-pointer p-0.5 bg-white shrink-0"
+              />
+              <span className="text-sm text-stone-600 font-mono">{value}</span>
+            </div>
+            {logoDataUrl && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleUseLogoColor}
+                  disabled={extracting}
+                  className="w-full text-xs font-medium border border-teal-200 text-teal-700 rounded-lg py-1.5 hover:bg-teal-50 transition disabled:opacity-50"
+                >
+                  {extracting ? "Analisando logo..." : "Usar cor do logo"}
+                </button>
+                {extractError && (
+                  <p className="text-[11px] text-rose-500 mt-1.5">Não deu pra identificar uma cor nessa logo.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
+        Usada nas abas do sistema e nas partes coloridas do orçamento exportado (cabeçalho, tabela, total, rodapé,
+        marca d'água) — escolha a que mais combina com o seu consultório/clínica.
+      </p>
+    </div>
+  );
+}
+
 function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpload }) {
   const profilePhotoInputRef = useRef(null);
   const clinicLogoInputRef = useRef(null);
@@ -5002,7 +5152,25 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
               <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece no cabeçalho do orçamento exportado.</p>
             </div>
           </div>
+          <p className="text-xs text-stone-400 mt-2 leading-relaxed">
+            Prefira uma imagem com fundo transparente (PNG) — evita a logo aparecer dentro de um quadrado colorido no
+            orçamento. Tamanho recomendado: pelo menos 300×300 pixels.
+          </p>
         </div>
+
+        <ColorAccentPicker
+          value={settings.headerColor || "#005580"}
+          onChange={(hex) => onChange({ ...settings, headerColor: hex })}
+          logoDataUrl={settings.clinicLogoDataUrl}
+        />
+
+        <button
+          type="button"
+          onClick={() => previewBudgetTemplate(settings)}
+          className="w-full text-sm font-medium text-teal-700 border border-teal-200 rounded-lg py-2.5 hover:bg-teal-50 transition"
+        >
+          Visualizar modelo de orçamento
+        </button>
 
         <div>
           <div className="text-xs text-stone-500 mb-1">Nome</div>
@@ -5084,31 +5252,6 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
             Aparece no rodapé dos orçamentos exportados (PDF, imagem, WhatsApp).
           </p>
         </div>
-
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Cor de destaque</div>
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={settings.headerColor || "#005580"}
-              onChange={(e) => onChange({ ...settings, headerColor: e.target.value })}
-              className="w-11 h-9 rounded-lg border border-stone-200 cursor-pointer p-0.5 bg-white"
-            />
-            <span className="text-sm text-stone-600 font-mono">{settings.headerColor || "#005580"}</span>
-          </div>
-          <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
-            Usada nas abas do sistema e nas partes coloridas do orçamento exportado (cabeçalho, tabela, total,
-            rodapé) — escolha a que mais combina com o seu consultório/clínica.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => previewBudgetTemplate(settings)}
-          className="w-full text-sm font-medium text-teal-700 border border-teal-200 rounded-lg py-2.5 hover:bg-teal-50 transition"
-        >
-          Visualizar modelo de orçamento
-        </button>
       </div>
 
       {license && (

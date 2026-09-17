@@ -49,7 +49,66 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: logo enviada pelo consultório não fica mais presa num círculo, no orçamento exportado
+## Atualização mais recente: marca d'água com o logo no orçamento + seletor de cor extrai a cor do logo + código hexadecimal só aparece ao clicar + textos de ajuda no upload + reordenação dos campos
+
+Cinco pedidos do Marcelo em cima da entrega anterior:
+
+**1. Texto de ajuda no upload do logo** — embaixo do botão de
+enviar/trocar logo, agora explica: preferir fundo transparente (PNG)
+pra não aparecer dentro de um quadrado colorido, e tamanho recomendado
+de pelo menos 300×300px.
+
+**2. Reordenação dos campos em Configurações** — "Cor de destaque" e
+o botão "Visualizar modelo de orçamento" agora ficam logo depois do
+upload do logo (antes ficavam no fim da lista, depois de
+Nome/Especialidade/Endereço/Telefone/Instagram/Validade).
+
+**3. Seletor de cor: extrair a cor do logo enviado** — botão novo
+"Usar cor do logo" dentro do seletor (só aparece se já tiver uma logo
+enviada). Função nova, `extractDominantColorFromImage()` — desenha a
+logo escondida num canvas pequeno (80×80, só pra pegar a distribuição
+de cor, não precisa da resolução real), ignora pixels quase brancos/
+pretos/cinza (normalmente fundo ou contorno, não a cor de marca),
+agrupa o resto por faixa de matiz, e devolve a média da faixa mais
+comum. Se a logo for preto-e-branco (nenhum pixel colorido sobra),
+cai de volta pra média geral de tudo, sem travar.
+
+**4. Código hexadecimal escondido, só aparece ao clicar** — antes o
+código (`#005580`) ficava sempre visível do lado do quadradinho de
+cor; agora o quadradinho é só um botão, e clicar nele abre um popover
+pequeno com o código + o seletor de cor nativo do navegador + o botão
+"Usar cor do logo" (fecha ao clicar fora). Componente novo,
+`ColorAccentPicker`, substituindo o bloco de cor que estava direto
+dentro do `ProfileSettingsPage`.
+
+**5. Marca d'água com o logo, no orçamento exportado** — só aparece
+quando existe uma logo enviada (sem logo, sem marca d'água — não
+faria sentido com o ícone padrão do dente). Centralizada, bem maior
+que a própria página (950×950px numa página de 780px de largura — a
+intenção é cortar mesmo nas bordas), com 12% de opacidade (as
+"85-90% de transparência" que o Marcelo pediu). Tecnicamente, isso
+exigiu acertar a ordem de empilhamento (`z-index`) de quase todo o
+template: a marca d'água entra com `z-index: 0`, e cada bloco de
+conteúdo real (cabeçalho, tabela, total, informações, rodapé,
+fechamento) ganhou `position: relative; z-index: 1` explícito — sem
+isso, alguns desses blocos (que não tinham posicionamento nenhum
+antes) ficariam ATRÁS da marca d'água em vez de na frente, por causa
+de como o CSS empilha elemento posicionado vs. não-posicionado por
+padrão.
+
+**Testado**: `npm run build` do frontend limpo, sem erros. Também
+atualizei o protótipo publicado (mesmo link de antes) com um `<img>`
+de marca d'água ligado ao mesmo botão "Simular logo enviada" que já
+existia, pra dar pra comparar visualmente. **Não consegui ver o
+resultado renderizado de verdade** (nem no protótipo nem no app) —
+só escrevi e revisei o código; a extração de cor em particular
+(`extractDominantColorFromImage`) é a peça que eu confio menos sem
+ver rodando de verdade, já que depende de como cada logo específica
+está distribuída em cor — vale o Marcelo testar com a própria logo
+real e confirmar que a cor extraída faz sentido, e que a marca d'água
+ficou com a proporção/opacidade boas.
+
+## Atualização anterior: logo enviada pelo consultório não fica mais presa num círculo, no orçamento exportado
 
 O Marcelo reparou que a logo do consultório (a que ele acabou de poder
 enviar em Configurações) aparecia cortada dentro de um círculo no
@@ -290,29 +349,6 @@ a correção é logicamente sólida (mesmo padrão que já funciona no app
 principal, aplicado no mesmo lugar), mas vale o Marcelo conferir com
 os próprios olhos depois do deploy, junto com o popup da chave e o
 menu de ações agrupado.
-
-## Atualização anterior: rótulos certos em "Gerenciar Assinatura" — "Próxima cobrança dia" (cartão) vs "Expira em" + "Dias restantes" (licença do admin)
-
-Ajuste fino em cima da sessão anterior. O Marcelo deixou explícito
-exatamente como cada caso deve aparecer em Gerenciar Assinatura
-(`app-frontend/src/App.jsx`):
-
-- **Assinatura por cartão de crédito (Stripe, ativa, não trial, não
-  cancelada)**: só "Próxima cobrança dia: DD/MM/AAAA" — sem "Dias
-  restantes" (renova sozinha, contar dias não faz sentido aqui,
-  decisão já tomada numa sessão anterior). Só precisou trocar o texto
-  do rótulo, que antes dizia "Próxima cobrança no cartão".
-- **Licença gerada pelo painel admin** (mensal/anual manual, sem
-  Stripe): "Expira em: DD/MM/AAAA" **junto com** "Dias restantes: XX
-  dias" — os dois já apareciam juntos nesse caso, não precisou mudar
-  nada na lógica, só confirmar que já estava certo.
-- **Dias restantes em vermelho quando ≤ 7 dias** — já estava assim
-  desde antes, confirmado que continua correto.
-
-**Testado**: `npm run build` do frontend limpo, sem erros. Mudança
-pequena o suficiente (só texto de um rótulo) pra não precisar de novo
-teste ao vivo — a lógica de quando mostrar cada bloco já tinha sido
-testada de ponta a ponta na sessão anterior (a da licença vitalícia).
 
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
