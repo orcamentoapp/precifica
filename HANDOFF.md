@@ -49,7 +49,55 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — ajustes visuais no modelo de orçamento exportado (PDF/PNG/WhatsApp/Impressão)
+## ✅ Feito nesta sessão — lista padrão de procedimentos/custos/materiais pra contas novas
+
+O Marcelo mandou o JSON completo da conta da Dra. Stephanie Begliomini
+(exportado pelo próprio botão "Exportar" de Procedimentos, formato
+backup completo — 37 procedimentos + 61 materiais no catálogo) e
+pediu pra virar a lista padrão de toda conta nova.
+
+**O que mudou** (`app-frontend/src/App.jsx`):
+- `DEFAULT_PROCEDURES` — antes era uma lista genérica embutida no
+  código (~40 procedimentos com nomes/categorias comuns, SEM custo,
+  SEM materiais, margem fixa de 40%). Substituí pelo conteúdo real do
+  JSON que ele mandou — os 37 procedimentos da Dra. Stephanie, já com
+  custo, categoria, duração, sessões, margem, valor mínimo/base e a
+  lista de materiais usados em cada um.
+- `DEFAULT_MATERIALS_CATALOG` — constante nova (não existia antes;
+  conta nova nascia com catálogo de materiais vazio). Guarda os 61
+  materiais do JSON (nome, marca, quantidade/unidade da embalagem,
+  preço) — é o catálogo que os procedimentos de cima referenciam pra
+  calcular custo automaticamente.
+- Carregamento inicial (perto do fim do arquivo, onde a conta busca
+  seus dados salvos): antes só `procedures` tinha fallback pro padrão
+  quando a conta não tinha nada salvo ainda; `materialsCatalog`
+  carregava vazio nesse caso. Agora os dois seguem a mesma regra —
+  conta sem dado salvo (ou com array vazio salvo) recebe
+  `DEFAULT_PROCEDURES`/`DEFAULT_MATERIALS_CATALOG` como ponto de
+  partida.
+
+**Importante**: isso só afeta conta **nova** (ou uma conta que nunca
+salvou nada ainda) — não mexe em NADA de contas que já têm
+procedimentos/materiais próprios salvos, incluindo a própria conta da
+Dra. Stephanie (ela carrega do banco normalmente, não passa pelo
+fallback).
+
+Os dados foram copiados como vieram no JSON, sem alterar nenhum
+valor — inclusive um caso de material com duas marcas cadastradas
+("Babador Branco", AllPrime e Hospflex), que é exatamente o cenário
+que a função de casar material+marca (`findCatalogItem`) já foi
+desenhada pra tratar.
+
+**Testado**: `npm run build` do frontend limpo (bundle cresceu ~40kB
+por causa dos dados embutidos, esperado). Conferi que os IDs de
+procedimentos, materiais do catálogo e materiais usados dentro de
+cada procedimento não têm nenhuma duplicata. **Não testei clicando
+de verdade** — vale o Marcelo criar uma conta de teste nova (ou
+usar uma licença de teste) e conferir se ela já nasce com esses 37
+procedimentos e o catálogo de materiais preenchidos e os custos
+batendo certinho.
+
+## Log anterior — ajustes visuais no modelo de orçamento exportado (PDF/PNG/WhatsApp/Impressão)
 
 O Marcelo mandou 2 exportações (PNGs) de orçamentos reais — um com 7
 procedimentos e pagamento dividido em 2 partes, outro com só 1

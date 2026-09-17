@@ -627,65 +627,3214 @@ function computeHourlyCost(laborCalc) {
   return (fixedCosts + desiredIncome) / productiveHours;
 }
 
+// Lista padrão de procedimentos/custos/materiais pra contas novas —
+// veio de um backup real exportado pelo Marcelo (conta da Dra. Stephanie
+// Begliomini), a pedido dele: toda conta nova já nasce com esses
+// procedimentos, custos, margens e materiais cadastrados, em vez de
+// nascer vazia ou com a lista genérica (sem custo) que existia antes.
 const DEFAULT_PROCEDURES = [
-  ["Prótese", [
-    ["Prótese Total", 1000, 1800],
-    ["Prótese Flexível", 1300, 1800],
-    ["PPR", 1400, 2000],
-    ["Prótese Móvel", 1000, 1300],
-    ["Protocolo cartão ou à vista", 12000, 12000],
-    ["Protocolo no boleto", 25000, 25000],
-    ["Over Denture", 5000, 7000],
-    ["Coroa ArtGlass", 900, 1400],
-    ["Coroa Porcelana", 1800, 2300],
-    ["Coroa Metalo-Cerâmica", 1800, 2300],
-    ["Cirurgia Implante", 1500, 2000],
-    ["Coroa sobre Implante", 1800, 2300],
-  ]],
-  ["Clínico", [
-    ["Raspagem", 150, 200],
-    ["Restauração 1 face", 120, 200],
-    ["Restauração 2 faces", 150, 200],
-    ["Restauração 3 faces", 150, 250],
-    ["Exodontia simples", 100, 150],
-    ["Exodontia Siso", 350, 450],
-    ["Exodontia Decíduo", 120, 250],
-    ["Placa de Bruxismo", 400, 700],
-  ]],
-  ["Endodontia", [
-    ["Canal Incisivo", 350, 400],
-    ["Canal Pré Molar", 450, 600],
-    ["Canal Molar", 600, 800],
-    ["Canal Decíduo", 350, 450],
-  ]],
-  ["Estética", [
-    ["Clareamento Caseiro", 900, 1000],
-    ["Clareamento Consultório", 900, 1000],
-    ["Lente de Contato (resina)", 250, 350],
-    ["Lente de Contato Estratificada (resina)", 350, 450],
-    ["Faceta (resina)", 250, 450],
-    ["Lente de Contato (porcelana)", 1000, 1200],
-  ]],
-  ["Ortodontia", [
-    ["Montagem de aparelho convencional", 150, 250],
-    ["Contenção Hawley", 550, 600],
-    ["Contenção Estética", 650, 700],
-  ]],
-].flatMap(([category, items]) =>
-  items.map(([name, valorMinimo, valorBase]) => ({
-    id: uid(),
-    name,
-    category,
-    cost: 0,
-    additionalCost: 0,
-    durationMinutes: 30,
-    sessions: 1,
-    laborCost: 0,
-    marginPercent: 40,
-    valorMinimo,
-    valorBase,
-  }))
-);
+  {
+    "id": "9xws6knq",
+    "name": "Prótese Flexível",
+    "category": "Prótese",
+    "cost": 5.25,
+    "durationMinutes": "15",
+    "laborCost": 0,
+    "marginPercent": 59.57,
+    "valorMinimo": 1300,
+    "valorBase": "1200",
+    "materials": [
+      {
+        "id": "c0yxb3sy",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "48tmg2tk",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "whlh9twd",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "375",
+    "sessions": "4"
+  },
+  {
+    "id": "u7u0apf2",
+    "name": "PPR",
+    "category": "Prótese",
+    "cost": 4.37,
+    "durationMinutes": "15",
+    "laborCost": 0,
+    "marginPercent": 50.89,
+    "valorMinimo": 1400,
+    "valorBase": "1200",
+    "materials": [
+      {
+        "id": "h8y3fu4g",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "40",
+        "unit": "g"
+      },
+      {
+        "id": "iyva8gg5",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "4fx6b35s",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "480",
+    "sessions": "4"
+  },
+  {
+    "id": "x012l6sf",
+    "name": "Prótese Móvel",
+    "category": "Prótese",
+    "cost": "5.26",
+    "durationMinutes": "15",
+    "laborCost": 0,
+    "marginPercent": 53.99,
+    "valorMinimo": 1000,
+    "valorBase": "1000",
+    "materials": [
+      {
+        "id": "0nbj2pkn",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "5x22ponp",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "ykiw90oj",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "350",
+    "sessions": "4"
+  },
+  {
+    "id": "z7v2i9an",
+    "name": "Protocolo",
+    "category": "Prótese",
+    "cost": "44.11",
+    "durationMinutes": "200",
+    "laborCost": 0,
+    "marginPercent": 89.64,
+    "valorMinimo": 12000,
+    "valorBase": "12000",
+    "materials": [
+      {
+        "id": "g8qbk6f6",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "yifq35hq",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "20",
+        "unit": "g"
+      },
+      {
+        "id": "893cmz6e",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "fkmyg67o",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "6",
+        "unit": "tubetes"
+      },
+      {
+        "id": "x6cqb2fh",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "8qpuabb0",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "10",
+        "unit": "un"
+      },
+      {
+        "id": "w09yvgnb",
+        "material": "Agulha Curta",
+        "brand": "SR",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "ezv3nyus",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "tdf8negs",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "850",
+    "sessions": "1"
+  },
+  {
+    "id": "4bqyihu9",
+    "name": "Protocolo + Enxerto",
+    "category": "Prótese",
+    "cost": "144",
+    "durationMinutes": "250",
+    "laborCost": 0,
+    "marginPercent": 90.46,
+    "valorMinimo": 25000,
+    "valorBase": "15000",
+    "materials": [
+      {
+        "id": "ecv1iowu",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "y5z0qc4j",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "20",
+        "unit": "g"
+      },
+      {
+        "id": "5dn47alq",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "hizzdqse",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "6",
+        "unit": "tubetes"
+      },
+      {
+        "id": "lvk4cjv2",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "szlhx1gb",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "10",
+        "unit": "un"
+      },
+      {
+        "id": "ydfp0j04",
+        "material": "Agulha Curta",
+        "brand": "SR",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "yncmdjf1",
+        "material": "Enxerto Genox Inorg",
+        "brand": "Baumer",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "zk7nowfq",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "kqufv6bs",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "850"
+  },
+  {
+    "id": "718n22vn",
+    "name": "Over Denture",
+    "category": "Prótese",
+    "cost": 44.1,
+    "durationMinutes": "200",
+    "laborCost": 0,
+    "marginPercent": 79.27,
+    "valorMinimo": 5000,
+    "valorBase": "6000",
+    "materials": [
+      {
+        "id": "ord9ns7a",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "2zg7dpz0",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "20",
+        "unit": "g"
+      },
+      {
+        "id": "r62vx1rc",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "l9xmq05f",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "6",
+        "unit": "tubetes"
+      },
+      {
+        "id": "hl46o1vf",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "6yo19i6j",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "10",
+        "unit": "un"
+      },
+      {
+        "id": "2n4l059g",
+        "material": "Agulha Curta",
+        "brand": "SR",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "n1tewhl1",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "tu7629b1",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "850"
+  },
+  {
+    "id": "bxkxo5ee",
+    "name": "Coroa ArtGlass",
+    "category": "Prótese",
+    "cost": 38.16,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 55.78,
+    "valorMinimo": 900,
+    "valorBase": "900",
+    "materials": [
+      {
+        "id": "t0s77a9f",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.5",
+        "unit": "g"
+      },
+      {
+        "id": "oxlibb18",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "xy903wa9",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0.05",
+        "unit": "g"
+      },
+      {
+        "id": "1eat3fwl",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "mc10zpvz",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "hurls2ee",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "alfhteyx",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "5slg1qq1",
+        "material": "Cimento Resinoso Dual RelyX™ U200 Clicker",
+        "brand": "3M Solventum",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "7nsl9bq4",
+        "material": "Agente de União Silano",
+        "brand": "Angelus",
+        "qty": "0.05",
+        "unit": "ml"
+      },
+      {
+        "id": "v5nnheuw",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "anu7kikk",
+        "material": "Papel Carbono Contacto (100 micra)",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "sv076kp1",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "2poquksv",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "zdy9zv7a",
+        "material": "Pino de Fibra de Vidro Exacto",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "150",
+    "sessions": "2"
+  },
+  {
+    "id": "ohcot59w",
+    "name": "Coroa Porcelana",
+    "category": "Prótese",
+    "cost": 39.66,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 56.7,
+    "valorMinimo": 1800,
+    "valorBase": "1500",
+    "materials": [
+      {
+        "id": "615i6mk2",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.5",
+        "unit": "g"
+      },
+      {
+        "id": "agb0l9h4",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "y6ohreuy",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0.05",
+        "unit": "g"
+      },
+      {
+        "id": "zzjkg9wb",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "uesvtqtt",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "bbk8or0o",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "zlobx9a5",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "yoqhwvdc",
+        "material": "Cimento Resinoso Dual RelyX™ U200 Clicker",
+        "brand": "3M Solventum",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "nx75d2r1",
+        "material": "Agente de União Silano",
+        "brand": "Angelus",
+        "qty": "0.05",
+        "unit": "ml"
+      },
+      {
+        "id": "p6zciqej",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "x0wl2lug",
+        "material": "Papel Carbono Contacto (100 micra)",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "wc8qeitt",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "xjs4w9hg",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "9qcll280",
+        "material": "Condicionador Ácido Porcelana Condac",
+        "brand": "FGM",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "n03mouac",
+        "material": "Pino de Fibra de Vidro Exacto",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "0v0h3css",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "3",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "400",
+    "sessions": "2"
+  },
+  {
+    "id": "ie7ippu8",
+    "name": "Coroa Metalo-Cerâmica",
+    "category": "Prótese",
+    "cost": 39.66,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 69.75,
+    "valorMinimo": 1800,
+    "valorBase": "1800",
+    "materials": [
+      {
+        "id": "l33n1gi5",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.5",
+        "unit": "g"
+      },
+      {
+        "id": "qsqwvgzd",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "g8c8hdag",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0.05",
+        "unit": "g"
+      },
+      {
+        "id": "c4qay3pk",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "kb0c3gi2",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "iw2hnjo3",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "8d6hlowl",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "ug9qgo0k",
+        "material": "Cimento Resinoso Dual RelyX™ U200 Clicker",
+        "brand": "3M Solventum",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "mvy35mst",
+        "material": "Agente de União Silano",
+        "brand": "Angelus",
+        "qty": "0.05",
+        "unit": "ml"
+      },
+      {
+        "id": "gjakri5o",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "2ar8r9cg",
+        "material": "Papel Carbono Contacto (100 micra)",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "kwfnzcia",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "p0zsyetv",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "qgkwc2so",
+        "material": "Condicionador Ácido Porcelana Condac",
+        "brand": "FGM",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "sx4kj8m3",
+        "material": "Pino de Fibra de Vidro Exacto",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "p0uuosqm",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "3",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "400"
+  },
+  {
+    "id": "9j8rxnh9",
+    "name": "Cirurgia Implante",
+    "category": "Prótese",
+    "cost": 390.23,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 66.99,
+    "valorMinimo": 1500,
+    "valorBase": "1500",
+    "materials": [
+      {
+        "id": "mbbr4jl4",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "ruyemm8m",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "6qevunva",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "4ensaefc",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "4",
+        "unit": "tubetes"
+      },
+      {
+        "id": "e2tknrpy",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "3usrf6oo",
+        "material": "Resina Applic Flow",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "u9d24kj8",
+        "material": "Implante Tryon Cônico",
+        "brand": "S.I.N.",
+        "qty": "1",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "lbusbvmu",
+    "name": "Coroa sobre Implante",
+    "category": "Prótese",
+    "cost": 9.43,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 65.71,
+    "valorMinimo": 1800,
+    "valorBase": "1500",
+    "materials": [
+      {
+        "id": "ss6zoech",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "tuccfcgi",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "omsk3eq7",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "pjyevglr",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "1",
+        "unit": "tubetes"
+      },
+      {
+        "id": "vathr9jv",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "400",
+    "sessions": "2"
+  },
+  {
+    "id": "b152xcrp",
+    "name": "Raspagem",
+    "category": "Clínico",
+    "cost": 2.66,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 72.45,
+    "valorMinimo": 150,
+    "valorBase": "200",
+    "materials": [
+      {
+        "id": "da5zj2xw",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.5",
+        "unit": "g"
+      },
+      {
+        "id": "uaup67gf",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "dk8ms4go",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "tpep8b68",
+        "material": "Bicarbonato de Sódio Airon",
+        "brand": "Maquira",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "z0uyxx3x",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "vv0z78h6",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "3",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "org4nlp9",
+    "name": "Restauração 1 face",
+    "category": "Clínico",
+    "cost": 16.52,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 65.52,
+    "valorMinimo": 120,
+    "valorBase": "200",
+    "materials": [
+      {
+        "id": "kdebr1yo",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "rhs6q024",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "ka2d2vxw",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "et1v4fe6",
+        "material": "Resina Opallis Flow",
+        "brand": "FGM",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "853w9otu",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "jvwqlmn0",
+        "material": "Adesivo Ambar",
+        "brand": "FGM",
+        "qty": "0.05",
+        "unit": "ml"
+      },
+      {
+        "id": "7fuzutp7",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "t9v7ysh6",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.3",
+        "unit": "g"
+      },
+      {
+        "id": "5ew8xu8b",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "uidn4ood",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "3mezsbab",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "fyhnf5f8",
+    "name": "Restauração 2 faces",
+    "category": "Clínico",
+    "cost": 28.48,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 55.54,
+    "valorMinimo": 150,
+    "valorBase": "300",
+    "materials": [
+      {
+        "id": "6eew2by3",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "ccxn635a",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "lorx4n18",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "8ejys827",
+        "material": "Resina Opallis Flow",
+        "brand": "FGM",
+        "qty": "0.15",
+        "unit": "g"
+      },
+      {
+        "id": "v6sgm0zc",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.12",
+        "unit": "g"
+      },
+      {
+        "id": "wx6lvb7y",
+        "material": "Adesivo Ambar",
+        "brand": "FGM",
+        "qty": "0.06",
+        "unit": "ml"
+      },
+      {
+        "id": "2b9qojna",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "vv6nqk9m",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.5",
+        "unit": "g"
+      },
+      {
+        "id": "rdqxrd8j",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "l0f5oqwv",
+        "material": "Unimatrix Refil 50 Matrizes Sortidas",
+        "brand": "TDV",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "dkyn74dg",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "0uqpfljj",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "9ktrfxyd",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "q70rt85f",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "y9p2qkcm",
+    "name": "Exodontia simples",
+    "category": "Clínico",
+    "cost": 15.82,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 39.64,
+    "valorMinimo": 100,
+    "valorBase": "200",
+    "materials": [
+      {
+        "id": "7pebdeg8",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "vbi6b2gg",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "6gkjzyq2",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "bf923njt",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "kclw4yx0",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "5",
+        "unit": "un"
+      },
+      {
+        "id": "kb2j4riz",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "4",
+        "unit": "tubetes"
+      },
+      {
+        "id": "oaspw676",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "rnuba2zf",
+        "material": "Benzotop 20% Tutti-Frutti",
+        "brand": "DFL",
+        "qty": "0.2",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "wc0p0wmi",
+    "name": "Exodontia Siso",
+    "category": "Clínico",
+    "cost": 18.42,
+    "durationMinutes": "90",
+    "laborCost": 0,
+    "marginPercent": 41.42,
+    "valorMinimo": 350,
+    "valorBase": "300",
+    "materials": [
+      {
+        "id": "ps4fo6kx",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "vjxcbqa6",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "4co5hqh8",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "3",
+        "unit": "tubetes"
+      },
+      {
+        "id": "ouvdatnf",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "qhv9eq8f",
+        "material": "Benzotop 20% Tutti-Frutti",
+        "brand": "DFL",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "suz4lndf",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "m7t8ml2k",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "zbj1wibg",
+    "name": "Exodontia Decíduo",
+    "category": "Clínico",
+    "cost": 7.21,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 25.27,
+    "valorMinimo": 120,
+    "valorBase": "150",
+    "materials": [
+      {
+        "id": "bqrvrpfi",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "zpy5ky7u",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "q4jlhsfu",
+        "material": "Benzotop 20% Tutti-Frutti",
+        "brand": "DFL",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "dldwrlge",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "1q47hak5",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "10",
+        "unit": "un"
+      },
+      {
+        "id": "i1kfst71",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "d71f24jd",
+    "name": "Placa de Bruxismo",
+    "category": "Clínico",
+    "cost": 3.06,
+    "durationMinutes": "15",
+    "laborCost": 0,
+    "marginPercent": 88.9,
+    "valorMinimo": 400,
+    "valorBase": "500",
+    "sessions": "2",
+    "materials": [
+      {
+        "id": "1vt7730v",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "5pz8rdyp",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "yuobtkt6",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "25",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "qnyvecd7",
+    "name": "Canal Incisivo",
+    "category": "Endodontia",
+    "cost": "19.42",
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 84.46,
+    "valorMinimo": 350,
+    "valorBase": "800",
+    "materials": [
+      {
+        "id": "fg7qx9zh",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "4s223za6",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "5ewel6rh",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "borlxlmg",
+        "material": "Sugador Endodôntico Autoclavável",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "ntcmsr4b",
+        "material": "Paramonoclorofenol Canforado",
+        "brand": "Biodinamica",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "5jm6otkm",
+        "material": "Hidróxido de Cálcio P.A.",
+        "brand": "Biodinamica",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "tcw83bsy",
+        "material": "Lençol de Borracha",
+        "brand": "Madeitex",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "9gedhouy",
+        "material": "Cone Guta Percha PRO G WaveOne Gold",
+        "brand": "Tanari",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "fqw7hs8x",
+        "material": "Cone Ponta de Papel Absorvente Cell Pack",
+        "brand": "Tanari",
+        "qty": "5",
+        "unit": "un"
+      },
+      {
+        "id": "p6h82xec",
+        "material": "Cone Gutapercha Acessória",
+        "brand": "Dentsply Sirona",
+        "qty": "3",
+        "unit": "un"
+      },
+      {
+        "id": "m5h3lf5c",
+        "material": "Cimento Endodôntico Endofill",
+        "brand": "Dentsply Sirona",
+        "qty": "0.15",
+        "unit": "ml"
+      },
+      {
+        "id": "mqks4edm",
+        "material": "Cimento Obturador Provisório",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "gwnsr2w5",
+        "material": "Endo PTC",
+        "brand": "Biodinamica",
+        "qty": "0.5",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "4wqfmk5w",
+    "name": "Canal Molar",
+    "category": "Endodontia",
+    "cost": 27.01,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 65.83,
+    "valorMinimo": 600,
+    "valorBase": "1000",
+    "sessions": "3",
+    "materials": [
+      {
+        "id": "4tz499bg",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "y1stdxzq",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "kc88r302",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "maecg3z5",
+        "material": "Sugador Endodôntico Autoclavável",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "dyyfx3f0",
+        "material": "Paramonoclorofenol Canforado",
+        "brand": "Biodinamica",
+        "qty": "0.15",
+        "unit": "ml"
+      },
+      {
+        "id": "ong2hi3m",
+        "material": "Hidróxido de Cálcio P.A.",
+        "brand": "Biodinamica",
+        "qty": "0.15",
+        "unit": "g"
+      },
+      {
+        "id": "06tfengd",
+        "material": "Lençol de Borracha",
+        "brand": "Madeitex",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "wlxwnz5w",
+        "material": "Cone Guta Percha PRO G WaveOne Gold",
+        "brand": "Tanari",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "4mk9u2vo",
+        "material": "Cone Ponta de Papel Absorvente Cell Pack",
+        "brand": "Tanari",
+        "qty": "12",
+        "unit": "un"
+      },
+      {
+        "id": "2a4r99w1",
+        "material": "Cone Gutapercha Acessória",
+        "brand": "Dentsply Sirona",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "8aqa5rlg",
+        "material": "Cimento Endodôntico Endofill",
+        "brand": "Dentsply Sirona",
+        "qty": "0.3",
+        "unit": "ml"
+      },
+      {
+        "id": "6dcdgkw7",
+        "material": "Cimento Obturador Provisório",
+        "brand": "Maquira",
+        "qty": "0.3",
+        "unit": "g"
+      },
+      {
+        "id": "gptvcd8j",
+        "material": "Endo PTC",
+        "brand": "Biodinamica",
+        "qty": "1",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "5s661azp",
+    "name": "Canal Decíduo",
+    "category": "Endodontia",
+    "cost": 0.87,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 43.03,
+    "valorMinimo": 350,
+    "valorBase": "800",
+    "additionalCost": "350",
+    "materials": [
+      {
+        "id": "x0vbgnlf",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "7vljer8g",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "jb7xu37k",
+    "name": "Clareamento Caseiro",
+    "category": "Estética",
+    "cost": 67.1,
+    "durationMinutes": "10",
+    "laborCost": 0,
+    "marginPercent": 86.3,
+    "valorMinimo": 900,
+    "valorBase": 1000,
+    "materials": [
+      {
+        "id": "v923hm11",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "8stvp8zk",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "1j91cadq",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "25",
+        "unit": "g"
+      },
+      {
+        "id": "w8hesjpv",
+        "material": "Clareador Whiteness Perfect Refil",
+        "brand": "FGM",
+        "qty": "4",
+        "unit": "un"
+      }
+    ],
+    "sessions": "4"
+  },
+  {
+    "id": "lxh7yd0v",
+    "name": "Clareamento Consultório",
+    "category": "Estética",
+    "cost": 44.39,
+    "durationMinutes": "45",
+    "laborCost": 0,
+    "marginPercent": 71.96,
+    "valorMinimo": 900,
+    "valorBase": 1000,
+    "materials": [
+      {
+        "id": "7komv7lb",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "txzk301a",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "5ryyc114",
+        "material": "Whiteness HP 35% + Top Dam",
+        "brand": "FGM",
+        "qty": "1",
+        "unit": "pacientes"
+      },
+      {
+        "id": "mflr17jo",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      }
+    ],
+    "sessions": "3"
+  },
+  {
+    "id": "ec0yaqc6",
+    "name": "Montagem de aparelho convencional",
+    "category": "Ortodontia",
+    "cost": 1.29,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 41.04,
+    "valorMinimo": 150,
+    "valorBase": "600",
+    "additionalCost": "300",
+    "materials": [
+      {
+        "id": "hq5itbx4",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "as9kthkm",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "v1jq5c2y",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "y9o548wb",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "we21gd7r",
+    "name": "Contenção Hawley",
+    "category": "Ortodontia",
+    "cost": 3.06,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 92.07,
+    "valorMinimo": 550,
+    "valorBase": "700",
+    "materials": [
+      {
+        "id": "zrr00lr1",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "x9vr3nwi",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "jlvwu7ae",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "25",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "h4ttzu8b",
+    "name": "Contenção Estética",
+    "category": "Ortodontia",
+    "cost": 3.06,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 92.07,
+    "valorMinimo": 650,
+    "valorBase": 700,
+    "materials": [
+      {
+        "id": "pyjookkj",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "jpxzeozg",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "nptz03m6",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "25",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "8a723bd9",
+    "name": "Over Denture + Enxerto",
+    "category": "Prótese",
+    "cost": 144,
+    "durationMinutes": "200",
+    "laborCost": 0,
+    "marginPercent": 83.2,
+    "valorMinimo": 0,
+    "valorBase": "8000",
+    "materials": [
+      {
+        "id": "vufz1xk7",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "wqbtaev2",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "20",
+        "unit": "g"
+      },
+      {
+        "id": "titkowlm",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "dmbvagy9",
+        "material": "Anestésico Articaína 4% 1:100 Articaine",
+        "brand": "DFL",
+        "qty": "6",
+        "unit": "tubetes"
+      },
+      {
+        "id": "8cmrpyxq",
+        "material": "Sugador Cirúrgico",
+        "brand": "Maquira",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "0jr4ij9e",
+        "material": "Gaze 9 fios Ultracotton",
+        "brand": "Grams",
+        "qty": "10",
+        "unit": "un"
+      },
+      {
+        "id": "an5bl8rx",
+        "material": "Agulha Curta",
+        "brand": "SR",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "jo6bohha",
+        "material": "Enxerto Genox Inorg",
+        "brand": "Baumer",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "pr7k7ezb",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "9gmr5094",
+        "material": "Fio de Sutura Nylon 3-0",
+        "brand": "S.E.",
+        "qty": "2",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "850"
+  },
+  {
+    "id": "79ef2fcc",
+    "name": "Coroa 3D Voxel",
+    "category": "Prótese",
+    "cost": 39.66,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 58.38,
+    "valorMinimo": 0,
+    "valorBase": "1200",
+    "materials": [
+      {
+        "id": "9sy0rj5q",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.5",
+        "unit": "g"
+      },
+      {
+        "id": "hj13asz6",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "xdiose0k",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0.05",
+        "unit": "g"
+      },
+      {
+        "id": "wwfktvso",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "gcntkex5",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "3vai7uaa",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "65jn99i1",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "3p6d7f2s",
+        "material": "Cimento Resinoso Dual RelyX™ U200 Clicker",
+        "brand": "3M Solventum",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "0zqaqfgv",
+        "material": "Agente de União Silano",
+        "brand": "Angelus",
+        "qty": "0.05",
+        "unit": "ml"
+      },
+      {
+        "id": "8i9nje2r",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "q04zscya",
+        "material": "Papel Carbono Contacto (100 micra)",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "rbyy8oqa",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "0dn0tfrw",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "j7yytzb2",
+        "material": "Condicionador Ácido Porcelana Condac",
+        "brand": "FGM",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "6b8lod2c",
+        "material": "Pino de Fibra de Vidro Exacto",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "dc8mm00r",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "3",
+        "unit": "un"
+      }
+    ],
+    "additionalCost": "250",
+    "sessions": "2"
+  },
+  {
+    "id": "3b3b5614",
+    "name": "Canal Pré Molar Inferior",
+    "category": "Endodontia",
+    "cost": 20.2,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 84.36,
+    "valorMinimo": 0,
+    "valorBase": "800",
+    "materials": [
+      {
+        "id": "bcuwap2w",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "j9psv7hm",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "ie2r2m94",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "6n4tmo0q",
+        "material": "Sugador Endodôntico Autoclavável",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "2aqn4rnf",
+        "material": "Paramonoclorofenol Canforado",
+        "brand": "Biodinamica",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "8i3gime6",
+        "material": "Hidróxido de Cálcio P.A.",
+        "brand": "Biodinamica",
+        "qty": "0.12",
+        "unit": "g"
+      },
+      {
+        "id": "83143rw5",
+        "material": "Lençol de Borracha",
+        "brand": "Madeitex",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "k6ztvyf6",
+        "material": "Cone Guta Percha PRO G WaveOne Gold",
+        "brand": "Tanari",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "upi26bv6",
+        "material": "Cone Ponta de Papel Absorvente Cell Pack",
+        "brand": "Tanari",
+        "qty": "5",
+        "unit": "un"
+      },
+      {
+        "id": "dcoefi1x",
+        "material": "Cone Gutapercha Acessória",
+        "brand": "Dentsply Sirona",
+        "qty": "3",
+        "unit": "un"
+      },
+      {
+        "id": "ls81quum",
+        "material": "Cimento Endodôntico Endofill",
+        "brand": "Dentsply Sirona",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "6ba85n80",
+        "material": "Cimento Obturador Provisório",
+        "brand": "Maquira",
+        "qty": "0.25",
+        "unit": "g"
+      },
+      {
+        "id": "xv16y4eo",
+        "material": "Endo PTC",
+        "brand": "Biodinamica",
+        "qty": "0.7",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "43745e31",
+    "name": "Canal Pré Molar Superior",
+    "category": "Endodontia",
+    "cost": 23.69,
+    "durationMinutes": "60",
+    "laborCost": 0,
+    "marginPercent": 85.71,
+    "valorMinimo": 0,
+    "valorBase": "900",
+    "materials": [
+      {
+        "id": "g84tpxew",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "xpcm3fva",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "cyjp64qj",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "zbzcbsfe",
+        "material": "Sugador Endodôntico Autoclavável",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "naopyrau",
+        "material": "Paramonoclorofenol Canforado",
+        "brand": "Biodinamica",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "ublrdqg3",
+        "material": "Hidróxido de Cálcio P.A.",
+        "brand": "Biodinamica",
+        "qty": "0.12",
+        "unit": "g"
+      },
+      {
+        "id": "cz633mgw",
+        "material": "Lençol de Borracha",
+        "brand": "Madeitex",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "aczjlozw",
+        "material": "Cone Guta Percha PRO G WaveOne Gold",
+        "brand": "Tanari",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "c9nj40iy",
+        "material": "Cone Ponta de Papel Absorvente Cell Pack",
+        "brand": "Tanari",
+        "qty": "10",
+        "unit": "un"
+      },
+      {
+        "id": "2or6ik15",
+        "material": "Cone Gutapercha Acessória",
+        "brand": "Dentsply Sirona",
+        "qty": "6",
+        "unit": "un"
+      },
+      {
+        "id": "5y2ussba",
+        "material": "Cimento Endodôntico Endofill",
+        "brand": "Dentsply Sirona",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "ipvm8y4x",
+        "material": "Cimento Obturador Provisório",
+        "brand": "Maquira",
+        "qty": "0.25",
+        "unit": "g"
+      },
+      {
+        "id": "z73vi835",
+        "material": "Endo PTC",
+        "brand": "Biodinamica",
+        "qty": "0.7",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "3fb12eb3",
+    "name": "Lente Tokuyama (arcada)",
+    "category": "Estética",
+    "cost": "295.62",
+    "durationMinutes": "240",
+    "laborCost": 0,
+    "marginPercent": 71.39,
+    "valorMinimo": 0,
+    "valorBase": "2500",
+    "materials": [
+      {
+        "id": "6tk5r5hm",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "m0yg31hz",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "ctz2lt3h",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "qb32lx90",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "1.5",
+        "unit": "g"
+      },
+      {
+        "id": "8yxb6mjo",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "vfu7lq0m",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "coidcg1e",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "5lneor1d",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0,5",
+        "unit": "g"
+      },
+      {
+        "id": "3vttecl3",
+        "material": "Resina Estelite Omega BL2",
+        "brand": "Tokuyama",
+        "qty": "2",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "336bb195",
+    "name": "Lente Forma (arcada)",
+    "category": "Estética",
+    "cost": "70.62",
+    "durationMinutes": "240",
+    "laborCost": 0,
+    "marginPercent": 67.32,
+    "valorMinimo": 0,
+    "valorBase": "1500",
+    "materials": [
+      {
+        "id": "ekqmk061",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "sgq2x5mx",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "j31h6y3w",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "zdfoq8r8",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "ttkn134n",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "1,5",
+        "unit": "g"
+      },
+      {
+        "id": "5v05ww08",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0,5",
+        "unit": "g"
+      },
+      {
+        "id": "3aj49zsn",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "by8pxmtf",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "u7e2bhls",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "2",
+        "unit": "g"
+      }
+    ]
+  },
+  {
+    "id": "63c748bc",
+    "name": "Aparelho Auto Ligado",
+    "category": "Ortodontia",
+    "cost": 170.29,
+    "durationMinutes": 30,
+    "laborCost": 0,
+    "marginPercent": 38.54,
+    "valorMinimo": 0,
+    "valorBase": "1200",
+    "additionalCost": "514.8",
+    "materials": [
+      {
+        "id": "x6eugftn",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "x23gt3kp",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "qvdzisap",
+        "material": "Kit Braquete 1 Caso Roth SLI",
+        "brand": "Morelli",
+        "qty": "1",
+        "unit": "caso"
+      },
+      {
+        "id": "tknltpjg",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "wfi09v47",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "7rlkp52o",
+    "name": "Prótese Total (arcada)",
+    "category": "Prótese",
+    "cost": 0,
+    "additionalCost": "375",
+    "durationMinutes": "15",
+    "sessions": "4",
+    "laborCost": 0,
+    "marginPercent": 40,
+    "valorMinimo": 0,
+    "valorBase": 0,
+    "materials": [
+      {
+        "id": "ini92b0a",
+        "material": "Alginato Avagel Tipo II",
+        "brand": "Dentsply Sirona",
+        "qty": "50",
+        "unit": "g"
+      },
+      {
+        "id": "k318fgrn",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "itacda8d",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "yxgx4bbp",
+    "name": "Restauração 2+ faces",
+    "category": "Clínico",
+    "cost": 0,
+    "additionalCost": 0,
+    "durationMinutes": "60",
+    "sessions": 1,
+    "laborCost": 0,
+    "marginPercent": 59.51,
+    "valorMinimo": 0,
+    "valorBase": "350",
+    "materials": [
+      {
+        "id": "gkibfqss",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "twpxasof",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "0bo7r8tp",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "tbxr3c1r",
+        "material": "Resina Opallis Flow",
+        "brand": "FGM",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "a0sjhll5",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.15",
+        "unit": "g"
+      },
+      {
+        "id": "eo9twami",
+        "material": "Adesivo Ambar",
+        "brand": "FGM",
+        "qty": "0.08",
+        "unit": "ml"
+      },
+      {
+        "id": "eib0c4sr",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "9uwu5gk7",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.8",
+        "unit": "g"
+      },
+      {
+        "id": "pw9gssa6",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "1qus422z",
+        "material": "Unimatrix Refil 50 Matrizes Sortidas",
+        "brand": "TDV",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "r17ycgrr",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "12cl0t5q",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "gnhb9bso",
+        "material": "Anestésico Lidocaína - Lidostesim AD",
+        "brand": "DLA",
+        "qty": "2",
+        "unit": "tubetes"
+      },
+      {
+        "id": "rvrgkx4q",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "ldo8zyxa",
+    "name": "Lente Porcelana (elemento)",
+    "category": "Estética",
+    "cost": 0,
+    "additionalCost": "300",
+    "durationMinutes": 30,
+    "sessions": 1,
+    "laborCost": 0,
+    "marginPercent": 75.31,
+    "valorMinimo": 0,
+    "valorBase": "1500",
+    "materials": [
+      {
+        "id": "ru4cdksn",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "0.1",
+        "unit": "g"
+      },
+      {
+        "id": "yg33s1t5",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0.05",
+        "unit": "g"
+      },
+      {
+        "id": "fhkacw8y",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "2958fcgb",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "4",
+        "unit": "un"
+      },
+      {
+        "id": "vg9xc0mz",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "ztsosroe",
+        "material": "Silicone Perfil Kit",
+        "brand": "Vigodent",
+        "qty": "10",
+        "unit": "g"
+      },
+      {
+        "id": "uvubwcah",
+        "material": "Cimento Resinoso Dual RelyX™ U200 Clicker",
+        "brand": "3M Solventum",
+        "qty": "0.15",
+        "unit": "g"
+      },
+      {
+        "id": "k79vokyk",
+        "material": "Agente de União Silano",
+        "brand": "Angelus",
+        "qty": "0.05",
+        "unit": "ml"
+      },
+      {
+        "id": "56el27rn",
+        "material": "Hemoliq Solução Hemostática",
+        "brand": "Maquira",
+        "qty": "0.2",
+        "unit": "ml"
+      },
+      {
+        "id": "jhn0zfo5",
+        "material": "Papel Carbono Contacto (100 micra)",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "c159ub3g",
+        "material": "Fio Retrator Ultrapak",
+        "brand": "Ultradent",
+        "qty": "5",
+        "unit": "cm"
+      },
+      {
+        "id": "o62tk6ud",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "zwsb3zj2",
+        "material": "Condicionador Ácido Porcelana Condac",
+        "brand": "FGM",
+        "qty": "0.1",
+        "unit": "ml"
+      },
+      {
+        "id": "m7tto6vk",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "3",
+        "unit": "un"
+      }
+    ]
+  },
+  {
+    "id": "5je3b2xr",
+    "name": "Lente Extratificada (arcada)",
+    "category": "Estética",
+    "cost": 0,
+    "additionalCost": "",
+    "durationMinutes": "480",
+    "sessions": 1,
+    "laborCost": 0,
+    "marginPercent": 63.74,
+    "valorMinimo": 0,
+    "valorBase": "3000",
+    "materials": [
+      {
+        "id": "ng8dzv8x",
+        "material": "Luva Látex",
+        "brand": "Medix",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "n582zts1",
+        "material": "Babador Branco",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "9yqubfls",
+        "material": "Sugador Descartável Azul",
+        "brand": "AllPrime",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "yk1lscdu",
+        "material": "Pasta Profilática Herjos",
+        "brand": "Vigodent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "bi2w4kvt",
+        "material": "Ácido Fosfórico Potenza Attacco 35%",
+        "brand": "PHS / Potenza",
+        "qty": "1,5",
+        "unit": "g"
+      },
+      {
+        "id": "tohg0yz6",
+        "material": "Adesivo 3M",
+        "brand": "3M Solventum",
+        "qty": "0,5",
+        "unit": "g"
+      },
+      {
+        "id": "u3y0e3aa",
+        "material": "Microaplicador Aplik",
+        "brand": "Angelus",
+        "qty": "1",
+        "unit": "un"
+      },
+      {
+        "id": "0339a8h8",
+        "material": "Rolete nº 2",
+        "brand": "Cremer",
+        "qty": "2",
+        "unit": "un"
+      },
+      {
+        "id": "d52b7p4a",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "2",
+        "unit": "g"
+      },
+      {
+        "id": "tl63n7av",
+        "material": "Resina Forma",
+        "brand": "Ultradent",
+        "qty": "0.2",
+        "unit": "g"
+      },
+      {
+        "id": "r7t8tbqf",
+        "material": "Resina Palfique LX5 WE",
+        "brand": "Tokuyama",
+        "qty": "2",
+        "unit": "g"
+      }
+    ]
+  }
+];
+
+// Catálogo de materiais que acompanha o DEFAULT_PROCEDURES de cima —
+// mesma origem (backup da Dra. Stephanie), pros custos dos procedimentos
+// padrão já saírem calculados certinho numa conta nova.
+const DEFAULT_MATERIALS_CATALOG = [
+  {
+    "id": "svw6pef4",
+    "name": "Alginato Avagel Tipo II",
+    "brand": "Dentsply Sirona",
+    "packageQty": "410",
+    "packageUnit": "g",
+    "packagePrice": "35.90"
+  },
+  {
+    "id": "ozwwuh1k",
+    "name": "Babador Branco",
+    "brand": "Hospflex",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "23.90"
+  },
+  {
+    "id": "yfjwp1zg",
+    "name": "Babador Branco",
+    "brand": "AllPrime",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "22.90"
+  },
+  {
+    "id": "400fxgw9",
+    "name": "Resina Estelite Omega BL2",
+    "brand": "Tokuyama",
+    "packageQty": "4",
+    "packageUnit": "g",
+    "packagePrice": "548.99"
+  },
+  {
+    "id": "4gkzfkq2",
+    "name": "Sugador Descartável Azul",
+    "brand": "AllPrime",
+    "packageQty": "40",
+    "packageUnit": "un",
+    "packagePrice": "8.99"
+  },
+  {
+    "id": "5ovzv3yc",
+    "name": "Resina Forma",
+    "brand": "Ultradent",
+    "packageQty": "4",
+    "packageUnit": "g",
+    "packagePrice": "99.00"
+  },
+  {
+    "id": "imni6jqe",
+    "name": "Unimatrix Refil 50 Matrizes Sortidas",
+    "brand": "TDV",
+    "packageQty": "50",
+    "packageUnit": "un",
+    "packagePrice": "204.90"
+  },
+  {
+    "id": "lf5g5fsy",
+    "name": "Placa Cristal 1,5 mm Quadrada",
+    "brand": "Bio-Art",
+    "packageQty": "5",
+    "packageUnit": "un",
+    "packagePrice": "44.90"
+  },
+  {
+    "id": "x86qyq9s",
+    "name": "Placa Cristal 2,0 mm Quadrada",
+    "brand": "Bio-Art",
+    "packageQty": "2",
+    "packageUnit": "un",
+    "packagePrice": "25.90"
+  },
+  {
+    "id": "v47tdwbe",
+    "name": "Lâmina de Bisturi nº 11",
+    "brand": "Carbono / Medix",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "39.90"
+  },
+  {
+    "id": "4thwkxyv",
+    "name": "Lâmina de Bisturi nº 12",
+    "brand": "Carbono / Medix",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "39.90"
+  },
+  {
+    "id": "6o7n6gvb",
+    "name": "Kit Resina Filtek Easy Match + Single Bond Universal + Porta Resina",
+    "brand": "3M Solventum",
+    "packageQty": "1",
+    "packageUnit": "kit",
+    "packagePrice": "537.00"
+  },
+  {
+    "id": "5cvyx5zf",
+    "name": "Cimento Resinoso RelyX ARC",
+    "brand": "3M Solventum",
+    "packageQty": "1",
+    "packageUnit": "kit",
+    "packagePrice": "318.90"
+  },
+  {
+    "id": "m2cx7v07",
+    "name": "Resina Palfique LX5 WE",
+    "brand": "Tokuyama",
+    "packageQty": "3,8",
+    "packageUnit": "g",
+    "packagePrice": "328.99"
+  },
+  {
+    "id": "uluscaqh",
+    "name": "Benzotop 20% Tutti-Frutti",
+    "brand": "DFL",
+    "packageQty": "30",
+    "packageUnit": "g",
+    "packagePrice": "24.90"
+  },
+  {
+    "id": "n5fij2v0",
+    "name": "Top Dam Blue",
+    "brand": "FGM",
+    "packageQty": "2",
+    "packageUnit": "g",
+    "packagePrice": "24.99"
+  },
+  {
+    "id": "f8rd5op7",
+    "name": "Obturador Provisório",
+    "brand": "Maquira",
+    "packageQty": "25",
+    "packageUnit": "g",
+    "packagePrice": "17.90"
+  },
+  {
+    "id": "b94skgf5",
+    "name": "Kit Braquete 1 Caso Roth SLI",
+    "brand": "Morelli",
+    "packageQty": "1",
+    "packageUnit": "caso",
+    "packagePrice": "169.00"
+  },
+  {
+    "id": "ag35fz3q",
+    "name": "Microcut Refil",
+    "brand": "TDV",
+    "packageQty": "5",
+    "packageUnit": "serras",
+    "packagePrice": "89.90"
+  },
+  {
+    "id": "3fyn270b",
+    "name": "Ácido Fosfórico Potenza Attacco 35%",
+    "brand": "PHS / Potenza",
+    "packageQty": "50",
+    "packageUnit": "g",
+    "packagePrice": "59.00"
+  },
+  {
+    "id": "yj31nmm6",
+    "name": "Composite Wetting Resin",
+    "brand": "Ultradent",
+    "packageQty": "3.2",
+    "packageUnit": "ml",
+    "packagePrice": "99.00"
+  },
+  {
+    "id": "jxg2byla",
+    "name": "Anestésico Articaína 4% 1:100 Articaine",
+    "brand": "DFL",
+    "packageQty": "50",
+    "packageUnit": "tubetes",
+    "packagePrice": "233.40"
+  },
+  {
+    "id": "k25ac8xe",
+    "name": "Anestésico Lidocaína - Lidostesim AD",
+    "brand": "DLA",
+    "packageQty": "50",
+    "packageUnit": "tubetes",
+    "packagePrice": "139.90"
+  },
+  {
+    "id": "vub6w437",
+    "name": "Lençol de Borracha",
+    "brand": "Madeitex",
+    "packageQty": "26",
+    "packageUnit": "un",
+    "packagePrice": "34.90"
+  },
+  {
+    "id": "sttn340b",
+    "name": "Luva Látex",
+    "brand": "Medix",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "31.90"
+  },
+  {
+    "id": "ef7betr4",
+    "name": "Sugador Cirúrgico",
+    "brand": "Maquira",
+    "packageQty": "20",
+    "packageUnit": "un",
+    "packagePrice": "29.90"
+  },
+  {
+    "id": "0uv2ajz2",
+    "name": "Gaze 9 fios Ultracotton",
+    "brand": "Grams",
+    "packageQty": "500",
+    "packageUnit": "un",
+    "packagePrice": "21.90"
+  },
+  {
+    "id": "9kkxl6d6",
+    "name": "Gaze 9 fios Econômica Ultracotton",
+    "brand": "Grams",
+    "packageQty": "300",
+    "packageUnit": "un",
+    "packagePrice": "12.50"
+  },
+  {
+    "id": "caf5og7e",
+    "name": "Placa Soft 2 mm Quadrada",
+    "brand": "FGM",
+    "packageQty": "2",
+    "packageUnit": "un",
+    "packagePrice": "19.90"
+  },
+  {
+    "id": "mkopud6d",
+    "name": "Whiteness HP 35% + Top Dam",
+    "brand": "FGM",
+    "packageQty": "3",
+    "packageUnit": "pacientes",
+    "packagePrice": "129.90"
+  },
+  {
+    "id": "mx3ss8i2",
+    "name": "Agulha Curta",
+    "brand": "SR",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "39.90"
+  },
+  {
+    "id": "njps0nd5",
+    "name": "Fio de Sutura Nylon 3-0",
+    "brand": "S.E.",
+    "packageQty": "12",
+    "packageUnit": "un",
+    "packagePrice": "19.90"
+  },
+  {
+    "id": "kadznplq",
+    "name": "Hemoliq Solução Hemostática",
+    "brand": "Maquira",
+    "packageQty": "10",
+    "packageUnit": "ml",
+    "packagePrice": "19.90"
+  },
+  {
+    "id": "lfmqujpr",
+    "name": "Rolete",
+    "brand": "Apolo",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "3.89"
+  },
+  {
+    "id": "vxngpuzb",
+    "name": "Rolete nº 2",
+    "brand": "Cremer",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "9.90"
+  },
+  {
+    "id": "yclp6pk9",
+    "name": "Silicone Perfil Kit",
+    "brand": "Vigodent",
+    "packageQty": "1000",
+    "packageUnit": "g",
+    "packagePrice": "239.90"
+  },
+  {
+    "id": "0tllvbfe",
+    "name": "Enxerto Genox Inorg",
+    "brand": "Baumer",
+    "packageQty": "1",
+    "packageUnit": "un",
+    "packagePrice": "99.90"
+  },
+  {
+    "id": "zp6s6wro",
+    "name": "Pasta Profilática Herjos",
+    "brand": "Vigodent",
+    "packageQty": "90",
+    "packageUnit": "g",
+    "packagePrice": "14,45"
+  },
+  {
+    "id": "xcl8ypn0",
+    "name": "Bicarbonato de Sódio Airon",
+    "brand": "Maquira",
+    "packageQty": "200",
+    "packageUnit": "g",
+    "packagePrice": "27,06"
+  },
+  {
+    "id": "x9jubqc1",
+    "name": "Adesivo Ambar",
+    "brand": "FGM",
+    "packageQty": "4",
+    "packageUnit": "ml",
+    "packagePrice": "39,67"
+  },
+  {
+    "id": "u58omm3o",
+    "name": "Adesivo 3M",
+    "brand": "3M Solventum",
+    "packageQty": "6",
+    "packageUnit": "g",
+    "packagePrice": "214,27"
+  },
+  {
+    "id": "2htfnzha",
+    "name": "Cimento Resinoso Dual RelyX™ U200 Clicker",
+    "brand": "3m Solventum",
+    "packageQty": "11",
+    "packageUnit": "g",
+    "packagePrice": "522,73"
+  },
+  {
+    "id": "q8hpx3ga",
+    "name": "Agente de União Silano",
+    "brand": "Angelus",
+    "packageQty": "5",
+    "packageUnit": "ml",
+    "packagePrice": "21,24"
+  },
+  {
+    "id": "k7cu4ukk",
+    "name": "Papel Carbono Contacto (100 micra)",
+    "brand": "Angelus",
+    "packageQty": "12",
+    "packageUnit": "un",
+    "packagePrice": "5,81"
+  },
+  {
+    "id": "be4665nd",
+    "name": "Fio Retrator Ultrapak",
+    "brand": "Ultradent",
+    "packageQty": "244",
+    "packageUnit": "cm",
+    "packagePrice": "82,35"
+  },
+  {
+    "id": "orcr3l6c",
+    "name": "Condicionador Ácido Porcelana Condac",
+    "brand": "FGM",
+    "packageQty": "2,5",
+    "packageUnit": "ml",
+    "packagePrice": "25,12"
+  },
+  {
+    "id": "s4ml41fl",
+    "name": "Pino de Fibra de Vidro Exacto",
+    "brand": "Angelus",
+    "packageQty": "5",
+    "packageUnit": "un",
+    "packagePrice": "34,91"
+  },
+  {
+    "id": "8w5y1d3t",
+    "name": "Resina Opallis Flow",
+    "brand": "FGM",
+    "packageQty": "2",
+    "packageUnit": "g",
+    "packagePrice": "28,03"
+  },
+  {
+    "id": "ckojvzc6",
+    "name": "Resina Applic Flow",
+    "brand": "Maquira",
+    "packageQty": "2",
+    "packageUnit": "g",
+    "packagePrice": "15,42"
+  },
+  {
+    "id": "bhqf1q1t",
+    "name": "Implante Tryon Cônico ",
+    "brand": "S.I.N.",
+    "packageQty": "1",
+    "packageUnit": "un",
+    "packagePrice": "366.00"
+  },
+  {
+    "id": "w69t7wol",
+    "name": "Microaplicador Aplik ",
+    "brand": "Angelus",
+    "packageQty": "100",
+    "packageUnit": "un",
+    "packagePrice": "16,39"
+  },
+  {
+    "id": "8gzjt1je",
+    "name": "Sugador Endodôntico Autoclavável",
+    "brand": "Angelus",
+    "packageQty": "10",
+    "packageUnit": "un",
+    "packagePrice": "43,55"
+  },
+  {
+    "id": "40afmbbt",
+    "name": "Paramonoclorofenol Canforado",
+    "brand": "Biodinamica",
+    "packageQty": "20",
+    "packageUnit": "ml",
+    "packagePrice": "19,30"
+  },
+  {
+    "id": "usrohy11",
+    "name": "Hidróxido de Cálcio P.A.",
+    "brand": "Biodinamica",
+    "packageQty": "10",
+    "packageUnit": "g",
+    "packagePrice": "13,48"
+  },
+  {
+    "id": "ggyze1zw",
+    "name": "Cone Guta Percha PRO G WaveOne Gold",
+    "brand": "Tanari",
+    "packageQty": "60",
+    "packageUnit": "un",
+    "packagePrice": "62,95"
+  },
+  {
+    "id": "gxbtuktf",
+    "name": "Cone Ponta de Papel Absorvente Cell Pack",
+    "brand": "Tanari",
+    "packageQty": "180",
+    "packageUnit": "un",
+    "packagePrice": "47,53"
+  },
+  {
+    "id": "4kaarslm",
+    "name": "Cone Gutapercha Acessória",
+    "brand": "Dentsply Sirona",
+    "packageQty": "120",
+    "packageUnit": "un",
+    "packagePrice": "44,52"
+  },
+  {
+    "id": "0vlnqprd",
+    "name": "Cimento Endodôntico Endofill",
+    "brand": "Dentsply Sirona",
+    "packageQty": "10",
+    "packageUnit": "ml",
+    "packagePrice": "87,20"
+  },
+  {
+    "id": "0om2db5n",
+    "name": "Cimento Obturador Provisório",
+    "brand": "Maquira",
+    "packageQty": "25",
+    "packageUnit": "g",
+    "packagePrice": "17,36"
+  },
+  {
+    "id": "81zuppq8",
+    "name": "Endo PTC ",
+    "brand": "Biodinamica",
+    "packageQty": "26",
+    "packageUnit": "g",
+    "packagePrice": "38,70"
+  },
+  {
+    "id": "8snltojx",
+    "name": "Clareador Whiteness Perfect Refil ",
+    "brand": "FGM",
+    "packageQty": "1",
+    "packageUnit": "un",
+    "packagePrice": "16,01"
+  }
+];
 
 function groupByCategory(procedures, extraCategories = []) {
   const map = new Map();
@@ -7164,13 +10313,15 @@ export default function App() {
         }
       } catch (e) {}
       setProcedures(list);
+      let materialsList = DEFAULT_MATERIALS_CATALOG;
       try {
         const mc = await window.storage.get("materialsCatalog", false);
         if (mc && mc.value) {
           const storedCatalog = JSON.parse(mc.value);
-          if (Array.isArray(storedCatalog)) setMaterialsCatalog(storedCatalog);
+          if (Array.isArray(storedCatalog) && storedCatalog.length) materialsList = storedCatalog;
         }
       } catch (e) {}
+      setMaterialsCatalog(materialsList);
       try {
         const bh = await window.storage.get("budgetHistory", false);
         if (bh && bh.value) {
