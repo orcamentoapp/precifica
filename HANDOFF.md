@@ -49,7 +49,76 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — corrigido: custos zerados ao abrir uma conta nova
+## ✅ Feito nesta sessão — logo de fundo sem distorção + maquininha fora do orçamento do cliente
+
+O Marcelo mandou um novo PNG exportado mostrando dois problemas que eu
+não tinha resolvido direito:
+
+**1. Logo de fundo distorcida verticalmente, sem sangrar nas
+laterais.** Causa real: eu tinha implementado a marca d'água como uma
+tag `<img>` com `object-fit: cover` — só que o `html2canvas` (a
+biblioteca que captura o HTML/CSS do modelo e transforma em
+imagem/PDF) tem suporte incompleto/com bugs conhecidos pra
+`object-fit` em `<img>`, e na prática ignorava a proporção,
+espichando a imagem pra preencher a caixa inteira (exatamente a
+distorção vertical que ele viu) — e por isso também não sangrava
+direito nas bordas.
+**Corrigido**: troquei a `<img>` por uma `<div>` com
+`background-image` + `background-size: cover` (muito mais confiável
+com `html2canvas`, que lida bem com `background-size` mas mal com
+`object-fit`). `background-size: cover` nunca distorce — sempre
+preserva a proporção original da imagem, só corta o excesso (topo/
+base OU laterais, o que sobrar) pra cobrir a caixa inteira. A caixa
+agora também acompanha a altura de verdade da página
+(`top:0; bottom:0`, em vez de uma altura fixa em pixels) e sempre
+estica 160px além de cada lateral (`left:-160px; right:-160px`),
+garantindo que sempre sangra nas bordas esquerda/direita
+independente da altura final da página ou da proporção da logo
+enviada.
+
+**2. Nome da maquininha aparecendo no orçamento do cliente.** Pedido
+dele: quando a forma for crédito ou débito, o orçamento que vai pro
+paciente (PDF/PNG/WhatsApp/Impressão) não deve mostrar o nome da
+maquininha (ex: "Cartão de Débito · Maquininha padrão"), só o nome da
+forma de pagamento (ex: "Cartão de Débito"). Tirei isso de
+`buildPaymentLines()` (a função que monta as linhas "Forma - Valor"
+usada nesses 4 lugares) — o nome da maquininha continua aparecendo
+normalmente dentro do app (tela de Novo Orçamento, Histórico), que é
+uso interno do profissional, só não vai mais pro material que o
+paciente recebe.
+
+**Testado**: `npm run build` do frontend limpo. **Não testei clicando
+de verdade** (não tenho como abrir um navegador aqui pra gerar um
+PDF/PNG de verdade e comparar visualmente) — vale o Marcelo exportar
+de novo e conferir se a logo aparece proporcional (sem esticar) e
+sangrando nas duas laterais, e se a forma de pagamento aparece limpa,
+sem o nome da maquininha.
+
+## Log anterior — trocado o arquivo de valores padrão (o anterior estava errado)
+
+O Marcelo mandou o arquivo certo de procedimentos/custos (o anterior
+tinha ido com os valores trocados). Comparei os dois: mesmos 37
+procedimentos e mesmo catálogo de 61 materiais (nomes/ids batem), mas
+36 dos 37 procedimentos têm `valorBase`/`valorMinimo`/`cost`/
+`marginPercent` diferentes — ex: "Prótese Flexível" tinha margem
+59,57% no arquivo errado, agora está 68,31%. Troquei o conteúdo de
+`DEFAULT_PROCEDURES` por esse novo arquivo (mesmo processo de antes:
+`app-frontend/src/App.jsx`); `DEFAULT_MATERIALS_CATALOG` não mudou
+(preços dos materiais são idênticos nos dois arquivos).
+
+"Prótese Total (arcada)" continua com `valorBase`/`valorMinimo` = 0
+também no arquivo novo — não é diferença entre os dois arquivos, é
+assim mesmo nos dois, então mantive como está (ver nota da sessão
+anterior).
+
+**Testado**: `npm run build` do frontend limpo. Conferi diretamente o
+array embutido no código (rodando um trecho em Node) pra confirmar
+que os 37 procedimentos e os valores batem exatamente com o arquivo
+novo que ele mandou, e que a correção da corrida
+`procedures`/`materialsCatalog` da sessão anterior continua intacta
+(não mexi nela). **Não testei clicando de verdade.**
+
+## Log anterior — corrigido: custos zerados ao abrir uma conta nova
 
 O Marcelo testou (criando uma conta nova) e reportou que os valores
 apareciam zerados. Investigando, achei uma causa concreta:

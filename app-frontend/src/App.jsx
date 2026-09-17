@@ -328,7 +328,7 @@ function budgetTemplateCSS(vars) {
     overflow: hidden;
     position: relative;
   }
-  .bt-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1100px; height: 1100px; object-fit: cover; opacity: 0.12; pointer-events: none; z-index: 0; }
+  .bt-watermark { position: absolute; top: 0; bottom: 0; left: -160px; right: -160px; background-repeat: no-repeat; background-position: center; background-size: cover; opacity: 0.12; pointer-events: none; z-index: 0; }
   .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; z-index: 1; }
   .bt-brand-row { display: flex; align-items: center; gap: 16px; }
   .bt-logo-mark { width: 56px; height: 56px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #dde7e3; }
@@ -432,7 +432,7 @@ function buildBudgetTemplateBodyHTML({
 
   return `
   <div class="bt-page">
-    ${settings.clinicLogoDataUrl ? `<img class="bt-watermark" src="${escapeHtml(settings.clinicLogoDataUrl)}" alt="" />` : ""}
+    ${settings.clinicLogoDataUrl ? `<div class="bt-watermark" style="background-image: url('${escapeHtml(settings.clinicLogoDataUrl)}')"></div>` : ""}
     <div class="bt-header">
       <div class="bt-brand-row">
         ${logoInner}
@@ -640,7 +640,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 5.25,
     "durationMinutes": "15",
     "laborCost": 0,
-    "marginPercent": 59.57,
+    "marginPercent": 68.31,
     "valorMinimo": 1300,
     "valorBase": "1200",
     "materials": [
@@ -676,7 +676,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 4.37,
     "durationMinutes": "15",
     "laborCost": 0,
-    "marginPercent": 50.89,
+    "marginPercent": 59.64,
     "valorMinimo": 1400,
     "valorBase": "1200",
     "materials": [
@@ -712,7 +712,7 @@ const DEFAULT_PROCEDURES = [
     "cost": "5.26",
     "durationMinutes": "15",
     "laborCost": 0,
-    "marginPercent": 53.99,
+    "marginPercent": 64.48,
     "valorMinimo": 1000,
     "valorBase": "1000",
     "materials": [
@@ -748,7 +748,7 @@ const DEFAULT_PROCEDURES = [
     "cost": "44.11",
     "durationMinutes": "200",
     "laborCost": 0,
-    "marginPercent": 89.64,
+    "marginPercent": 92.55,
     "valorMinimo": 12000,
     "valorBase": "12000",
     "materials": [
@@ -826,7 +826,7 @@ const DEFAULT_PROCEDURES = [
     "cost": "144",
     "durationMinutes": "250",
     "laborCost": 0,
-    "marginPercent": 90.46,
+    "marginPercent": 93.37,
     "valorMinimo": 25000,
     "valorBase": "15000",
     "materials": [
@@ -910,7 +910,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 44.1,
     "durationMinutes": "200",
     "laborCost": 0,
-    "marginPercent": 79.27,
+    "marginPercent": 85.1,
     "valorMinimo": 5000,
     "valorBase": "6000",
     "materials": [
@@ -987,7 +987,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 38.16,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 55.78,
+    "marginPercent": 79.09,
     "valorMinimo": 900,
     "valorBase": "900",
     "materials": [
@@ -1100,7 +1100,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 39.66,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 56.7,
+    "marginPercent": 70.69,
     "valorMinimo": 1800,
     "valorBase": "1500",
     "materials": [
@@ -1227,7 +1227,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 39.66,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 69.75,
+    "marginPercent": 75.57,
     "valorMinimo": 1800,
     "valorBase": "1800",
     "materials": [
@@ -1353,7 +1353,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 390.23,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 66.99,
+    "marginPercent": 73.98,
     "valorMinimo": 1500,
     "valorBase": "1500",
     "materials": [
@@ -1415,7 +1415,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 9.43,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 65.71,
+    "marginPercent": 72.7,
     "valorMinimo": 1800,
     "valorBase": "1500",
     "materials": [
@@ -1465,7 +1465,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 2.66,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 72.45,
+    "marginPercent": 98.67,
     "valorMinimo": 150,
     "valorBase": "200",
     "materials": [
@@ -1520,7 +1520,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 16.52,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 65.52,
+    "marginPercent": 91.74,
     "valorMinimo": 120,
     "valorBase": "200",
     "materials": [
@@ -1610,7 +1610,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 28.48,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 55.54,
+    "marginPercent": 90.51,
     "valorMinimo": 150,
     "valorBase": "300",
     "materials": [
@@ -1721,7 +1721,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 15.82,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 39.64,
+    "marginPercent": 92.09,
     "valorMinimo": 100,
     "valorBase": "200",
     "materials": [
@@ -1790,7 +1790,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 18.42,
     "durationMinutes": "90",
     "laborCost": 0,
-    "marginPercent": 41.42,
+    "marginPercent": 93.86,
     "valorMinimo": 350,
     "valorBase": "300",
     "materials": [
@@ -1852,7 +1852,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 7.21,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 25.27,
+    "marginPercent": 95.19,
     "valorMinimo": 120,
     "valorBase": "150",
     "materials": [
@@ -1907,7 +1907,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 3.06,
     "durationMinutes": "15",
     "laborCost": 0,
-    "marginPercent": 88.9,
+    "marginPercent": 99.39,
     "valorMinimo": 400,
     "valorBase": "500",
     "sessions": "2",
@@ -1942,7 +1942,7 @@ const DEFAULT_PROCEDURES = [
     "cost": "19.42",
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 84.46,
+    "marginPercent": 97.57,
     "valorMinimo": 350,
     "valorBase": "800",
     "materials": [
@@ -2046,7 +2046,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 27.01,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 65.83,
+    "marginPercent": 97.3,
     "valorMinimo": 600,
     "valorBase": "1000",
     "sessions": "3",
@@ -2151,7 +2151,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 0.87,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 43.03,
+    "marginPercent": 56.14,
     "valorMinimo": 350,
     "valorBase": "800",
     "additionalCost": "350",
@@ -2179,7 +2179,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 67.1,
     "durationMinutes": "10",
     "laborCost": 0,
-    "marginPercent": 86.3,
+    "marginPercent": 93.29,
     "valorMinimo": 900,
     "valorBase": 1000,
     "materials": [
@@ -2221,7 +2221,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 44.39,
     "durationMinutes": "45",
     "laborCost": 0,
-    "marginPercent": 71.96,
+    "marginPercent": 95.56,
     "valorMinimo": 900,
     "valorBase": 1000,
     "materials": [
@@ -2263,7 +2263,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 1.29,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 41.04,
+    "marginPercent": 49.79,
     "valorMinimo": 150,
     "valorBase": "600",
     "additionalCost": "300",
@@ -2305,7 +2305,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 3.06,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 92.07,
+    "marginPercent": 99.56,
     "valorMinimo": 550,
     "valorBase": "700",
     "materials": [
@@ -2339,7 +2339,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 3.06,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 92.07,
+    "marginPercent": 99.56,
     "valorMinimo": 650,
     "valorBase": 700,
     "materials": [
@@ -2373,7 +2373,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 144,
     "durationMinutes": "200",
     "laborCost": 0,
-    "marginPercent": 83.2,
+    "marginPercent": 87.58,
     "valorMinimo": 0,
     "valorBase": "8000",
     "materials": [
@@ -2457,7 +2457,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 39.66,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 58.38,
+    "marginPercent": 75.86,
     "valorMinimo": 0,
     "valorBase": "1200",
     "materials": [
@@ -2584,7 +2584,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 20.2,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 84.36,
+    "marginPercent": 97.47,
     "valorMinimo": 0,
     "valorBase": "800",
     "materials": [
@@ -2688,7 +2688,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 23.69,
     "durationMinutes": "60",
     "laborCost": 0,
-    "marginPercent": 85.71,
+    "marginPercent": 97.37,
     "valorMinimo": 0,
     "valorBase": "900",
     "materials": [
@@ -2792,7 +2792,7 @@ const DEFAULT_PROCEDURES = [
     "cost": "295.62",
     "durationMinutes": "240",
     "laborCost": 0,
-    "marginPercent": 71.39,
+    "marginPercent": 88.18,
     "valorMinimo": 0,
     "valorBase": "2500",
     "materials": [
@@ -2868,7 +2868,7 @@ const DEFAULT_PROCEDURES = [
     "cost": "70.62",
     "durationMinutes": "240",
     "laborCost": 0,
-    "marginPercent": 67.32,
+    "marginPercent": 95.29,
     "valorMinimo": 0,
     "valorBase": "1500",
     "materials": [
@@ -2944,7 +2944,7 @@ const DEFAULT_PROCEDURES = [
     "cost": 170.29,
     "durationMinutes": 30,
     "laborCost": 0,
-    "marginPercent": 38.54,
+    "marginPercent": 42.91,
     "valorMinimo": 0,
     "valorBase": "1200",
     "additionalCost": "514.8",
@@ -3031,7 +3031,7 @@ const DEFAULT_PROCEDURES = [
     "durationMinutes": "60",
     "sessions": 1,
     "laborCost": 0,
-    "marginPercent": 59.51,
+    "marginPercent": 89.47,
     "valorMinimo": 0,
     "valorBase": "350",
     "materials": [
@@ -3144,7 +3144,7 @@ const DEFAULT_PROCEDURES = [
     "durationMinutes": 30,
     "sessions": 1,
     "laborCost": 0,
-    "marginPercent": 75.31,
+    "marginPercent": 78.81,
     "valorMinimo": 0,
     "valorBase": "1500",
     "materials": [
@@ -3257,7 +3257,7 @@ const DEFAULT_PROCEDURES = [
     "durationMinutes": "480",
     "sessions": 1,
     "laborCost": 0,
-    "marginPercent": 63.74,
+    "marginPercent": 91.71,
     "valorMinimo": 0,
     "valorBase": "3000",
     "materials": [
@@ -3343,7 +3343,7 @@ const DEFAULT_PROCEDURES = [
 ];
 
 // Catálogo de materiais que acompanha o DEFAULT_PROCEDURES de cima —
-// mesma origem (backup da Dra. Stephanie), pros custos dos procedimentos
+// mesma origem (backup real do Marcelo), pros custos dos procedimentos
 // padrão já saírem calculados certinho numa conta nova.
 const DEFAULT_MATERIALS_CATALOG = [
   {
@@ -6636,7 +6636,7 @@ function SimulationPanel({
     }
     if (!row) return [];
     const total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
-    const label = row.label + (showMachineName ? ` · ${activePreset.name}` : "");
+    const label = row.label;
     const lines = [
       perInstallment
         ? `${label} - ${money(total)} em ${installments}x de ${money(perInstallment)}${isInterestFree ? " sem juros" : ""}`
