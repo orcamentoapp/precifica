@@ -49,7 +49,55 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: BUG CORRIGIDO — logo do consultório não estava sendo salva de verdade (faltava comprimir antes de enviar) + círculo decorativo removido do orçamento
+## Atualização mais recente: cor do orçamento desacoplada da cor do sistema + atalhos de teclado (Esc, setas)
+
+Dois pedidos do Marcelo:
+
+**1. A cor do orçamento estava mudando a cor das abas do sistema
+também — sem ter sido pedido.** Causa: numa sessão anterior, o
+seletor de cor do orçamento foi implementado reaproveitando um campo
+que já existia (`headerColor`), só que esse campo já estava ligado ao
+realce do menu de abas do próprio app (`TabNav`) — então escolher uma
+cor pro orçamento mudava as duas coisas juntas, sem querer.
+
+**Corrigido**: as duas coisas agora são totalmente independentes.
+- `TabNav` voltou a usar sempre a cor padrão fixa do sistema
+  (`#292524`, ou `#71717a` no modo escuro) — não lê mais nenhuma
+  configuração, é fixo mesmo.
+- O campo da cor do orçamento foi renomeado de `headerColor` pra
+  **`budgetAccentColor`** — nome de propósito bem separado, pra não
+  repetir essa confusão no futuro. Só afeta o cabeçalho/tabela/total/
+  rodapé/marca d'água do orçamento exportado, nada mais.
+- Rótulo na tela de Configurações também mudou de "Cor de destaque"
+  pra **"Cor do orçamento"**, e o texto embaixo agora deixa explícito:
+  "Não muda nenhuma cor do resto do sistema."
+
+**2. Atalhos de teclado** (`app-frontend/src/App.jsx`, novo
+`useEffect` de `keydown`):
+- **Esc** → volta pro Dashboard.
+- **Seta esquerda/direita** → troca de aba, na mesma ordem visual do
+  menu de cima (Dashboard → Novo Orçamento → Pacientes →
+  Procedimentos → Histórico → volta pro Dashboard, circular nos dois
+  sentidos).
+- Só dispara quando o foco NÃO está num campo de digitação
+  (input/textarea/select/conteúdo editável) — senão apertar seta pra
+  mover o cursor dentro de um campo de texto, ou Esc pra limpar ele,
+  ia trocar de tela por acidente.
+- **Limitação conhecida, documentada no código**: não verifica se
+  algum modal/popup está aberto no momento — se um modal também
+  escuta Esc pra se fechar, as duas coisas podem acontecer juntas
+  (fecha o modal E troca pro Dashboard). Checar isso de forma
+  genérica exigiria mexer em cada modal do sistema individualmente,
+  o que ficou fora do escopo dessa entrega — se isso incomodar na
+  prática, é um ajuste pontual pra fazer depois.
+
+**Testado**: `npm run build` do frontend limpo, sem erros. **Não
+testei manualmente** os atalhos de teclado num navegador de verdade
+(nem a limitação dos modais, nem se Esc/setas se comportam bem
+enquanto a "Apresentação ao paciente" está ativa) — vale o Marcelo
+confirmar, principalmente se algum modal aberto reage mal ao Esc.
+
+## Atualização anterior: BUG CORRIGIDO — logo do consultório não estava sendo salva de verdade (faltava comprimir antes de enviar) + círculo decorativo removido do orçamento
 
 O Marcelo reparou que, ao trocar a logo, ela "sumia" quando a página
 atualizava — sinal claro de que nunca tinha sido salva no banco de
@@ -215,68 +263,6 @@ dois estados lado a lado antes de fechar como certo.
 
 **Testado**: `npm run build` do frontend limpo, sem erros.
 
-## Atualização anterior: pacote principal do site 53% menor (809KB → 376KB) — bibliotecas pesadas carregando só quando usadas + logo do cabeçalho 94% menor
-
-O Marcelo perguntou se dava pra otimizar mais o sistema. Analisei de
-verdade (build real, não suposição) e achei 3 coisas concretas:
-
-**1. Chart.js e html2canvas carregavam SEMPRE, pra todo mundo** — as
-duas bibliotecas mais pesadas do site (adicionadas em sessões
-anteriores, pro Dashboard e pra exportação de orçamento) estavam
-importadas no topo do arquivo (`import Chart from "chart.js/auto"`,
-`import html2canvas from "html2canvas"`) — isso faz o bundler
-(`vite`) colocar as duas dentro do PACOTE PRINCIPAL, baixado por
-qualquer pessoa em qualquer tela, mesmo quem nunca abre o Dashboard
-nem exporta nada. Troquei pra `import()` dinâmico, carregado só na
-hora que a funcionalidade é usada de verdade:
-- Chart.js: dentro dos dois `useEffect` do `DashboardSection`
-  (`app-frontend/src/App.jsx`) — só carrega quando a aba Dashboard é
-  aberta.
-- html2canvas: dentro de `renderBudgetTemplateToCanvas` — só carrega
-  na hora de exportar ou pré-visualizar um orçamento.
-
-**2. Painel admin carregava pra TODO MUNDO, mesmo quem nunca vê
-ele** — `AdminDashboard` (só uma pessoa acessa essa tela, o próprio
-Marcelo) estava num `import` estático dentro do `AuthGate.jsx`,
-entrando no pacote principal do site pra todo cliente. Troquei pra
-`React.lazy()` + `Suspense` — agora é um pacotinho SEPARADO (25KB),
-baixado só na hora que alguém entra como admin.
-
-**3. Logo do cabeçalho, 94% menor** — reparei que os 3 lugares que
-mostram o logo no topo (app principal, painel admin, telas de login)
-carregavam o `icon-512.png` (181KB — o ícone de 512×512 pensado pra
-instalação do PWA) só pra mostrar ele em **44 pixels de altura**.
-Gerei uma versão nova só pro cabeçalho (`icons/logo-header.png`,
-96×96 — nitidez de tela retina em 44px de exibição), que ficou com
-**11KB** — e troquei os 3 lugares pra usar ela. O `icon-512.png`
-original continua existindo, intacto, pro que ele já servia
-(`manifest.json` do PWA) — só não é mais usado pro cabeçalho.
-
-**Resultado, medido antes/depois** (`npm run build`):
-- Antes: um pacote principal só, 809KB minificado.
-- Depois: pacote principal caiu pra **376KB** (53% menor), com
-  Chart.js (208KB), html2canvas (201KB) e o painel admin (25KB) agora
-  em pacotes separados, carregados só quando cada um é realmente
-  usado. O aviso do Vite sobre "chunk maior que 500KB"
-  **desapareceu por completo**.
-- Logo do cabeçalho: 181KB → 11KB por carregamento, em 3 lugares.
-
-**O que NÃO foi tocado, e por quê**: `App.jsx` (o produto principal
-em si) continua num import estático dentro do `AuthGate` — quase todo
-mundo logado precisa dele mesmo, então separar isso não economizaria
-quase nada na prática, só adicionaria uma tela de carregando extra
-sem ganho real. Não vale a complicação.
-
-**Testado**: `npm run build` do frontend limpo, sem erros, com os
-tamanhos exatos confirmados acima (rodei o build antes e depois de
-cada mudança pra medir o efeito real, não só supor). **Não testei
-manualmente num navegador** se o carregamento sob demanda do
-Chart.js/html2canvas/painel admin funciona sem nenhum atraso
-perceptível ou tela em branco — vale o Marcelo confirmar depois do
-deploy, principalmente a primeira vez que abre o Dashboard ou exporta
-um orçamento numa sessão nova (é a única hora que vai ter um
-carregamento extra, rápido, que antes não existia).
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -285,6 +271,7 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- pacote principal do site 53% menor (809KB → 376KB) — Chart.js, html2canvas e o painel admin passaram a carregar sob demanda (import dinâmico), não mais sempre junto do pacote principal + logo do cabeçalho 94% menor (nova versão de 96px em vez de reaproveitar a de 512px)
 - modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade + PNG/PDF/Imprimir/WhatsApp todos usando o motor novo
 - rótulos "Próxima cobrança dia X" (cartão Stripe) vs "Expira em" (licença dada pelo admin) corrigidos em Gerenciar Assinatura, usando confirmação síncrona direto na API do Stripe
 - painel admin — modo escuro corrigido de vez (causa raiz era classe "dark" e "bg-stone-50" no mesmo elemento) + logo antes do nome + tooltips nas métricas + chave de licença escondida atrás de um clique + ações agrupadas num menu só

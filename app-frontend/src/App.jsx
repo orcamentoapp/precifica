@@ -48,6 +48,12 @@ const TAB_TO_PATH = {
 };
 const PATH_TO_TAB = Object.fromEntries(Object.entries(TAB_TO_PATH).map(([tab, path]) => [path, tab]));
 
+// Mesma ordem das abas principais no menu de cima (ver o array "tabs" dentro
+// de TabNav) — usada pelo atalho de teclado das setas esquerda/direita, pra
+// ciclar entre elas na mesma ordem visual. Se a ordem das abas em TabNav
+// mudar algum dia, essa lista precisa acompanhar.
+const MAIN_TAB_ORDER = ["dashboard", "simulation", "patients", "procedures", "history"];
+
 // Raiz do domínio ("/") também abre o Dashboard — é o fallback de
 // tabFromPath() logo abaixo (qualquer rota não reconhecida cai no
 // Dashboard), então não precisa de uma entrada própria aqui.
@@ -66,11 +72,14 @@ const DEFAULT_SETTINGS = {
   address: "",
   phone: "",
   quoteValidityMonths: 3,
-  // Cor de destaque escolhida pela pessoa — usada tanto no realce das abas
-  // do próprio app quanto nas partes coloridas do orçamento exportado
-  // (cabeçalho, tabela, total, rodapé). Já existia, mas até agora não tinha
-  // nenhum seletor de cor na tela pra mudar ela.
-  headerColor: "#005580",
+  // Cor de destaque usada SÓ nas partes coloridas do orçamento exportado
+  // (cabeçalho, tabela, total, rodapé, marca d'água) — de propósito, NÃO
+  // afeta nada da cor do próprio app (isso já foi tentado numa sessão
+  // anterior reaproveitando um campo antigo chamado "headerColor" que
+  // também coloria o menu de abas do sistema, e o Marcelo não gostou de
+  // mudar uma coisa sem querer mudar a outra — por isso esse campo tem
+  // nome e uso bem separados agora).
+  budgetAccentColor: "#005580",
   secondaryColor: "#71CFFE",
   taxProvisionPercent: 15,
   taxRegime: "liberal", // "liberal" (pessoa física, Carnê-Leão) | "cnpj" (Simples Nacional / Lucro Presumido)
@@ -536,7 +545,7 @@ async function renderBudgetTemplateToCanvas(data) {
   ensureBudgetTemplateFontsLoaded();
 
   const styleEl = document.createElement("style");
-  styleEl.textContent = budgetTemplateCSS(budgetTemplateColorVars(data.settings.headerColor));
+  styleEl.textContent = budgetTemplateCSS(budgetTemplateColorVars(data.settings.budgetAccentColor));
   document.head.appendChild(styleEl);
 
   const container = document.createElement("div");
@@ -595,7 +604,7 @@ function previewBudgetTemplate(settings) {
     validityMonthsLabel: `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`,
   };
 
-  const css = budgetTemplateCSS(budgetTemplateColorVars(settings.headerColor));
+  const css = budgetTemplateCSS(budgetTemplateColorVars(settings.budgetAccentColor));
   const body = buildBudgetTemplateBodyHTML(sampleData);
   const fullHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Modelo de orçamento — pré-visualização</title>${BUDGET_TEMPLATE_FONTS_LINK}<style>body{margin:0;background:#eef1ef;padding:32px 16px;display:flex;justify-content:center;font-family:sans-serif;}${css}</style></head><body>${body}</body></html>`;
 
@@ -4422,7 +4431,7 @@ function SimulationPanel({
   );
 }
 
-function TabNav({ tab, setTab, accentColor, darkMode }) {
+function TabNav({ tab, setTab, darkMode }) {
   const containerRef = useRef(null);
   const tabRefs = useRef({});
   const [pillStyle, setPillStyle] = useState(null);
@@ -4468,7 +4477,7 @@ function TabNav({ tab, setTab, accentColor, darkMode }) {
             style={{
               left: `${pillStyle.left}px`,
               width: `${pillStyle.width}px`,
-              backgroundColor: accentColor || (darkMode ? "#71717a" : "#292524"),
+              backgroundColor: darkMode ? "#71717a" : "#292524",
             }}
           />
         )}
@@ -4945,7 +4954,7 @@ function ColorAccentPicker({ value, onChange, logoDataUrl }) {
 
   return (
     <div>
-      <div className="text-xs text-stone-500 mb-1">Cor de destaque</div>
+      <div className="text-xs text-stone-500 mb-1">Cor do orçamento</div>
       <div className="relative inline-block" ref={popoverRef}>
         <button
           type="button"
@@ -4984,8 +4993,8 @@ function ColorAccentPicker({ value, onChange, logoDataUrl }) {
         )}
       </div>
       <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
-        Usada nas abas do sistema e nas partes coloridas do orçamento exportado (cabeçalho, tabela, total, rodapé,
-        marca d'água) — escolha a que mais combina com o seu consultório/clínica.
+        Usada só nas partes coloridas do orçamento exportado (cabeçalho, tabela, total, rodapé, marca d'água) —
+        escolha a que mais combina com o seu consultório/clínica. Não muda nenhuma cor do resto do sistema.
       </p>
     </div>
   );
@@ -5204,8 +5213,8 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
         </div>
 
         <ColorAccentPicker
-          value={settings.headerColor || "#005580"}
-          onChange={(hex) => onChange({ ...settings, headerColor: hex })}
+          value={settings.budgetAccentColor || "#005580"}
+          onChange={(hex) => onChange({ ...settings, budgetAccentColor: hex })}
           logoDataUrl={settings.clinicLogoDataUrl}
         />
 
@@ -6684,6 +6693,40 @@ export default function App() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  // Atalhos de teclado: Esc volta pro Dashboard, setas esquerda/direita
+  // trocam de aba (mesma ordem das abas no menu de cima). Só dispara quando
+  // o foco NÃO está num campo de digitação (input/textarea/select/
+  // contenteditable) — senão apertar seta pra mover o cursor dentro de um
+  // campo de texto, ou Esc pra limpar ele, ia trocar de tela sem querer.
+  // Limitação conhecida: não checa se algum modal/popup está aberto no
+  // momento — se um modal também escuta Esc pra se fechar, as duas coisas
+  // podem acontecer juntas (fecha o modal E troca de aba). Não dava pra
+  // verificar isso de forma genérica sem mexer em cada modal do sistema
+  // individualmente.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      const el = document.activeElement;
+      const tag = el && el.tagName;
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el && el.isContentEditable);
+      if (isTyping) return;
+
+      if (e.key === "Escape") {
+        navigateTab("dashboard");
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const idx = MAIN_TAB_ORDER.indexOf(tab);
+        if (idx === -1) return;
+        const delta = e.key === "ArrowRight" ? 1 : -1;
+        const nextIdx = (idx + delta + MAIN_TAB_ORDER.length) % MAIN_TAB_ORDER.length;
+        navigateTab(MAIN_TAB_ORDER[nextIdx]);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
   const [budgetItems, setBudgetItems] = useState([]);
   const [budgetCategory, setBudgetCategory] = useState("");
   const [budgetInstallments, setBudgetInstallments] = useState(1);
@@ -7497,7 +7540,7 @@ export default function App() {
               <span className="text-xl font-semibold text-stone-800 tracking-tight">Precifica</span>
             </button>
 
-            <TabNav tab={tab} setTab={navigateTab} accentColor={settings.headerColor} darkMode={settings.darkMode} />
+            <TabNav tab={tab} setTab={navigateTab} darkMode={settings.darkMode} />
 
             <div className="flex items-center gap-3 justify-end min-w-0">
               <div className="min-w-0 text-right hidden sm:block">
