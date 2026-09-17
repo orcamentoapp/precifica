@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users } from "lucide-react";
+import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal } from "lucide-react";
 import { apiRequest, clearToken } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
@@ -769,6 +769,63 @@ function resolveFeePayerForMethod(m, settings) {
   return baseFeePayer;
 }
 
+// ---------- Cálculo de taxa/imposto pra UM valor, por forma de pagamento ----------
+// Extraída de dentro de calcProcedure/calcBudget pra poder ser reaplicada a
+// uma FRAÇÃO do valor total (pagamento dividido em partes com formas
+// diferentes), sem duplicar a fórmula. Mantém os dois conceitos que já
+// existiam:
+// - "Fixed" (netFixed/profitFixed/realMarginFixed): parte do valor
+//   REALMENTE cobrado (fixedAmount) — a régua fixa, sem ajuste nenhum.
+// - "Real" (adjustedPrice/feeAmount/taxAmount/realProfit/realMarginPercent):
+//   quando quem paga a taxa é o cliente, o valor cobrado é aumentado (a
+//   partir de basisAmount) pra taxa não corroer a margem — adjustedPrice é
+//   esse valor final cobrado do paciente nesse caso.
+// Pra um pagamento único (não dividido), fixedAmount = valor de tabela e
+// basisAmount = base de ajuste de margem (podem ser o mesmo valor ou não,
+// dependendo se o preço foi editado manualmente). Pra uma PARTE de um
+// pagamento dividido, os dois recebem o mesmo valor (a fração daquela
+// parte) — não existe uma "base de margem" separada por parte.
+function calcPaymentAmount(m, settings, taxPct, fixedAmount, basisAmount, costShare) {
+  const rowFeePayer = resolveFeePayerForMethod(m, settings);
+  const feePercent = Number(m.feePercent) || 0;
+  const adjustedPrice =
+    rowFeePayer === "clinic" ? basisAmount : feePercent < 100 ? basisAmount / (1 - feePercent / 100) : null;
+  const feeAmountFixed = (fixedAmount * feePercent) / 100;
+  const taxAmountFixed = (fixedAmount * taxPct) / 100;
+  const netFixed = fixedAmount - feeAmountFixed - taxAmountFixed;
+  const profitFixed = netFixed - costShare;
+  const realMarginFixed = netFixed !== 0 ? (profitFixed / netFixed) * 100 : null;
+
+  let realProfit = null;
+  let realMarginPercent = null;
+  let feeAmount = null;
+  let taxAmount = null;
+  if (adjustedPrice != null) {
+    feeAmount = (adjustedPrice * feePercent) / 100;
+    taxAmount = (adjustedPrice * taxPct) / 100;
+    const netReceived = adjustedPrice - feeAmount - taxAmount;
+    realProfit = netReceived - costShare;
+    realMarginPercent = netReceived !== 0 ? (realProfit / netReceived) * 100 : null;
+  }
+
+  return { adjustedPrice, netFixed, profitFixed, realMarginFixed, realProfit, realMarginPercent, feeAmount, taxAmount };
+}
+
+// Mesma fórmula de cima, mas pra UMA PARTE de um pagamento dividido: recebe
+// o cálculo do orçamento inteiro (calcBudget) e a fração de valor (amount)
+// que essa parte cobre, e rateia custo/base de margem proporcionalmente ao
+// tanto que essa parte representa do valor total do orçamento — assim, se
+// o orçamento tem uma base de margem diferente do valor de tabela (preço
+// editado manualmente), cada parte continua protegendo a margem na mesma
+// proporção que o pagamento único protegeria.
+function calcSplitPartAmount(amount, method, settings, calc) {
+  const total = Number(calc.listPrice) || 0;
+  const ratio = total > 0 ? amount / total : 0;
+  const basisAmount = (Number(calc.basis) || 0) * ratio;
+  const costShare = (Number(calc.totalCost) || 0) * ratio;
+  return calcPaymentAmount(method, settings, calc.taxPct, amount, basisAmount, costShare);
+}
+
 // ---------- Custo de procedimento a partir de materiais usados ----------
 // Portado da calculadora de custos que o Marcelo já usava separada (HTML
 // isolado) — mesma lógica de cálculo, só que agora lendo do catálogo de
@@ -866,30 +923,10 @@ function calcProcedure(proc, settings, materialsCatalog) {
   const taxPct = Number(settings.taxProvisionPercent) || 0;
   const methods = buildPaymentMethods(settings);
 
-  const rows = methods.map((m) => {
-    const rowFeePayer = resolveFeePayerForMethod(m, settings);
-    const adjustedPrice =
-      rowFeePayer === "clinic" ? adjustmentBasis : m.feePercent < 100 ? adjustmentBasis / (1 - m.feePercent / 100) : null;
-    const feeAmountFixed = (listPrice * m.feePercent) / 100;
-    const taxAmountFixed = (listPrice * taxPct) / 100;
-    const netFixed = listPrice - feeAmountFixed - taxAmountFixed;
-    const profitFixed = netFixed - totalCost;
-    const realMarginFixed = netFixed !== 0 ? (profitFixed / netFixed) * 100 : null;
-
-    let realProfit = null;
-    let realMarginPercent = null;
-    let feeAmount = null;
-    let taxAmount = null;
-    if (adjustedPrice != null) {
-      feeAmount = (adjustedPrice * m.feePercent) / 100;
-      taxAmount = (adjustedPrice * taxPct) / 100;
-      const netReceived = adjustedPrice - feeAmount - taxAmount;
-      realProfit = netReceived - totalCost;
-      realMarginPercent = netReceived !== 0 ? (realProfit / netReceived) * 100 : null;
-    }
-
-    return { ...m, adjustedPrice, netFixed, profitFixed, realMarginFixed, realProfit, realMarginPercent, feeAmount, taxAmount };
-  });
+  const rows = methods.map((m) => ({
+    ...m,
+    ...calcPaymentAmount(m, settings, taxPct, listPrice, adjustmentBasis, totalCost),
+  }));
 
   return { totalCost, directCost, additionalCost, laborCost, margin, suggestedBase, listPrice, taxPct, rows, materialsCost };
 }
@@ -928,36 +965,17 @@ function calcBudget(procList, settings, clientLevelPercent = 0, materialsCatalog
   sumBasis *= markupMult;
   sumListPrice *= markupMult;
 
-  const rows = methods.map((m) => {
-    const rowFeePayer = resolveFeePayerForMethod(m, settings);
-    const adjustedPrice =
-      rowFeePayer === "clinic" ? sumBasis : m.feePercent < 100 ? sumBasis / (1 - m.feePercent / 100) : null;
-    const feeAmountFixed = (sumListPrice * m.feePercent) / 100;
-    const taxAmountFixed = (sumListPrice * taxPct) / 100;
-    const netFixed = sumListPrice - feeAmountFixed - taxAmountFixed;
-    const profitFixed = netFixed - sumCost;
-    const realMarginFixed = netFixed !== 0 ? (profitFixed / netFixed) * 100 : null;
-
-    let realProfit = null;
-    let realMarginPercent = null;
-    let feeAmount = null;
-    let taxAmount = null;
-    if (adjustedPrice != null) {
-      feeAmount = (adjustedPrice * m.feePercent) / 100;
-      taxAmount = (adjustedPrice * taxPct) / 100;
-      const netReceived = adjustedPrice - feeAmount - taxAmount;
-      realProfit = netReceived - sumCost;
-      realMarginPercent = netReceived !== 0 ? (realProfit / netReceived) * 100 : null;
-    }
-
-    return { ...m, adjustedPrice, netFixed, profitFixed, realMarginFixed, realProfit, realMarginPercent, feeAmount, taxAmount };
-  });
+  const rows = methods.map((m) => ({
+    ...m,
+    ...calcPaymentAmount(m, settings, taxPct, sumListPrice, sumBasis, sumCost),
+  }));
 
   return {
     totalCost: sumCost,
     directCost: sumDirectCost,
     laborCost: sumLaborCost,
     listPrice: sumListPrice,
+    basis: sumBasis,
     taxPct,
     rows,
     clientLevelPercent: Number(clientLevelPercent) || 0,
@@ -3200,6 +3218,10 @@ function SimulationPanel({
   setPatientEmail,
   downPayment,
   setDownPayment,
+  splitMode,
+  setSplitMode,
+  splitParts,
+  setSplitParts,
   currentEntryId,
   setCurrentEntryId,
   onSaveBudget,
@@ -3295,6 +3317,82 @@ function SimulationPanel({
     Math.abs(row.adjustedPrice - atVistaRow.adjustedPrice) < 0.01;
   const showMachineName = category === "credito" || category === "debito";
 
+  // ---------- Dividir pagamento em partes com formas diferentes ----------
+  // Cada parte é { id, methodKey, amount } — menos a ÚLTIMA parte, que não
+  // guarda "amount" pra edição: o valor dela é sempre calculado como o
+  // restante (total do orçamento menos a soma das outras partes), pra nunca
+  // dar um valor que não soma certinho com o total.
+  const splitMethods = calc ? calc.rows.map((r) => ({ key: r.key, label: r.label })) : [];
+  const splitTotal = calc ? calc.listPrice : 0;
+  const splitOthersSum = splitParts.slice(0, -1).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const splitPartsResolved = splitParts.map((p, i) => {
+    const isLast = i === splitParts.length - 1;
+    const amount = isLast ? Math.round((splitTotal - splitOthersSum) * 100) / 100 : Number(p.amount) || 0;
+    const method = calc ? calc.rows.find((r) => r.key === p.methodKey) : null;
+    const partCalc = method && calc ? calcSplitPartAmount(Math.max(0, amount), method, settings, calc) : null;
+    return { ...p, amount, method, partCalc, isLast };
+  });
+  const splitRemainderNegative = splitPartsResolved.length > 0 && splitPartsResolved[splitPartsResolved.length - 1].amount < -0.005;
+  const splitAllMethodsChosen = splitPartsResolved.every((p) => p.methodKey);
+  const splitValid = splitMode && splitPartsResolved.length >= 2 && splitAllMethodsChosen && !splitRemainderNegative;
+  const splitChargedTotal = splitPartsResolved.reduce(
+    (s, p) => s + (p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : Math.max(0, p.amount)),
+    0
+  );
+  const splitFeeTotal = splitPartsResolved.reduce((s, p) => s + (p.partCalc?.feeAmount || 0), 0);
+  const splitTaxTotal = splitPartsResolved.reduce((s, p) => s + (p.partCalc?.taxAmount || 0), 0);
+  const splitProfitTotal = splitPartsResolved.reduce(
+    (s, p) => s + (p.partCalc && p.partCalc.realProfit != null ? p.partCalc.realProfit : 0),
+    0
+  );
+  const splitNetTotal = splitChargedTotal - splitFeeTotal - splitTaxTotal;
+  const splitMarginTotal = splitNetTotal !== 0 ? (splitProfitTotal / splitNetTotal) * 100 : null;
+  const paymentReady = splitMode ? splitValid : Boolean(row) && boletoEntradaMet;
+
+  function toggleSplitMode() {
+    if (splitMode) {
+      setSplitMode(false);
+      setSplitParts([]);
+    } else {
+      setCategory("");
+      setInstallments(1);
+      setDownPayment(0);
+      setSplitMode(true);
+      const half = Math.round((splitTotal / 2) * 100) / 100;
+      setSplitParts([
+        { id: uid(), methodKey: "pix", amount: half },
+        { id: uid(), methodKey: "pix" },
+      ]);
+    }
+  }
+
+  function addSplitPart() {
+    setSplitParts((prev) => {
+      const lastIdx = prev.length - 1;
+      const othersSum = prev.slice(0, lastIdx).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const lastAmount = Math.max(0, splitTotal - othersSum);
+      const half = Math.round((lastAmount / 2) * 100) / 100;
+      const updated = [...prev];
+      updated.splice(lastIdx, 0, { id: uid(), methodKey: prev[lastIdx]?.methodKey || "pix", amount: half });
+      return updated;
+    });
+  }
+
+  function removeSplitPart(id) {
+    setSplitParts((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      if (next.length < 2) {
+        setSplitMode(false);
+        return [];
+      }
+      return next;
+    });
+  }
+
+  function updateSplitPart(id, patch) {
+    setSplitParts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
   useEffect(() => {
     const applicable = category === "credito" || category === "boleto";
     if (!applicable) {
@@ -3311,6 +3409,10 @@ function SimulationPanel({
     setCategory(key);
     setInstallments(1);
     setDownPayment(0);
+    if (splitMode) {
+      setSplitMode(false);
+      setSplitParts([]);
+    }
   }
 
   function addItem(procId) {
@@ -3341,11 +3443,30 @@ function SimulationPanel({
     setPatientPhone("");
     setPatientEmail("");
     setDownPayment(0);
+    setSplitMode(false);
+    setSplitParts([]);
     setCurrentEntryId(null);
   }
 
+  // Monta o texto combinado da forma de pagamento quando dividida — ex:
+  // "Dividido: PIX / Dinheiro à vista R$ 500,00 + Crédito 3x R$ 166,67" —
+  // usado no histórico, no modelo de orçamento exportado e na mensagem de
+  // WhatsApp.
+  function buildSplitMethodLabel() {
+    const parts = splitPartsResolved.map((p) => {
+      const amount = p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount;
+      const installmentsN = p.method?.installments || 1;
+      const perInstallmentPart = installmentsN > 1 ? amount / installmentsN : null;
+      const label = p.method?.label || "Forma não selecionada";
+      return perInstallmentPart != null
+        ? `${label} (${money(amount)} em ${installmentsN}x de ${money(perInstallmentPart)})`
+        : `${label} (${money(amount)})`;
+    });
+    return `Dividido: ${parts.join(" + ")}`;
+  }
+
   function handleSaveBudget(mode) {
-    if (budgetProcs.length === 0 || !boletoEntradaMet) return;
+    if (budgetProcs.length === 0 || !paymentReady) return;
     const useNewId = mode === "new" || !currentEntryId;
     const entry = {
       id: useNewId ? uid() : currentEntryId,
@@ -3358,12 +3479,23 @@ function SimulationPanel({
           ? { custom: true, name: p.name || "Item avulso", cost: p.cost, valorBase: p.valorBase, category: "Avulso" }
           : { procId: p.id, name: p.name || "Sem nome", category: p.category || "" }
       ),
-      category,
-      installments,
+      category: splitMode ? "" : category,
+      installments: splitMode ? 1 : installments,
       clientLevel,
-      downPayment: safeDownPayment > 0 ? safeDownPayment : 0,
-      methodLabel: row ? row.label + (showMachineName ? ` · ${activePreset.name}` : "") : null,
-      price: row && row.adjustedPrice != null ? row.adjustedPrice : subtotal,
+      downPayment: !splitMode && safeDownPayment > 0 ? safeDownPayment : 0,
+      methodLabel: splitMode
+        ? buildSplitMethodLabel()
+        : row
+        ? row.label + (showMachineName ? ` · ${activePreset.name}` : "")
+        : null,
+      paymentSplit: splitMode
+        ? splitPartsResolved.map((p) => ({
+            methodKey: p.methodKey,
+            label: p.method?.label || "",
+            amount: p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount,
+          }))
+        : null,
+      price: splitMode ? splitChargedTotal : row && row.adjustedPrice != null ? row.adjustedPrice : subtotal,
       status: "aberto",
     };
     onSaveBudget(entry);
@@ -3373,7 +3505,7 @@ function SimulationPanel({
   }
 
   function autoSaveOnExport() {
-    if (budgetProcs.length === 0 || !boletoEntradaMet) return;
+    if (budgetProcs.length === 0 || !paymentReady) return;
     handleSaveBudget(currentEntryId ? "update" : "new");
   }
 
@@ -3383,7 +3515,7 @@ function SimulationPanel({
   // chamada em lugar nenhum, mas fica de reserva caso algo dê errado com o
   // motor novo e o Marcelo precise voltar rápido pro anterior.
   async function buildExportCanvasFromTemplate() {
-    if (!row) return null;
+    if (!paymentReady) return null;
 
     const dateLabel = new Date().toLocaleDateString("pt-BR");
     const validityMonths = settings.quoteValidityMonths || 3;
@@ -3393,14 +3525,20 @@ function SimulationPanel({
     const validityMonthsLabel = `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`;
 
     const procedures = budgetProcs.map((p) => ({ name: p.name, value: (Number(p.valorBase) || 0) * markupMult }));
-    const total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
 
-    let paymentLine = row.label + (showMachineName ? ` · ${activePreset.name}` : "");
-    if (perInstallment) {
-      paymentLine += ` — ${installments}x de ${money(perInstallment)}${isInterestFree ? " sem juros" : ""}`;
-    }
-    if (safeDownPayment > 0) {
-      paymentLine += ` (entrada de ${money(safeDownPayment)})`;
+    let total, paymentLine;
+    if (splitMode) {
+      total = splitChargedTotal;
+      paymentLine = buildSplitMethodLabel();
+    } else {
+      total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
+      paymentLine = row.label + (showMachineName ? ` · ${activePreset.name}` : "");
+      if (perInstallment) {
+        paymentLine += ` — ${installments}x de ${money(perInstallment)}${isInterestFree ? " sem juros" : ""}`;
+      }
+      if (safeDownPayment > 0) {
+        paymentLine += ` (entrada de ${money(safeDownPayment)})`;
+      }
     }
 
     return renderBudgetTemplateToCanvas({
@@ -3811,14 +3949,26 @@ function SimulationPanel({
     });
     lines.push(`Subtotal: ${money(subtotal)}`);
     lines.push("");
-    if (row) {
+    if (splitMode && splitValid) {
+      lines.push("Pagamento dividido:");
+      splitPartsResolved.forEach((p) => {
+        const chargedAmount = p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount;
+        const installmentsN = p.method?.installments || 1;
+        const line =
+          installmentsN > 1
+            ? `- ${p.method?.label}: ${money(chargedAmount)} (${installmentsN}x de ${money(chargedAmount / installmentsN)})`
+            : `- ${p.method?.label}: ${money(chargedAmount)}`;
+        lines.push(line);
+      });
+      lines.push(`Total: ${money(splitChargedTotal)}`);
+    } else if (row) {
       lines.push(`Forma de pagamento: ${row.label}${showMachineName ? ` · ${activePreset.name}` : ""}`);
       lines.push(`Total: ${money(row.adjustedPrice != null ? row.adjustedPrice : subtotal)}`);
     }
-    if (safeDownPayment > 0) {
+    if (!splitMode && safeDownPayment > 0) {
       lines.push(`Entrada: ${money(safeDownPayment)}`);
     }
-    if (perInstallment) {
+    if (!splitMode && perInstallment) {
       lines.push(`${installments}x de ${money(perInstallment)}${isInterestFree ? " (sem juros)" : ""}`);
     }
     const orgLabel = settings.orgLabel || "Consultório";
@@ -3881,10 +4031,16 @@ function SimulationPanel({
               <div className="relative" ref={saveMenuRef}>
                 <button
                   onClick={() => setSaveMenuOpen((v) => !v)}
-                  disabled={!boletoEntradaMet}
-                  title={!boletoEntradaMet ? `Preencha a entrada mínima de ${money(minDownPayment)} pra salvar` : undefined}
+                  disabled={!paymentReady}
+                  title={
+                    !paymentReady
+                      ? splitMode
+                        ? "Confirme a forma de pagamento de todas as partes pra salvar"
+                        : `Preencha a entrada mínima de ${money(minDownPayment)} pra salvar`
+                      : undefined
+                  }
                   className={`inline-flex items-center gap-1 text-xs font-medium transition ${
-                    !boletoEntradaMet
+                    !paymentReady
                       ? "text-stone-300 cursor-not-allowed"
                       : saveFeedback
                       ? "text-teal-600"
@@ -3902,7 +4058,7 @@ function SimulationPanel({
                     </>
                   )}
                 </button>
-                {saveMenuOpen && boletoEntradaMet && (
+                {saveMenuOpen && paymentReady && (
                   <div className="absolute left-0 mt-2 w-48 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-50 overflow-hidden">
                     <button
                       onClick={() => {
@@ -3928,7 +4084,7 @@ function SimulationPanel({
                 )}
               </div>
             )}
-            {row && boletoEntradaMet && (
+            {paymentReady && (
               <div className="relative" ref={exportMenuRef}>
                 <button
                   onClick={() => setExportMenuOpen((v) => !v)}
@@ -4126,6 +4282,113 @@ function SimulationPanel({
 
       {budgetProcs.length > 0 && (
         <div className="bg-white border border-stone-200 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-semibold text-stone-700">Forma de pagamento</span>
+            <button
+              type="button"
+              onClick={toggleSplitMode}
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition ${
+                splitMode
+                  ? "border-teal-600 bg-teal-600 text-white"
+                  : "border-stone-200 text-stone-500 hover:bg-stone-50"
+              }`}
+            >
+              <SplitSquareHorizontal className="w-3.5 h-3.5" /> Dividir pagamento
+            </button>
+          </div>
+          {splitMode ? (
+            <div className="space-y-3">
+              {splitPartsResolved.map((p, i) => {
+                const chargedAmount = p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount;
+                const installmentsN = p.method?.installments || 1;
+                const perInstallmentPart = installmentsN > 1 && chargedAmount != null ? chargedAmount / installmentsN : null;
+                return (
+                  <div key={p.id} className="border border-stone-200 rounded-xl p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-stone-400 w-14 shrink-0">
+                        Parte {i + 1}
+                        {p.isLast && <span className="block text-[10px] font-normal text-stone-400">restante</span>}
+                      </span>
+                      <select
+                        value={p.methodKey}
+                        onChange={(e) => updateSplitPart(p.id, { methodKey: e.target.value })}
+                        className="flex-1 min-w-0 text-sm border border-stone-200 rounded-lg px-2.5 py-2 outline-none focus:border-teal-400 bg-white"
+                      >
+                        <option value="">Selecione...</option>
+                        {splitMethods.map((m) => (
+                          <option key={m.key} value={m.key}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="relative w-32 shrink-0">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400">R$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          disabled={p.isLast}
+                          value={p.isLast ? Math.max(0, p.amount).toFixed(2) : p.amount ?? ""}
+                          onChange={(e) => updateSplitPart(p.id, { amount: e.target.value === "" ? 0 : Number(e.target.value) })}
+                          className={`w-full text-sm border border-stone-200 rounded-lg pl-7 pr-2 py-2 outline-none focus:border-teal-400 text-right font-mono ${
+                            p.isLast ? "bg-stone-50 text-stone-500" : "bg-white"
+                          }`}
+                        />
+                      </div>
+                      {!p.isLast && splitPartsResolved.length > 1 && (
+                        <button
+                          onClick={() => removeSplitPart(p.id)}
+                          title="Remover parte"
+                          className="shrink-0 text-stone-300 hover:text-rose-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {p.method && (
+                      <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-stone-100 text-xs text-stone-500">
+                        <span>
+                          Cobrado: <span className="font-mono font-semibold text-stone-700">{money(chargedAmount)}</span>
+                          {perInstallmentPart != null && ` (${installmentsN}x de ${money(perInstallmentPart)})`}
+                        </span>
+                        <span>
+                          Taxa {pct(p.method.feePercent)}
+                          {p.partCalc?.feeAmount != null && ` (${money(p.partCalc.feeAmount)})`}
+                        </span>
+                        <span
+                          className={
+                            p.partCalc?.realProfit != null && p.partCalc.realProfit < 0
+                              ? "text-rose-600 font-medium"
+                              : "text-emerald-600 font-medium"
+                          }
+                        >
+                          Lucro {p.partCalc?.realProfit != null ? money(p.partCalc.realProfit) : "—"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {splitRemainderNegative && (
+                <p className="text-xs text-rose-600 font-medium">
+                  A soma das partes já ultrapassa o valor total do orçamento — reduza alguma delas.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={addSplitPart}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-800"
+              >
+                <Plus className="w-3.5 h-3.5" /> Adicionar forma de pagamento
+              </button>
+              {splitValid && (
+                <div className="flex items-center justify-between gap-3 pt-3 border-t border-stone-100 text-sm">
+                  <span className="font-semibold text-stone-700">Total cobrado do paciente</span>
+                  <span className="font-mono font-bold text-teal-800">{money(splitChargedTotal)}</span>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-stone-600 block mb-1.5">Forma de pagamento</label>
@@ -4210,10 +4473,94 @@ function SimulationPanel({
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
-      {row && boletoEntradaMet ? (
+      {splitMode ? (
+        splitValid ? (
+          <div className="bg-white border border-stone-200 rounded-2xl">
+            <div className="px-6 sm:px-8 pt-10 pb-9 flex flex-col md:flex-row items-center md:items-start gap-8">
+              {!patientMode && (
+                <div className="w-56 shrink-0 text-left">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs text-stone-400 whitespace-nowrap">Custo total</span>
+                      <span className="font-mono text-sm font-semibold text-rose-600">{money(calc.directCost)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs text-stone-400 whitespace-nowrap">Horas Clínicas</span>
+                      <span className="font-mono text-sm font-semibold text-rose-600">{money(calc.laborCost)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs text-stone-400 whitespace-nowrap">Taxa (total)</span>
+                      <span className="font-mono text-sm font-semibold text-rose-600 text-right">{money(splitFeeTotal)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs text-stone-400 whitespace-nowrap">Imposto (total)</span>
+                      <span className="font-mono text-sm font-semibold text-rose-600 text-right">{money(splitTaxTotal)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 border-t border-stone-100 pt-2.5">
+                      <span className="text-xs text-stone-500 font-medium whitespace-nowrap">Total dos custos</span>
+                      <span className="font-mono text-sm font-semibold text-rose-700">
+                        {money(calc.totalCost + splitFeeTotal + splitTaxTotal)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs text-stone-400 whitespace-nowrap">Nível do paciente</span>
+                      <span className="font-mono text-sm font-semibold text-stone-700">
+                        {calc.clientLevelPercent > 0 ? `+${pct(calc.clientLevelPercent)}` : "Padrão"}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 border-t border-stone-100 pt-2.5">
+                      <span className="text-xs text-stone-400 whitespace-nowrap">Lucro</span>
+                      <span
+                        className={`font-mono text-sm font-semibold text-right ${
+                          splitProfitTotal < 0 ? "text-rose-600" : "text-emerald-600"
+                        }`}
+                      >
+                        {splitMarginTotal != null ? pct(splitMarginTotal) : "—"} / {money(splitProfitTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex-1 text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">
+                  {budgetProcs.length === 1 ? budgetProcs[0].name : `${budgetProcs.length} procedimentos`}
+                </div>
+                <div className="text-lg sm:text-xl font-semibold text-teal-700 mt-1.5">
+                  Pagamento dividido em {splitPartsResolved.length} partes
+                </div>
+                <div className="text-6xl sm:text-7xl font-bold tracking-tight text-teal-800 font-mono mt-5 mb-1">
+                  {money(splitChargedTotal)}
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+                  {splitPartsResolved.map((p) => {
+                    const chargedAmount = p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount;
+                    const installmentsN = p.method?.installments || 1;
+                    return (
+                      <span key={p.id} className="inline-flex items-baseline gap-1.5 bg-teal-50 rounded-full px-4 py-2 text-sm">
+                        <span className="font-medium text-stone-600">{p.method?.label}</span>
+                        <span className="font-mono font-bold text-teal-800">{money(chargedAmount)}</span>
+                        {installmentsN > 1 && (
+                          <span className="text-stone-400 text-xs">({installmentsN}x)</span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="border border-dashed border-stone-300 rounded-2xl flex flex-col items-center justify-center py-16 text-stone-400">
+            <Banknote className="w-8 h-8 mb-3" />
+            <p className="text-sm text-center px-6">Escolha a forma de pagamento de cada parte pra ver o valor a cobrar.</p>
+          </div>
+        )
+      ) : row && boletoEntradaMet ? (
         <div className="bg-white border border-stone-200 rounded-2xl">
           <div className="px-6 sm:px-8 pt-10 pb-9 flex flex-col md:flex-row items-center md:items-start gap-8">
             {!patientMode && (
@@ -6735,6 +7082,8 @@ export default function App() {
   const [budgetPatientPhone, setBudgetPatientPhone] = useState("");
   const [budgetPatientEmail, setBudgetPatientEmail] = useState("");
   const [budgetDownPayment, setBudgetDownPayment] = useState(0);
+  const [budgetSplitMode, setBudgetSplitMode] = useState(false);
+  const [budgetSplitParts, setBudgetSplitParts] = useState([]);
   const [budgetHistoryEntryId, setBudgetHistoryEntryId] = useState(null);
   const [reopenWarning, setReopenWarning] = useState("");
   const [budgetHistory, setBudgetHistory] = useState([]);
@@ -7045,6 +7394,12 @@ export default function App() {
     setBudgetPatientPhone(entry.patientPhone || "");
     setBudgetPatientEmail(entry.patientEmail || "");
     setBudgetDownPayment(entry.downPayment || 0);
+    setBudgetSplitMode(Array.isArray(entry.paymentSplit) && entry.paymentSplit.length > 0);
+    setBudgetSplitParts(
+      Array.isArray(entry.paymentSplit)
+        ? entry.paymentSplit.map((p) => ({ id: uid(), methodKey: p.methodKey, amount: p.amount }))
+        : []
+    );
     setBudgetHistoryEntryId(entry.id);
     navigateTab("simulation");
     if (missingCount > 0) {
@@ -7759,6 +8114,10 @@ export default function App() {
             setPatientEmail={setBudgetPatientEmail}
             downPayment={budgetDownPayment}
             setDownPayment={setBudgetDownPayment}
+            splitMode={budgetSplitMode}
+            setSplitMode={setBudgetSplitMode}
+            splitParts={budgetSplitParts}
+            setSplitParts={setBudgetSplitParts}
             currentEntryId={budgetHistoryEntryId}
             setCurrentEntryId={setBudgetHistoryEntryId}
             onSaveBudget={handleSaveBudget}

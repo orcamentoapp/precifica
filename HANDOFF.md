@@ -49,11 +49,176 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: BUG CRÍTICO CORRIGIDO — página de Procedimentos toda em branco (erro de JavaScript quebrando a página inteira)
+## ✅ Feito nesta sessão — "dividir pagamento" implementado
 
-O Marcelo reportou que a página de Procedimentos parou de abrir (tela
-branca) — mandou print do console do navegador mostrando
-`ReferenceError: fileMenuOpen is not defined`.
+Implementei o próximo passo que estava combinado (ver seção antiga
+logo abaixo, que descrevia o desenho — mantive ela como registro
+histórico da investigação, mas o trabalho nela descrito **já foi
+feito**). Resumo do que mudou, tudo em `app-frontend/src/App.jsx`:
+
+**1. Motor de cálculo (baixo risco, refatoração pura)** — extraí a
+fórmula de taxa/imposto/lucro que existia duplicada dentro de
+`calcProcedure` e `calcBudget` pra uma função só,
+`calcPaymentAmount(m, settings, taxPct, fixedAmount, basisAmount,
+costShare)`. `calcProcedure`/`calcBudget` continuam se comportando
+exatamente igual — só passaram a chamar essa função em vez de repetir
+a conta inline. `calcBudget` também passou a devolver `basis`
+(a soma da base de ajuste de margem, `sumBasis`) no objeto de retorno,
+que antes ficava só interna — precisei dela pra ratear
+proporcionalmente entre as partes do pagamento dividido.
+Testado com `npm run build` limpo logo depois dessa refatoração,
+**antes** de mexer em mais nada, justamente pra isolar o risco.
+
+**2. `calcSplitPartAmount(amount, method, settings, calc)`** — nova
+função que aplica a MESMA fórmula de cima a uma fração do valor total
+do orçamento (uma "parte" do pagamento dividido). Rateia
+proporcionalmente a base de margem (`calc.basis`) e o custo total
+(`calc.totalCost`) pela fração que aquela parte representa do valor
+total (`calc.listPrice`) — assim, cada parte protege a margem na
+mesma proporção que o pagamento único protegeria.
+
+**3. Estado e fluxo em `SimulationPanel`/`App`** — dois campos novos
+levantados pro componente pai, no mesmo padrão de `category`/
+`installments`: `budgetSplitMode` (bool) e `budgetSplitParts` (array
+de `{ id, methodKey, amount }`, sem `amount` na última parte — ela é
+sempre calculada como o restante). Restaurados ao reabrir um orçamento
+salvo (`handleReopenBudget`, a partir de `entry.paymentSplit`) e
+zerados ao limpar o orçamento (`handleClear`). Escolher uma forma de
+pagamento normal desliga o modo dividido automaticamente, e
+vice-versa — são mutuamente exclusivos.
+
+**4. UI** — botão "Dividir pagamento" no topo do card de forma de
+pagamento (tela de Novo Orçamento). Ligado, troca o seletor
+categoria/parcelas/entrada por uma lista de partes: cada uma com
+dropdown de forma (reaproveita as mesmas opções calculadas em
+`calc.rows`, incluindo cada parcelamento de crédito/boleto como opção
+separada, do jeito que o motor já organizava), campo de valor (só a
+última parte fica travada, mostrando o restante), e uma linha com o
+valor efetivamente cobrado daquela parte (já ajustado se a taxa for
+repassada ao cliente), a taxa e o lucro. Botão "+ Adicionar forma de
+pagamento" (divide o restante ao meio) e X pra remover uma parte
+(removendo até sobrar 1, desliga o modo dividido sozinho). Card de
+preço principal ganhou uma versão para o modo dividido — mostra o
+total cobrado somado e um chip por parte.
+
+**5. Salvamento** (`handleSaveBudget`) — grava `paymentSplit` (array
+com forma, rótulo e valor cobrado de cada parte, já calculado — é um
+retrato congelado, igual o `methodLabel`/`price` de sempre, não
+recalcula se as configurações de taxa mudarem depois) e um
+`methodLabel` combinado tipo `"Dividido: PIX / Dinheiro à vista (R$
+500,00) + Crédito 3x (R$ 500,00 em 3x de R$ 166,67)"` — aparece
+igual no histórico, já que a tela de histórico só exibe
+`h.methodLabel` como texto (não precisou mexer lá). `price` vira a
+soma do que é cobrado do paciente em todas as partes (importante:
+pode ser MAIOR que o subtotal se alguma parte tiver "quem paga a taxa
+= cliente", exatamente como já acontecia no pagamento único).
+
+**6. Exportação (WhatsApp/PDF/PNG/Impressão)** — `buildShareText`
+(mensagem de WhatsApp) e `buildExportCanvasFromTemplate` (modelo
+HTML/CSS que vira PDF/PNG, usado também pelo botão Imprimir) agora
+detectam o modo dividido e montam a linha de forma de pagamento
+como texto combinado das partes, em vez de ficarem vazios/quebrados
+(antes, com `category` vazio nesse modo, essas funções simplesmente
+não geravam nada). Não precisei mexer no HTML/CSS do modelo em si —
+o campo "Forma de pagamento" (`bt-payment-line`) já era um texto
+livre, só ficou mais longo.
+
+**O que ficou de fora, de propósito, pra não empilhar risco**:
+- **Entrada (down payment)** por parte — o desenho original do
+  Marcelo não pedia isso, só forma + valor por parte. Se ele quiser
+  entrada num pagamento dividido, é um pedido novo.
+- Nome da maquininha por parte (`activePreset.name`) — no pagamento
+  único aparece ao lado da forma quando é crédito/débito; no dividido,
+  cada chip mostra só o rótulo da forma (ex: "Crédito 3x"), sem o nome
+  da maquininha. Fácil de adicionar depois se ele sentir falta.
+- Validação de "pelo menos 1 real por parte" ou limites de valor — só
+  valida que a soma não ultrapassa o total (parte final não pode ficar
+  negativa).
+
+**Testado**: `npm run build` do frontend limpo (rodei duas vezes — uma
+logo após a refatoração do motor de cálculo, isolada, e outra depois
+de toda a UI). Fiz uma varredura de escopo em todas as variáveis/
+funções novas (`splitMethods`, `splitPartsResolved`, `splitValid`,
+`paymentReady`, `toggleSplitMode`, etc.) confirmando que todas as
+ocorrências ficam dentro do corpo de `SimulationPanel` — a mesma
+classe de bug que quebrou a tela de Procedimentos numa sessão anterior
+(variável usada fora do escopo onde foi declarada). **Não testei
+clicando de verdade num navegador** — vale o Marcelo conferir:
+1. Criar um orçamento, ativar "Dividir pagamento", testar
+   adicionar/remover partes e trocar a forma de cada uma.
+2. Salvar e conferir se aparece certo no Histórico.
+3. Reabrir esse orçamento salvo e confirmar que volta com o modo
+   dividido ativo e os valores certos.
+4. Exportar por WhatsApp/PDF/PNG/Impressão com pagamento dividido e
+   conferir se a linha de forma de pagamento sai legível.
+
+## 🎯 Log de investigação anterior (mantido como registro — já implementado, ver seção de cima)
+
+O Marcelo ficou sem créditos nesta conta e está upando esse projeto
+numa conta nova bem por isso: **o próximo passo combinado é
+implementar "dividir pagamento"** — dar pra dividir o valor de UM
+orçamento em partes, cada parte com uma forma de pagamento diferente
+(ex: metade no cartão de crédito, metade no Pix). **Importante**: não
+é mostrar opções alternativas pro paciente escolher (isso já
+existe, é a seleção normal de forma de pagamento) — é dividir o MESMO
+valor em pedaços com formas diferentes, tipo um caixa de loja que
+aceita parte no cartão e parte em dinheiro.
+
+Não implementei ainda porque, ao investigar, o motor de cálculo de
+forma de pagamento (`calcProcedure`/`calcBudget`/
+`buildPaymentMethods`, dentro de `app-frontend/src/App.jsx`) é bem
+mais entrelaçado do que parece de fora — vale ler essas três funções
+com atenção antes de desenhar a solução. Resumo do que já sei:
+
+- Hoje, a pessoa escolhe uma **categoria** (família: pix / débito /
+  crédito / boleto / convênio / taxa personalizada) via `category` +
+  `setCategory`, e dentro de crédito/boleto ainda tem **parcelas**
+  (`installments`), **nome de máquina** (`activePreset`/
+  `showMachineName`), **entrada mínima** (`downPayment`/
+  `minDownPayment`, só aplicável pra crédito/boleto) e **quem paga a
+  taxa** (`resolveFeePayerForMethod`, configurável em Formas de
+  Pagamento, com uma regra especial de limite de parcelas pra virar
+  "cliente paga" mesmo que o padrão seja "clínica paga"). Tudo isso
+  junto define UMA linha (`row`) escolhida de dentro de
+  `calc.rows` (calculado pra TODAS as formas de uma vez, em
+  `calcProcedure`/`calcBudget`).
+- Pra "dividir pagamento" funcionar de verdade, cada PARTE do valor
+  precisa passar por essa mesma lógica de taxa/imposto, mas aplicada
+  só à FRAÇÃO daquela parte — não ao valor total. Isso significa
+  extrair a fórmula de cálculo de taxa/imposto de dentro de
+  `calcProcedure`/`calcBudget` pra uma função reutilizável,
+  parametrizada por um valor (em vez de sempre usar `sumBasis`/
+  `sumListPrice` inteiros), pra poder chamar ela uma vez por parte.
+- **Desenho sugerido** (validado em conversa com o Marcelo, mas NÃO
+  implementado): uma lista de "partes do pagamento", cada uma com
+  `{ methodKey, amount }` — a ÚLTIMA parte sempre calculada
+  automaticamente como o restante (pra nunca dar um valor que não
+  soma certinho com o total, sem precisar de validação chata). Um
+  botão "+ Adicionar forma de pagamento" adiciona uma parte nova
+  (dividindo o que sobra). Cada parte mostra sua forma de pagamento
+  (dropdown, reaproveitando `buildPaymentMethods`) + o valor + o
+  cálculo de taxa daquela parte, só que a soma sempre bate com o
+  valor total do orçamento sem margem pra erro de conta.
+- **Onde isso precisa aparecer depois de calculado**: a tela de criar
+  orçamento (`SimulationPanel`), o histórico salvo (`budgetHistory`,
+  hoje guarda `methodLabel` como uma string só — precisaria virar uma
+  lista de partes, ou uma string combinada tipo "Dividido: Pix R$500 +
+  Cartão de Crédito R$500"), o modelo de orçamento exportado (a seção
+  "Forma de pagamento" do `buildBudgetTemplateBodyHTML`, que hoje
+  mostra uma linha só), e a mensagem de WhatsApp
+  (`handleShareWhatsApp`).
+- **Risco a ter em mente**: essa é uma parte do sistema que lida com
+  dinheiro de verdade — vale implementar com calma, testando cada
+  parte antes de avançar pra próxima, em vez de tentar tudo de uma vez.
+
+
+
+## Confirmado pelo Marcelo — bug do `fileMenuOpen`/tela branca em Procedimentos corrigido
+
+O Marcelo testou depois da correção (ver detalhes técnicos logo
+abaixo) e confirmou que a tela de Procedimentos voltou a abrir
+normal. Fica só como registro técnico do que foi a causa raiz, caso
+um bug parecido apareça de novo.
 
 **Causa raiz**: na sessão anterior (a do botão "Arquivo" novo na tela
 de Procedimentos), o botão ficou fisicamente no lugar certo, mas
