@@ -318,6 +318,9 @@ function budgetTemplateCSS(vars) {
   * { box-sizing: border-box; }
   .bt-page {
     width: 780px;
+    min-height: 1104px;
+    display: flex;
+    flex-direction: column;
     background: #fbfaf7;
     font-family: 'Inter', sans-serif;
     color: #1c2b27;
@@ -325,7 +328,7 @@ function budgetTemplateCSS(vars) {
     overflow: hidden;
     position: relative;
   }
-  .bt-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 950px; height: 950px; object-fit: contain; opacity: 0.12; pointer-events: none; z-index: 0; }
+  .bt-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1100px; height: 1100px; object-fit: cover; opacity: 0.12; pointer-events: none; z-index: 0; }
   .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; z-index: 1; }
   .bt-brand-row { display: flex; align-items: center; gap: 16px; }
   .bt-logo-mark { width: 56px; height: 56px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #dde7e3; }
@@ -336,10 +339,9 @@ function budgetTemplateCSS(vars) {
   .bt-clinic-cro { font-size: 11px; color: #5c6b67; margin-top: 4px; }
   .bt-hero { padding: 8px 48px 32px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; position: relative; z-index: 1; }
   .bt-hero-label { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: ${vars.brand}; font-weight: 600; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-  .bt-hero-label::after { content: ""; flex: 1; height: 1px; background: #dde7e3; }
   .bt-hero h1 { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 500; margin: 0 0 10px; color: #1c2b27; }
   .bt-hero p { font-size: 14px; color: #5c6b67; line-height: 1.6; margin: 0; max-width: 340px; }
-  .bt-meta-col { display: flex; flex-direction: column; gap: 16px; border-left: 1px solid #dde7e3; padding-left: 24px; }
+  .bt-meta-col { display: flex; flex-direction: column; gap: 16px; }
   .bt-meta-item { display: flex; align-items: center; gap: 12px; }
   .bt-meta-icon { width: 34px; height: 34px; border-radius: 50%; background: ${vars.brandSoft}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: ${vars.brand}; }
   .bt-meta-icon svg { width: 16px; height: 16px; }
@@ -362,13 +364,14 @@ function budgetTemplateCSS(vars) {
   .bt-info-block { display: flex; gap: 14px; }
   .bt-info-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-bottom: 6px; font-weight: 600; }
   .bt-info-block ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: #5c6b67; line-height: 1.7; }
-  .bt-payment-line { font-size: 14px; color: #1c2b27; line-height: 1.6; }
+  .bt-payment-lines { display: flex; flex-direction: column; gap: 6px; }
+  .bt-payment-line { font-size: 14px; color: #1c2b27; line-height: 1.5; }
   .bt-closing { text-align: center; margin: 40px 48px 0; padding-top: 20px; border-top: 1px solid #dde7e3; position: relative; z-index: 1; }
   .bt-closing-title { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; margin-bottom: 4px; }
   .bt-closing-sub { font-size: 13px; color: #5c6b67; }
-  .bt-footer { margin-top: 32px; background: ${vars.footerBg}; color: ${vars.footerText}; padding: 22px 48px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; font-size: 12px; position: relative; z-index: 1; }
-  .bt-footer-item { display: flex; align-items: flex-start; gap: 8px; }
-  .bt-footer-item svg { width: 14px; height: 14px; margin-top: 2px; flex-shrink: 0; color: ${vars.footerIcon}; }
+  .bt-footer { margin-top: auto; background: ${vars.footerBg}; color: ${vars.footerText}; padding: 22px 48px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; font-size: 12px; position: relative; z-index: 1; }
+  .bt-footer-item { display: flex; align-items: center; gap: 8px; }
+  .bt-footer-item svg { width: 14px; height: 14px; flex-shrink: 0; color: ${vars.footerIcon}; }
   .bt-footer-name { color: #fff; font-weight: 600; font-family: 'Fraunces', serif; }
   .bt-footer-sub { color: ${vars.footerSub}; font-size: 11px; margin-top: 2px; }
   `;
@@ -399,7 +402,7 @@ function buildBudgetTemplateBodyHTML({
   patientName,
   procedures, // [{ name, value }]
   total,
-  paymentLine,
+  paymentLines, // string[] — cada linha "Forma - Valor", uma por forma de pagamento
   dateLabel,
   validityLabel,
   validityMonthsLabel,
@@ -483,7 +486,9 @@ function buildBudgetTemplateBodyHTML({
         <div class="bt-meta-icon">${BT_ICON_CARD}</div>
         <div>
           <div class="bt-info-title">Forma de pagamento</div>
-          <div class="bt-payment-line">${escapeHtml(paymentLine || "A combinar")}</div>
+          <div class="bt-payment-lines">${(paymentLines && paymentLines.length > 0 ? paymentLines : ["A combinar"])
+            .map((line) => `<div class="bt-payment-line">${escapeHtml(line)}</div>`)
+            .join("")}</div>
         </div>
       </div>
       <div class="bt-info-block">
@@ -598,7 +603,7 @@ function previewBudgetTemplate(settings) {
       { name: "Prótese Móvel", value: 1300 },
     ],
     total: 1480,
-    paymentLine: "3x de R$ 493,33 no cartão",
+    paymentLines: ["Cartão de Crédito - R$ 1.480,00 em 3x de R$ 493,33"],
     dateLabel: new Date().toLocaleDateString("pt-BR"),
     validityLabel: validityDate.toLocaleDateString("pt-BR"),
     validityMonthsLabel: `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`,
@@ -3465,6 +3470,35 @@ function SimulationPanel({
     return `Dividido: ${parts.join(" + ")}`;
   }
 
+  // Monta a lista de linhas "Forma de pagamento - Valor", uma por forma —
+  // usada no modelo de orçamento exportado (PDF/PNG/Impressão) e na
+  // mensagem de WhatsApp, pra o valor sempre aparecer do lado da forma de
+  // pagamento (tanto no pagamento único quanto dividido em partes).
+  function buildPaymentLines() {
+    if (splitMode) {
+      return splitPartsResolved.map((p) => {
+        const amount = p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount;
+        const installmentsN = p.method?.installments || 1;
+        const label = p.method?.label || "Forma não selecionada";
+        return installmentsN > 1
+          ? `${label} - ${money(amount)} em ${installmentsN}x de ${money(amount / installmentsN)}`
+          : `${label} - ${money(amount)}`;
+      });
+    }
+    if (!row) return [];
+    const total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
+    const label = row.label + (showMachineName ? ` · ${activePreset.name}` : "");
+    const lines = [
+      perInstallment
+        ? `${label} - ${money(total)} em ${installments}x de ${money(perInstallment)}${isInterestFree ? " sem juros" : ""}`
+        : `${label} - ${money(total)}`,
+    ];
+    if (safeDownPayment > 0) {
+      lines.push(`Entrada - ${money(safeDownPayment)}`);
+    }
+    return lines;
+  }
+
   function handleSaveBudget(mode) {
     if (budgetProcs.length === 0 || !paymentReady) return;
     const useNewId = mode === "new" || !currentEntryId;
@@ -3525,28 +3559,15 @@ function SimulationPanel({
     const validityMonthsLabel = `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`;
 
     const procedures = budgetProcs.map((p) => ({ name: p.name, value: (Number(p.valorBase) || 0) * markupMult }));
-
-    let total, paymentLine;
-    if (splitMode) {
-      total = splitChargedTotal;
-      paymentLine = buildSplitMethodLabel();
-    } else {
-      total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
-      paymentLine = row.label + (showMachineName ? ` · ${activePreset.name}` : "");
-      if (perInstallment) {
-        paymentLine += ` — ${installments}x de ${money(perInstallment)}${isInterestFree ? " sem juros" : ""}`;
-      }
-      if (safeDownPayment > 0) {
-        paymentLine += ` (entrada de ${money(safeDownPayment)})`;
-      }
-    }
+    const total = splitMode ? splitChargedTotal : row.adjustedPrice != null ? row.adjustedPrice : subtotal;
+    const paymentLines = buildPaymentLines();
 
     return renderBudgetTemplateToCanvas({
       settings,
       patientName,
       procedures,
       total,
-      paymentLine,
+      paymentLines,
       dateLabel,
       validityLabel,
       validityMonthsLabel,
@@ -3949,27 +3970,11 @@ function SimulationPanel({
     });
     lines.push(`Subtotal: ${money(subtotal)}`);
     lines.push("");
-    if (splitMode && splitValid) {
-      lines.push("Pagamento dividido:");
-      splitPartsResolved.forEach((p) => {
-        const chargedAmount = p.partCalc?.adjustedPrice != null ? p.partCalc.adjustedPrice : p.amount;
-        const installmentsN = p.method?.installments || 1;
-        const line =
-          installmentsN > 1
-            ? `- ${p.method?.label}: ${money(chargedAmount)} (${installmentsN}x de ${money(chargedAmount / installmentsN)})`
-            : `- ${p.method?.label}: ${money(chargedAmount)}`;
-        lines.push(line);
-      });
-      lines.push(`Total: ${money(splitChargedTotal)}`);
-    } else if (row) {
-      lines.push(`Forma de pagamento: ${row.label}${showMachineName ? ` · ${activePreset.name}` : ""}`);
-      lines.push(`Total: ${money(row.adjustedPrice != null ? row.adjustedPrice : subtotal)}`);
-    }
-    if (!splitMode && safeDownPayment > 0) {
-      lines.push(`Entrada: ${money(safeDownPayment)}`);
-    }
-    if (!splitMode && perInstallment) {
-      lines.push(`${installments}x de ${money(perInstallment)}${isInterestFree ? " (sem juros)" : ""}`);
+    const paymentLines = buildPaymentLines();
+    if (paymentLines.length > 0) {
+      lines.push("Forma de pagamento:");
+      paymentLines.forEach((line) => lines.push(`- ${line}`));
+      lines.push(`Total: ${money(splitMode ? splitChargedTotal : row.adjustedPrice != null ? row.adjustedPrice : subtotal)}`);
     }
     const orgLabel = settings.orgLabel || "Consultório";
     const footerCro = settings.professionalRegistration || "";

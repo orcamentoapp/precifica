@@ -49,7 +49,78 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — "dividir pagamento" implementado
+## ✅ Feito nesta sessão — ajustes visuais no modelo de orçamento exportado (PDF/PNG/WhatsApp/Impressão)
+
+O Marcelo mandou 2 exportações (PNGs) de orçamentos reais — um com 7
+procedimentos e pagamento dividido em 2 partes, outro com só 1
+procedimento também dividido — e pediu 5 ajustes no modelo visual
+(`buildBudgetTemplateBodyHTML`/`budgetTemplateCSS`, dentro de
+`app-frontend/src/App.jsx`). Todos implementados:
+
+1. **Tamanho de página consistente com A4** — `.bt-page` tinha só
+   `width: 780px` sem altura definida, então a altura variava 100%
+   com a quantidade de procedimentos (um orçamento de 1 item ficava
+   bem mais "baixo" que um de 7, proporção nada parecida com A4). Virou
+   `min-height: 1104px` (proporção 210×297mm pro width de 780px) +
+   `display:flex; flex-direction:column` na página, com
+   `.bt-footer { margin-top: auto }` — assim o rodapé é empurrado pro
+   final da página quando o conteúdo é curto (looks like A4 completo),
+   e a página só cresce além disso se o conteúdo realmente não couber
+   (muitos procedimentos) — não tem como um canvas único virar
+   paginação de verdade sem reescrever todo o pipeline de exportação,
+   então pra orçamentos muito longos a página ainda vai ficar mais alta
+   que uma A4 — mas pra o volume normal de procedimentos (como nos 2
+   exemplos que ele mandou) já fica com a proporção certa.
+2. **Rodapé desalinhado sem rede social** — o ícone de cada linha do
+   rodapé (`.bt-footer-item`) tinha `align-items: flex-start` com um
+   `margin-top: 2px` manual no SVG, ajustado sob medida pra quando
+   existiam 2 linhas (telefone + Instagram). Sem Instagram, sobrava só
+   1 linha e esse ajuste manual ficava errado. Troquei pra
+   `align-items: center` (sem o margin-top manual) — cada ícone fica
+   centralizado com o texto do lado, funciona igual com 1 ou 2 linhas.
+3. **Linhas removidas perto de "Data do plano"/"Validade do plano"** —
+   tirei a linha horizontal que ficava depois de "PLANO DE TRATAMENTO"
+   (`.bt-hero-label::after`) e a linha vertical que separava essa
+   coluna da coluna de datas (`border-left` em `.bt-meta-col`).
+4. **Logo de fundo sempre sangrando nas laterais** — a marca d'água
+   (`.bt-watermark`) usava `object-fit: contain` numa caixa 950×950,
+   o que podia deixar a imagem mais estreita que a página dependendo
+   da proporção da logo enviada (não garantia sangria). Troquei pra
+   `object-fit: cover` numa caixa 1100×1100 (mais larga que os 780px
+   da página) — sempre preenche e sempre ultrapassa as bordas
+   esquerda/direita, cortada pelo `overflow: hidden` da página,
+   independente da proporção da logo.
+5. **Valor sempre ao lado da forma de pagamento** — antes a seção
+   "Forma de pagamento" era um texto corrido só (`paymentLine`,
+   string única). Virou uma lista (`paymentLines`, array — nova
+   função `buildPaymentLines()` dentro de `SimulationPanel`), uma
+   linha por forma, sempre no formato `Forma - Valor` (com o
+   parcelamento junto quando aplicável: `Crédito 5x - R$ 540,54 em 5x
+   de R$ 108,11`) — funciona igual tanto pra pagamento único quanto
+   pra pagamento dividido em partes. Apliquei o mesmo formato na
+   mensagem de WhatsApp (`buildShareText`), que antes usava outra
+   formatação por parte. `buildBudgetTemplateBodyHTML` recebe agora
+   `paymentLines` (array) em vez de `paymentLine` (string) — atualizei
+   os dois lugares que chamam a função (exportação de verdade e o
+   preview de exemplo em Configurações).
+
+**Não mexi**: o `methodLabel` combinado que fica salvo no Histórico de
+orçamentos (`"Dividido: PIX ... + Crédito ..."`) continua sendo
+gerado por `buildSplitMethodLabel()`, separado de `buildPaymentLines()`
+— são propósitos diferentes (uma linha de texto pro histórico vs.
+uma lista formatada pro modelo exportado/WhatsApp).
+
+**Testado**: `npm run build` do frontend limpo depois de cada bloco de
+mudança CSS/HTML. **Não gerei um PDF/PNG de verdade nesta sessão pra
+comparar visualmente** (não tenho como abrir um navegador de verdade
+aqui) — vale o Marcelo exportar de novo um orçamento com poucos itens
+e um com vários (inclusive com pagamento dividido) e conferir se: a
+proporção da página ficou parecida com A4, o rodapé ficou alinhado
+com e sem Instagram preenchido, as duas linhas sumiram, a logo de
+fundo sangra nas laterais, e a forma de pagamento aparece com o valor
+do lado em todas as linhas.
+
+## Log anterior — "dividir pagamento" implementado
 
 Implementei o próximo passo que estava combinado (ver seção antiga
 logo abaixo, que descrevia o desenho — mantive ela como registro
