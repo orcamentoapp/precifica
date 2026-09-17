@@ -128,6 +128,52 @@ function readFileAsDataUrl(file) {
   });
 }
 
+// Redimensiona e comprime a logo enviada pelo consultório antes de salvar —
+// sem isso, uma foto em alta resolução (comum, a maioria das pessoas nem
+// sabe o tamanho do arquivo que está enviando) gera um texto em base64
+// grande demais pra requisição, e o salvamento falha sem avisar nada (a
+// logo "some" ao atualizar a página, porque nunca chegou a ser gravada no
+// banco). 600px no lado maior é de sobra pro tamanho que a logo aparece no
+// orçamento (cabeçalho pequeno + marca d'água, que é tão ampliada e tão
+// transparente que não precisa de nitidez alta). Usa WebP (com
+// transparência, como o PNG) em vez de manter PNG — no mesmo nível de
+// qualidade visual, o WebP costuma pesar uma fração do PNG.
+function compressLogoImage(dataUrl, maxDim = 600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round((height / width) * maxDim);
+            width = maxDim;
+          } else {
+            width = Math.round((width / height) * maxDim);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, width, height); // mantém transparente, não pinta fundo nenhum
+        ctx.drawImage(img, 0, 0, width, height);
+        const result = canvas.toDataURL("image/webp", 0.85);
+        // Alguns navegadores mais antigos "fingem" suportar WebP no
+        // toDataURL mas devolvem PNG de qualquer jeito, sem erro — nesse
+        // caso o resultado não é webp; deixa passar de qualquer forma,
+        // porque PNG ainda funciona (só não fica tão leve).
+        resolve(result);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => reject(new Error("Não foi possível processar essa imagem."));
+    img.src = dataUrl;
+  });
+}
+
 // ============ Modelo novo do orçamento exportado ============
 // Validado antes com o Marcelo como protótipo separado (fora do código,
 // só HTML/CSS) — essa é a versão de produção da mesma coisa: gera o HTML
@@ -270,7 +316,6 @@ function budgetTemplateCSS(vars) {
     overflow: hidden;
     position: relative;
   }
-  .bt-blob { position: absolute; top: -60px; right: -80px; width: 320px; height: 320px; background: radial-gradient(circle at 30% 30%, ${vars.brandSoft}, transparent 70%); border-radius: 50%; pointer-events: none; z-index: 0; }
   .bt-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 950px; height: 950px; object-fit: contain; opacity: 0.12; pointer-events: none; z-index: 0; }
   .bt-header { padding: 40px 48px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; position: relative; z-index: 1; }
   .bt-brand-row { display: flex; align-items: center; gap: 16px; }
@@ -375,7 +420,6 @@ function buildBudgetTemplateBodyHTML({
 
   return `
   <div class="bt-page">
-    <div class="bt-blob"></div>
     ${settings.clinicLogoDataUrl ? `<img class="bt-watermark" src="${escapeHtml(settings.clinicLogoDataUrl)}" alt="" />` : ""}
     <div class="bt-header">
       <div class="bt-brand-row">
@@ -4947,7 +4991,7 @@ function ColorAccentPicker({ value, onChange, logoDataUrl }) {
   );
 }
 
-function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpload }) {
+function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpload, clinicLogoError }) {
   const profilePhotoInputRef = useRef(null);
   const clinicLogoInputRef = useRef(null);
   const account = useAccount();
@@ -5156,6 +5200,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
             Prefira uma imagem com fundo transparente (PNG) — evita a logo aparecer dentro de um quadrado colorido no
             orçamento. Tamanho recomendado: pelo menos 300×300 pixels.
           </p>
+          {clinicLogoError && <p className="text-xs text-rose-500 mt-1.5 leading-relaxed">{clinicLogoError}</p>}
         </div>
 
         <ColorAccentPicker
@@ -6658,6 +6703,7 @@ export default function App() {
   const historyBaselineRef = useRef(null);
   const historyTimerRef = useRef(null);
   const [cropImageSrc, setCropImageSrc] = useState(null);
+  const [clinicLogoError, setClinicLogoError] = useState("");
   const [editingProcId, setEditingProcId] = useState(null);
 
   // Aplica/remove a classe "dark" no <html> conforme a preferência salva —
@@ -6776,14 +6822,28 @@ export default function App() {
 
   // Logo do consultório/clínica (marca) — diferente da foto de perfil
   // (handleLogoUpload acima), que passa por um recorte circular. Uma logo
-  // pode ser retangular/quadrada, então aqui é upload direto, sem recorte.
+  // pode ser retangular/quadrada, então aqui não recorta — só redimensiona
+  // e comprime (compressLogoImage), pelo mesmo motivo que a foto de perfil
+  // já fazia isso: sem compressão, uma logo enviada em alta resolução
+  // (comum, já que a maioria das pessoas nem sabe o tamanho do arquivo)
+  // gera uma imagem em base64 grande o suficiente pra estourar o limite de
+  // tamanho da requisição — e o salvamento falhava calado, sem avisar
+  // nada, fazendo a logo "sumir" ao atualizar a página, porque nunca tinha
+  // sido salva de verdade no banco. Trocar por um valor novo aqui já
+  // substitui/descarta o valor antigo sozinho — não sobra nenhum arquivo
+  // "órfão" pra limpar depois, é só um campo de texto (base64) dentro das
+  // configurações, não um arquivo separado guardado em disco.
   async function handleClinicLogoUpload(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    setClinicLogoError("");
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      persistSettings({ ...settings, clinicLogoDataUrl: dataUrl });
-    } catch (err) {}
+      const rawDataUrl = await readFileAsDataUrl(file);
+      const compressed = await compressLogoImage(rawDataUrl);
+      persistSettings({ ...settings, clinicLogoDataUrl: compressed });
+    } catch (err) {
+      setClinicLogoError("Não foi possível salvar essa logo. Tente uma imagem menor ou em outro formato.");
+    }
     e.target.value = "";
   }
 
@@ -7499,6 +7559,7 @@ export default function App() {
                 onChange={persistSettings}
                 onLogoUpload={handleLogoUpload}
                 onClinicLogoUpload={handleClinicLogoUpload}
+                clinicLogoError={clinicLogoError}
               />
               <SettingsPanel settings={settings} onChange={persistSettings} />
             </div>

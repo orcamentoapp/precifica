@@ -206,6 +206,78 @@ function nextBillingDate(user) {
   return isActiveStripe ? user.license_expires_at : null;
 }
 
+// Aviso de "dias até a próxima cobrança do Railway" — não vem de nenhuma
+// API do Railway (não temos acesso a isso), é um lembrete simples: o
+// próprio Marcelo diz em que DIA DO MÊS a cobrança cai (ex: dia 15), e o
+// card calcula sozinho quantos dias faltam pra próxima ocorrência desse
+// dia — sem precisar redigitar a data todo mês, já que é uma cobrança
+// recorrente (assim que ele assinar o plano Hobby, deixa de ser aquela
+// corrida entre 30 dias OU o crédito de teste acabar, e vira só um ciclo
+// mensal fixo). Guardado no navegador (localStorage) — é só o Marcelo quem
+// usa o painel admin, não precisa de backend pra isso.
+function daysUntilNextOccurrence(dayOfMonth) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const candidate = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
+  if (candidate < today) candidate.setMonth(candidate.getMonth() + 1);
+  return { days: Math.round((candidate - today) / 86400000), date: candidate };
+}
+
+function RailwayBillingCard({ billingDay, onSave }) {
+  const [editing, setEditing] = useState(billingDay == null);
+  const [draft, setDraft] = useState(billingDay || 1);
+
+  if (editing) {
+    return (
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
+        <span className="text-sm text-stone-600">Railway cobra todo dia</span>
+        <select
+          value={draft}
+          onChange={(e) => setDraft(Number(e.target.value))}
+          className="text-sm font-medium border border-stone-200 rounded-lg px-2 py-1.5 bg-white"
+        >
+          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-stone-600">do mês</span>
+        <button
+          onClick={() => {
+            onSave(draft);
+            setEditing(false);
+          }}
+          className="text-xs font-semibold bg-teal-700 text-white px-3 py-1.5 rounded-lg hover:bg-teal-800"
+        >
+          Salvar
+        </button>
+      </div>
+    );
+  }
+
+  const { days, date } = daysUntilNextOccurrence(billingDay);
+  const urgent = days <= 3;
+  return (
+    <div
+      className={`border rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap ${
+        urgent ? "bg-rose-50 border-rose-200" : "bg-white border-stone-200"
+      }`}
+    >
+      <div>
+        <div className="text-xs text-stone-500 mb-0.5">Próxima cobrança do Railway</div>
+        <div className={`text-sm font-semibold ${urgent ? "text-rose-700" : "text-stone-800"}`}>
+          {days === 0 ? "É hoje" : `Faltam ${days} ${days === 1 ? "dia" : "dias"}`} —{" "}
+          {date.toLocaleDateString("pt-BR")}
+        </div>
+      </div>
+      <button onClick={() => setEditing(true)} className="text-xs font-medium text-stone-400 hover:text-stone-600">
+        Alterar dia
+      </button>
+    </div>
+  );
+}
+
 export default function AdminDashboard({ onLogout }) {
   const [theme, setTheme] = useState(() => {
     try {
@@ -226,6 +298,21 @@ export default function AdminDashboard({ onLogout }) {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsDays, setStatsDays] = useState(30);
+  const [railwayBillingDay, setRailwayBillingDay] = useState(() => {
+    try {
+      const v = localStorage.getItem("admin_railway_billing_day");
+      return v ? Number(v) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  function saveRailwayBillingDay(day) {
+    setRailwayBillingDay(day);
+    try {
+      localStorage.setItem("admin_railway_billing_day", String(day));
+    } catch (e) {}
+  }
 
   function toggleTheme() {
     setTheme((t) => {
@@ -479,6 +566,8 @@ export default function AdminDashboard({ onLogout }) {
 
         {tab === "overview" ? (
           <div className="space-y-5">
+            <RailwayBillingCard billingDay={railwayBillingDay} onSave={saveRailwayBillingDay} />
+
             <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-sm text-stone-500">
                 O painel executivo do Precifica: assinantes, receita e conversão em uma única visão.

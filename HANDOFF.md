@@ -49,7 +49,90 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: marca d'água com o logo no orçamento + seletor de cor extrai a cor do logo + código hexadecimal só aparece ao clicar + textos de ajuda no upload + reordenação dos campos
+## Atualização mais recente: BUG CORRIGIDO — logo do consultório não estava sendo salva de verdade (faltava comprimir antes de enviar) + círculo decorativo removido do orçamento
+
+O Marcelo reparou que, ao trocar a logo, ela "sumia" quando a página
+atualizava — sinal claro de que nunca tinha sido salva no banco de
+verdade, só ficava na tela até recarregar.
+
+**Causa raiz encontrada**: a foto de PERFIL (a circular, no cabeçalho
+do app) sempre passou por um recorte que também comprime a imagem
+antes de salvar (`ImageCropModal`, já existia). A logo do
+CONSULTÓRIO, que eu implementei numa sessão anterior, fazia upload
+DIRETO do arquivo, sem nenhuma compressão — se a pessoa enviasse uma
+foto em resolução alta (bem comum, a maioria nem sabe o tamanho do
+arquivo que está mandando), o texto em base64 resultante ficava
+grande o suficiente pra estourar o limite de tamanho da requisição
+(`express.json({ limit: "3mb" })`, em `server.js`) — e o salvamento
+falhava **calado**, sem avisar nada, porque o código só tinha um
+`try/catch` vazio ali.
+
+**Corrigido** (`app-frontend/src/App.jsx`):
+- Função nova, `compressLogoImage()` — redimensiona a logo pra no
+  máximo 600px no lado maior (de sobra pro tamanho que ela aparece:
+  pequena no cabeçalho, ampliada mas quase transparente na marca
+  d'água) e recomprime como **WebP** em vez de manter o formato
+  original — mantém a transparência (como o PNG), só que costuma
+  pesar uma fração do tamanho no mesmo nível de qualidade visual.
+- `handleClinicLogoUpload` agora chama essa função antes de salvar, e
+  **avisa a pessoa de verdade** se algo der errado (mensagem em
+  vermelho embaixo do botão de upload), em vez de falhar calado.
+- Sobre "apagar a logo antiga ao trocar": não existe um arquivo
+  separado guardado em disco pra "sobrar" — a logo vive como um único
+  campo de texto (base64) dentro das configurações da conta, então
+  trocar o valor já substitui o anterior sozinho, sem deixar rastro
+  nenhum ocupando espaço à parte. O que estava faltando de verdade era
+  só a compressão, não uma limpeza de arquivo órfão.
+
+**Círculo decorativo removido** — o Marcelo pediu pra tirar o círculo
+translúcido do canto superior direito do orçamento exportado (o
+`.bt-blob`, um enfeite visual que eu tinha adicionado desde o
+protótipo original). Removido tanto do código de produção quanto do
+protótipo publicado (mesmo link de antes).
+
+**Testado**: `npm run build` do frontend limpo, sem erros. **Não
+testei manualmente** o upload de uma logo grande de verdade pra
+confirmar que ela realmente encolhe e salva — mas a lógica (mesma
+técnica de canvas que a foto de perfil já usa com sucesso, só sem o
+recorte circular) é sólida; vale o Marcelo testar com uma foto
+grande de propósito (tipo uma foto tirada direto do celular, sem
+redimensionar) pra confirmar que agora salva e não desaparece mais.
+
+## Atualização anterior: painel admin mostra quantos dias faltam pra próxima cobrança do Railway
+
+O Marcelo perguntou se dava pra mostrar no painel admin quantos dias
+faltam pra vencer o Railway. Conversamos antes de implementar: o
+Railway tem dois modos bem diferentes —
+- **Teste grátis**: $5 de crédito que expira em 30 dias OU quando o
+  crédito acaba, o que vier primeiro (uma corrida entre tempo e
+  gasto).
+- **Plano pago (Hobby/Pro)**: cobrança mensal recorrente normal, num
+  dia fixo do ciclo — sem corrida nenhuma.
+
+O Marcelo confirmou que está no teste, quase acabando, e vai assinar
+o Hobby — ou seja, a partir de agora passa a ser só uma cobrança
+mensal recorrente. Isso simplifica bastante: não precisa de nenhuma
+integração com a API do Railway (que não temos acesso mesmo) — é só
+saber EM QUE DIA DO MÊS a cobrança cai e calcular quantos dias faltam
+pra próxima ocorrência daquele dia.
+
+**Implementado** (`AdminDashboard.jsx`), tudo no navegador
+(`localStorage`), sem precisar de backend — só o Marcelo usa o painel
+admin:
+- `RailwayBillingCard` — card novo no topo da aba "Visão Geral". Na
+  primeira vez, pede pra escolher o dia do mês (1 a 31) que o Railway
+  cobra; depois disso, mostra "Faltam X dias — DD/MM/AAAA" sozinho,
+  recalculado a cada visita (`daysUntilNextOccurrence()` acha a
+  próxima ocorrência daquele dia a partir de hoje — se já passou nesse
+  mês, pula pro mês seguinte). Fica vermelho quando faltam 3 dias ou
+  menos. Botão "Alterar dia" pra corrigir, se precisar.
+- Guardado em `localStorage` (`admin_railway_billing_day`) — não
+  precisa redigitar todo mês, já que é uma data recorrente calculada
+  a partir só do DIA, não de uma data fixa que ficaria velha.
+
+**Testado**: `npm run build` do frontend limpo, sem erros.
+
+## Atualização anterior: marca d'água com o logo no orçamento + seletor de cor extrai a cor do logo + código hexadecimal só aparece ao clicar + textos de ajuda no upload + reordenação dos campos
 
 Cinco pedidos do Marcelo em cima da entrega anterior:
 
@@ -194,162 +277,6 @@ deploy, principalmente a primeira vez que abre o Dashboard ou exporta
 um orçamento numa sessão nova (é a única hora que vai ter um
 carregamento extra, rápido, que antes não existia).
 
-## Atualização anterior: modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade
-
-O Marcelo mandou um exemplo de orçamento de outra clínica (visual bem
-mais elaborado — logo, formas decorativas, ícones em círculo, rodapé
-com redes sociais) e perguntou se dava pra chegar nesse nível. Antes
-de implementar, montei um protótipo separado (fora do código) pra
-validar o estilo com ele — depois de aprovado (com dois ajustes:
-rodapé mais leve, e a cor virando escolha do usuário), essa sessão foi
-a implementação de verdade.
-
-**Descoberta que definiu a abordagem**: o orçamento hoje era
-desenhado manualmente em canvas (`ctx.fillText`, coordenadas em pixel
-calculadas na mão, PDF gerado escrevendo os bytes na mão também, sem
-nenhuma biblioteca). Reproduzir esse nível de visual (fontes
-diferentes, formas translúcidas, ícones) desenhando manualmente seria
-extremamente trabalhoso. **Troquei o motor**: agora o orçamento é
-montado como HTML/CSS de verdade (a mesma técnica do protótipo
-validado) e só DEPOIS virado em imagem, usando a biblioteca
-`html2canvas` (nova dependência, `npm install html2canvas`) — o
-resultado ainda é um canvas no final, então o resto do pipeline (o
-gerador de PDF escrito à mão, `canvasToPDFBlob`, que só embrulha uma
-imagem crua num PDF de uma página) **não precisou mudar nada**.
-
-**Peças novas** (`app-frontend/src/App.jsx`):
-- `buildBudgetTemplateBodyHTML()` — monta o HTML do orçamento (logo,
-  nome, especialidade, tabela de procedimentos, total, forma de
-  pagamento, rodapé com telefone/Instagram) com os dados reais.
-- `budgetTemplateCSS()` / `budgetTemplateColorVars()` — o CSS do
-  modelo e o cálculo das cores derivadas a partir da cor escolhida
-  (mesmo sistema do protótipo: a cor escolhida vira a base, e as
-  variações — mais escura pra texto, bem clara pra fundo, tom do
-  rodapé — são calculadas em HSL a partir dela).
-- `renderBudgetTemplateToCanvas()` — desenha esse HTML escondido fora
-  da tela, espera as fontes carregarem (Fraunces + Inter, do Google
-  Fonts), captura com `html2canvas`, e limpa tudo depois.
-- `buildExportCanvasFromTemplate()` (dentro do `SimulationPanel`) —
-  junta os dados REAIS do orçamento atual (procedimentos, valores,
-  forma de pagamento, validade) e chama as funções acima. Conectada
-  nos 4 lugares que exportam: **PNG, PDF, Imprimir e Compartilhar no
-  WhatsApp** — os quatro agora usam o motor novo.
-- A função antiga (`buildExportCanvas`, o desenho manual) **continua
-  no código, só sem uso** — fica de reserva, caso precise voltar rápido
-  pro motor anterior por algum motivo.
-- `previewBudgetTemplate()` — abre o modelo numa aba nova, com dados
-  de EXEMPLO (paciente "Maria", 2 procedimentos fictícios), sem passar
-  pelo `html2canvas` (não precisa virar imagem aqui, só mostrar na
-  tela) — é o que o botão novo "Visualizar modelo de orçamento" chama.
-
-**Configurações novas** (tela de Perfil):
-- **Logo do consultório/clínica** — upload direto (sem recorte,
-  diferente da foto de perfil circular que já existia — uma logo pode
-  ser retangular). Campo novo, `clinicLogoDataUrl`, propositalmente
-  separado de `logoDataUrl` (que é a foto de perfil da pessoa, outra
-  coisa).
-- **Especialidade** — campo de texto novo, aparece embaixo do nome no
-  orçamento.
-- **Instagram** — campo de texto novo, aparece no rodapé.
-- **Cor de destaque** — um seletor de cor de verdade, ligado ao campo
-  `headerColor` que **já existia** no sistema (usado só no realce das
-  abas do próprio app) mas nunca tinha um seletor na tela — agora essa
-  mesma cor também colore o cabeçalho/tabela/total/rodapé do orçamento
-  exportado. Uma cor só, todas as variações calculadas automaticamente.
-- **Botão "Visualizar modelo de orçamento"** — abre o modelo com dados
-  de exemplo, pra conferir o resultado sem precisar simular um
-  orçamento de verdade toda vez que mexe nas configurações.
-
-**Custo dessa mudança**: o `html2canvas` aumentou o tamanho do arquivo
-final do frontend de forma perceptível (~594KB → ~809KB minificado) —
-esperado, é uma biblioteca de verdade que precisa entender e desenhar
-DOM/CSS complexo, bem mais pesada que o desenho manual anterior. Não
-fiz nada a respeito (dividir em chunks menores) porque não foi pedido,
-mas fica registrado.
-
-**Testado**: `npm run build` do frontend limpo, sem erros. **Não
-testei manualmente** o resultado final da exportação (precisaria abrir
-o app de verdade num navegador, criar um orçamento, e exportar pra
-ver o PNG/PDF saindo com o visual novo) — a lógica segue exatamente o
-protótipo já validado visualmente com o Marcelo, e o `html2canvas` é
-uma biblioteca madura e amplamente usada pra esse tipo de conversão,
-mas vale ele confirmar ao vivo depois do deploy, principalmente:
-(a) se a logo aparece certinha quando enviada; (b) se as fontes
-(Fraunces/Inter) carregam a tempo da captura, já que dependem de
-internet no momento da exportação; (c) o botão "Imprimir" especificamente
-— ele abre uma aba nova depois de esperar o `html2canvas` terminar, e
-alguns navegadores mais restritivos PODEM bloquear isso por não
-considerar mais "clique direto" depois da espera (deixei uma nota no
-código explicando como resolver se isso acontecer).
-
-## Atualização anterior: painel admin — modo escuro corrigido de vez (causa raiz) + logo + tooltips nas métricas + chave de licença escondida atrás de um clique + ações agrupadas num menu só
-
-O Marcelo mandou print do painel admin: modo escuro não escurecia o
-fundo (só alguns elementos), e pediu mais 4 coisas pra deixar a tela
-de Usuários mais enxuta.
-
-**1. Modo escuro — causa raiz encontrada.** A div de fora tinha as
-classes `dark` E `bg-stone-50` **no mesmo elemento**
-(`app-frontend/src/AdminDashboard.jsx`). O CSS que já existia pro
-modo escuro (`index.css`) usa seletor descendente
-(`.dark .bg-stone-50 { ... }`) — que só funciona quando `.bg-stone-50`
-está DENTRO de um elemento com `.dark`, nunca quando são a mesma tag.
-Por isso o fundo nunca escurecia, mesmo com o estado interno já
-correto. Corrigido aplicando `.dark` no `<html>` via `useEffect`
-(`document.documentElement.classList.toggle(...)`) — exatamente o
-mesmo padrão que o app principal já usa (`App.jsx`) e que já
-funcionava lá. Como resultado, o pedido de "abrir sempre no modo
-escuro por padrão" **já estava certo** desde a sessão anterior
-(`localStorage.getItem("admin_theme") || "dark"`) — só nunca
-aparecia por causa desse bug.
-
-**2. Logo antes do nome**, no canto superior esquerdo — mesmo ícone
-(`icon-512.png`) usado no cabeçalho do app principal.
-
-**3. Tooltip em cada card de "Visão Geral"** — passar o mouse em
-qualquer um dos 9 cartões (Usuários totais, MRR, Conversão trial→pago,
-etc.) explica o que aquele número representa e como é calculado.
-
-**4. Chave de licença escondida, só abre num popup.** Na tabela de
-Usuários, a chave em texto puro sumiu — agora só aparece o badge do
-tipo (ex: "Mensal · 30d"), e clicar nele abre um popup pequeno com a
-chave completa + botão "Copiar". Componente novo,
-`LicenseKeyModal`. (Na aba "Chaves de licença" o código continua
-visível direto na lista — lá ele já É o identificador principal da
-linha, esconder não faria sentido.)
-
-**5. Ações agrupadas num botão só**, nas duas tabelas (Usuários e
-Chaves de licença) — em vez de 3-4 botões (Renovar/Revogar/Bloquear/
-Remover) lado a lado disputando espaço, agora é um botão "⋮" que abre
-um menuzinho com as mesmas ações. Componente novo, `RowActionsMenu`
-(fecha sozinho ao clicar fora, via listener de `click` no
-`document`). O padrão de confirmação em dois cliques pras ações
-destrutivas continua funcionando (só que agora precisa reabrir o
-menu pra ver "Confirmar exclusão?" na segunda vez, já que o menu
-fecha a cada clique — pequena troca aceitável pelo ganho de espaço).
-
-**6. Coluna nova "Próxima cobrança"** na tabela de Usuários — só
-preenche quando é uma assinatura Stripe ativa e NÃO marcada pra
-cancelar (mesmo critério já usado em "Gerenciar Assinatura" dentro do
-app do cliente); pros outros casos (trial, licença manual do admin,
-assinatura já cancelada) fica vazia, e a coluna "Validade" ao lado
-continua mostrando a expiração de sempre pra esses casos. Precisou
-expor um campo novo no backend
-(`l.cancel_at_period_end AS license_cancel_at_period_end`, rota `GET
-/api/admin/users` em `src/routes/admin.js`) que já existia na tabela
-mas nunca tinha sido incluído nessa consulta específica.
-
-**De brinde**: achei e removi um import não usado (`RefreshCw`, já
-estava sem uso antes desta sessão).
-
-**Testado**: `npm run build` do frontend limpo; `node --check
-src/routes/admin.js` sem erros. **Não testei visualmente ao vivo** o
-modo escuro (precisaria abrir o painel de verdade num navegador) —
-a correção é logicamente sólida (mesmo padrão que já funciona no app
-principal, aplicado no mesmo lugar), mas vale o Marcelo conferir com
-os próprios olhos depois do deploy, junto com o popup da chave e o
-menu de ações agrupado.
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -358,7 +285,9 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade + PNG/PDF/Imprimir/WhatsApp todos usando o motor novo
 - rótulos "Próxima cobrança dia X" (cartão Stripe) vs "Expira em" (licença dada pelo admin) corrigidos em Gerenciar Assinatura, usando confirmação síncrona direto na API do Stripe
+- painel admin — modo escuro corrigido de vez (causa raiz era classe "dark" e "bg-stone-50" no mesmo elemento) + logo antes do nome + tooltips nas métricas + chave de licença escondida atrás de um clique + ações agrupadas num menu só
 - contas novas com custo da hora clínica zerado (era exemplo/fictício) + "Dias restantes" escondido pra assinatura Stripe ativa não cancelada + licença VITALÍCIA nova (badge violeta, sem cobrança nem validade)
 - autocomplete de marca por material (+ bug do datalist corrigido) + campo "Desconto convênio/plano" removido de À vista + "Assinante desde" e "Próxima cobrança no cartão" em Gerenciar Assinatura + reabrir orçamento direto de Pacientes
 - painel admin ganhou "Visão Geral" (MRR, conversão trial→pago, cancelamentos, assinaturas em risco, receita real via Stripe) + tema claro/escuro alternável no painel admin
