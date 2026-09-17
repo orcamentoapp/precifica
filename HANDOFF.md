@@ -49,7 +49,67 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: exportação/importação virou um backup completo (procedimentos com TODOS os campos + catálogo de materiais) + botão "Arquivo" também na tela de Procedimentos
+## Atualização mais recente: BUG CRÍTICO CORRIGIDO — página de Procedimentos toda em branco (erro de JavaScript quebrando a página inteira)
+
+O Marcelo reportou que a página de Procedimentos parou de abrir (tela
+branca) — mandou print do console do navegador mostrando
+`ReferenceError: fileMenuOpen is not defined`.
+
+**Causa raiz**: na sessão anterior (a do botão "Arquivo" novo na tela
+de Procedimentos), o botão ficou fisicamente no lugar certo, mas
+referenciando nomes de variável que **não existiam naquele escopo**.
+O plano original era: `ProcedureTable` recebendo `onExport`/
+`onImportFile` como props e tendo seu próprio estado local
+(`fileMenuOpen`/`fileInputRef`) — isso realmente foi declarado
+corretamente dentro de `ProcedureTable`, só que **nunca chegou a ser
+usado lá**. O botão "Arquivo" de verdade acabou sendo escrito
+diretamente dentro do `App()` (o componente pai, que monta o
+cabeçalho da aba Procedimentos ANTES de chamar `<ProcedureTable
+.../>`), só que usando os MESMOS nomes de variável
+(`fileMenuOpen`/`fileInputRef`/`onExport`/`onImportFile`) — que ali
+dentro do `App()` **não existem** (essas só existem dentro de
+`ProcedureTable`, outro escopo, ou dentro de `CalculadoraSection`,
+outro escopo ainda). JavaScript não tem como saber disso em tempo de
+build (o Vite não reclamou, o `npm run build` sempre passou limpo) —
+só estoura em tempo de execução, exatamente quando o navegador tenta
+renderizar aquele botão. Como React lança esse erro pra cima da árvore
+inteira, a tela toda de Procedimentos quebrava (ficava em branco),
+não só aquele botão.
+
+**Por que minha cópia local não reproduzia o erro**: pedi pro Marcelo
+o zip de verdade (GitHub) porque minha cópia local, por algum motivo,
+não tinha esse mesmo bug — confirma que **sempre vale conferir o
+arquivo real** quando o comportamento não bate com o esperado, em vez
+de confiar na memória de sessões anteriores.
+
+**Corrigido** (`app-frontend/src/App.jsx`):
+- Adicionado o estado que faltava dentro de `App()`:
+  `proceduresFileMenuOpen`/`setProceduresFileMenuOpen` (já existia uma
+  ref órfã, `proceduresFileInputRef`, criada na sessão anterior mas
+  nunca usada — sinal de que a intenção original era essa mesma,
+  só não foi completada).
+- O botão "Arquivo" da tela de Procedimentos agora usa os nomes
+  certos: `proceduresFileMenuOpen`, `proceduresFileInputRef`,
+  `handleExportProcedures`, `handleImportProceduresFile` (as funções
+  de verdade que já existem em `App()`).
+- Removida a declaração duplicada e nunca usada dentro de
+  `ProcedureTable` (`onExport`/`onImportFile` nas props,
+  `fileMenuOpen`/`fileInputRef` no estado local) — não fazia mais
+  sentido mantida ali, já que o botão de verdade vive no `App()`.
+
+**Testado**: `npm run build` do frontend limpo. Fiz uma checagem
+manual, linha por linha, de TODAS as ocorrências de `fileMenuOpen`,
+`fileInputRef`, `onExport` e `onImportFile` no arquivo inteiro, uma
+por uma, confirmando que cada uma está no escopo certo (dentro de
+`CalculadoraSection`, que tem sua própria cópia independente desses
+nomes, sem conflito nenhum com os do `App()`) — não é só "o build
+passou", é confirmação de que a árvore de escopos está consistente
+de ponta a ponta. **Não testei clicando de verdade num navegador** —
+mas dado que essa é EXATAMENTE a classe de erro que causou o problema
+relatado, e a checagem de escopo foi feita com cuidado, tenho bastante
+confiança que a página volta a abrir normalmente.
+
+## Atualização anterior: exportação/importação virou um backup completo (procedimentos com TODOS os campos + catálogo de materiais) + botão "Arquivo" também na tela de Procedimentos
 
 O Marcelo mandou um arquivo JSON de exemplo (catálogo de materiais +
 uso por procedimento, do formato da calculadora avulsa externa) e
@@ -250,65 +310,6 @@ admin:
 
 **Testado**: `npm run build` do frontend limpo, sem erros.
 
-## Atualização anterior: marca d'água com o logo no orçamento + seletor de cor extrai a cor do logo + código hexadecimal só aparece ao clicar + textos de ajuda no upload + reordenação dos campos
-
-Cinco pedidos do Marcelo em cima da entrega anterior:
-
-**1. Texto de ajuda no upload do logo** — embaixo do botão de
-enviar/trocar logo, agora explica: preferir fundo transparente (PNG)
-pra não aparecer dentro de um quadrado colorido, e tamanho recomendado
-de pelo menos 300×300px.
-
-**2. Reordenação dos campos em Configurações** — "Cor de destaque" e
-o botão "Visualizar modelo de orçamento" agora ficam logo depois do
-upload do logo (antes ficavam no fim da lista, depois de
-Nome/Especialidade/Endereço/Telefone/Instagram/Validade).
-
-**3. Seletor de cor: extrair a cor do logo enviado** — botão novo
-"Usar cor do logo" dentro do seletor (só aparece se já tiver uma logo
-enviada). Função nova, `extractDominantColorFromImage()` — desenha a
-logo escondida num canvas pequeno (80×80, só pra pegar a distribuição
-de cor, não precisa da resolução real), ignora pixels quase brancos/
-pretos/cinza (normalmente fundo ou contorno, não a cor de marca),
-agrupa o resto por faixa de matiz, e devolve a média da faixa mais
-comum. Se a logo for preto-e-branco (nenhum pixel colorido sobra),
-cai de volta pra média geral de tudo, sem travar.
-
-**4. Código hexadecimal escondido, só aparece ao clicar** — antes o
-código (`#005580`) ficava sempre visível do lado do quadradinho de
-cor; agora o quadradinho é só um botão, e clicar nele abre um popover
-pequeno com o código + o seletor de cor nativo do navegador + o botão
-"Usar cor do logo" (fecha ao clicar fora). Componente novo,
-`ColorAccentPicker`, substituindo o bloco de cor que estava direto
-dentro do `ProfileSettingsPage`.
-
-**5. Marca d'água com o logo, no orçamento exportado** — só aparece
-quando existe uma logo enviada (sem logo, sem marca d'água — não
-faria sentido com o ícone padrão do dente). Centralizada, bem maior
-que a própria página (950×950px numa página de 780px de largura — a
-intenção é cortar mesmo nas bordas), com 12% de opacidade (as
-"85-90% de transparência" que o Marcelo pediu). Tecnicamente, isso
-exigiu acertar a ordem de empilhamento (`z-index`) de quase todo o
-template: a marca d'água entra com `z-index: 0`, e cada bloco de
-conteúdo real (cabeçalho, tabela, total, informações, rodapé,
-fechamento) ganhou `position: relative; z-index: 1` explícito — sem
-isso, alguns desses blocos (que não tinham posicionamento nenhum
-antes) ficariam ATRÁS da marca d'água em vez de na frente, por causa
-de como o CSS empilha elemento posicionado vs. não-posicionado por
-padrão.
-
-**Testado**: `npm run build` do frontend limpo, sem erros. Também
-atualizei o protótipo publicado (mesmo link de antes) com um `<img>`
-de marca d'água ligado ao mesmo botão "Simular logo enviada" que já
-existia, pra dar pra comparar visualmente. **Não consegui ver o
-resultado renderizado de verdade** (nem no protótipo nem no app) —
-só escrevi e revisei o código; a extração de cor em particular
-(`extractDominantColorFromImage`) é a peça que eu confio menos sem
-ver rodando de verdade, já que depende de como cada logo específica
-está distribuída em cor — vale o Marcelo testar com a própria logo
-real e confirmar que a cor extraída faz sentido, e que a marca d'água
-ficou com a proporção/opacidade boas.
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -317,6 +318,7 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- marca d'água com o logo no orçamento (aparece só quando existe logo enviada, bem maior que a página, cortando nas bordas, 12% de opacidade) + seletor de cor extrai a cor do logo automaticamente + código hexadecimal só aparece num popover ao clicar no quadradinho
 - logo enviada pelo consultório não fica mais presa num círculo, no orçamento exportado — mostra a imagem direto, sem cortar, mantendo a proporção original
 - pacote principal do site 53% menor (809KB → 376KB) — Chart.js, html2canvas e o painel admin passaram a carregar sob demanda (import dinâmico), não mais sempre junto do pacote principal + logo do cabeçalho 94% menor (nova versão de 96px em vez de reaproveitar a de 512px)
 - modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade + PNG/PDF/Imprimir/WhatsApp todos usando o motor novo

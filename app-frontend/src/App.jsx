@@ -1086,12 +1086,8 @@ function ProcedureTable({
   onEqualizeMargins,
   columnWidths: columnWidthsProp,
   onResizeColumn,
-  onExport,
-  onImportFile,
 }) {
   const categories = settings.procedureCategories || [];
-  const [fileMenuOpen, setFileMenuOpen] = useState(false);
-  const fileInputRef = useRef(null);
   // Mescla com o padrão, mas ignora qualquer largura salva menor que o
   // mínimo permitido no redimensionamento (90px) — protege contra um valor
   // corrompido/errado ter ficado salvo de uma tentativa anterior, em vez de
@@ -7064,6 +7060,7 @@ export default function App() {
   }
 
   const proceduresFileInputRef = useRef(null);
+  const [proceduresFileMenuOpen, setProceduresFileMenuOpen] = useState(false);
   const materialsFileInputRef = useRef(null);
   const [materialsImportFeedback, setMaterialsImportFeedback] = useState(null);
 
@@ -7793,17 +7790,17 @@ export default function App() {
                   )}
                   <div className="relative">
                     <button
-                      onClick={() => setFileMenuOpen((v) => !v)}
+                      onClick={() => setProceduresFileMenuOpen((v) => !v)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
                     >
                       Arquivo <ChevronDown className="w-3.5 h-3.5" />
                     </button>
-                    {fileMenuOpen && (
+                    {proceduresFileMenuOpen && (
                       <div className="absolute right-0 mt-2 w-48 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-50 overflow-hidden">
                         <button
                           onClick={() => {
-                            onExport();
-                            setFileMenuOpen(false);
+                            handleExportProcedures();
+                            setProceduresFileMenuOpen(false);
                           }}
                           className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
                         >
@@ -7811,8 +7808,8 @@ export default function App() {
                         </button>
                         <button
                           onClick={() => {
-                            fileInputRef.current?.click();
-                            setFileMenuOpen(false);
+                            proceduresFileInputRef.current?.click();
+                            setProceduresFileMenuOpen(false);
                           }}
                           className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
                         >
@@ -7820,7 +7817,7 @@ export default function App() {
                         </button>
                       </div>
                     )}
-                    <input ref={fileInputRef} type="file" accept="application/json" onChange={onImportFile} className="hidden" />
+                    <input ref={proceduresFileInputRef} type="file" accept="application/json" onChange={handleImportProceduresFile} className="hidden" />
                   </div>
                   <button
                     onClick={() => navigateTab("calculadora")}
@@ -7856,8 +7853,6 @@ export default function App() {
                 onEqualizeMargins={equalizeMargins}
                 columnWidths={settings.procedureColumnWidths}
                 onResizeColumn={handleResizeColumn}
-                onExport={handleExportProcedures}
-                onImportFile={handleImportProceduresFile}
               />
             )}
 
