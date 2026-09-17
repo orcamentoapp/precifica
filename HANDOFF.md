@@ -49,7 +49,77 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## Atualização mais recente: cor do orçamento desacoplada da cor do sistema + atalhos de teclado (Esc, setas)
+## Atualização mais recente: exportação/importação virou um backup completo (procedimentos com TODOS os campos + catálogo de materiais) + botão "Arquivo" também na tela de Procedimentos
+
+O Marcelo mandou um arquivo JSON de exemplo (catálogo de materiais +
+uso por procedimento, do formato da calculadora avulsa externa) e
+perguntou se tinha os valores/margem/etc. Não tinha — esse formato só
+carrega material e custo, não o resto (Valor, Custo adicional,
+Duração, Sessões). A partir disso, ele pediu pra unificar tudo num
+exportar/importar só, com TUDO.
+
+**Descoberta no caminho**: já existiam duas funções prontas,
+`handleExportProcedures`/`handleImportProceduresFile`
+(`app-frontend/src/App.jsx`) — que já exportavam o array de
+`procedures` completo (todos os campos: nome, categoria, custo, custo
+adicional, valor, margem, duração, sessões, materiais)! Só que **nunca
+tinham sido conectadas em nenhum botão** — código morto, sobrando de
+alguma sessão anterior.
+
+**Implementado**:
+- **`handleExportProcedures` reescrita** — agora exporta um backup
+  completo de verdade: `{ procedures, materialsCatalog }` (não só os
+  procedimentos, o catálogo de materiais/preços também).
+- **`handleImportProceduresFile` reescrita** — detecta sozinho qual
+  dos 3 formatos está importando:
+  1. Backup completo (o que a exportação de cima gera) — substitui
+     procedimentos E catálogo de uma vez.
+  2. Array puro de procedimentos (backups bem antigos) — só substitui
+     os procedimentos.
+  3. Formato da calculadora avulsa externa (`{ DATA, state, catalog }`,
+     sem os campos de valor/margem) — mesma lógica que já existia
+     (casa por nome, cria o que não existe, atualiza materiais do que
+     já existe).
+- **Botão "Arquivo" novo na própria tela de Procedimentos** (não só
+  dentro de Custos/Materiais) — mesmo dropdown Exportar/Importar. Pra
+  abrir espaço, **removi o botão de "redefinir largura das colunas"**
+  dali (pedido explícito do Marcelo) — a função continua existindo no
+  código, só sem botão nenhum chamando ela, caso precise voltar.
+- O botão "Arquivo" que já existia dentro de Custos/Materiais agora
+  usa essas MESMAS funções (antes usava um formato só de materiais,
+  mais limitado) — os dois lugares fazem exatamente a mesma coisa
+  agora.
+
+**Sobre o pedido de "deixar como padrão pra conta nova"**: o Marcelo
+disse que vai me mandar o JSON completo da própria conta dele (agora
+que o botão "Exportar" gera exatamente esse formato rico) pra eu usar
+como base do que uma conta nova já vem com preenchido — ainda não
+chegou esse arquivo nesta sessão, fica pendente pra próxima vez que
+ele mandar.
+
+**Testado**: `npm run build` do frontend limpo, sem erros. **Não
+testei manualmente** — vale o Marcelo conferir se exportar de
+Procedimentos e de Custos/Materiais realmente geram o mesmo arquivo
+completo, e se importar esse arquivo de volta restaura tudo certinho.
+
+**PENDENTE — dividir pagamento em partes com formas diferentes**: o
+Marcelo também pediu, na mesma sessão, pra dar pra dividir o
+pagamento de UM orçamento em partes com formas diferentes (ex:
+metade no cartão, metade no pix) — não é mostrar opções alternativas
+pro paciente escolher, é dividir o valor mesmo. Investiguei o motor
+de cálculo de forma de pagamento (`calcProcedure`/`calcBudget`,
+`buildPaymentMethods`) e é bem mais entrelaçado do que parece por
+fora: a "categoria" escolhida hoje é uma família (pix/débito/crédito/
+boleto/convênio), e dentro de crédito/boleto tem parcelas, nome de
+máquina, entrada mínima, e quem paga a taxa — tudo interligado.
+Decidi NÃO tentar encaixar isso apressado no fim desta sessão (risco
+alto de entregar algo com bug bem numa parte sensível, que lida com
+dinheiro de verdade). Fica como próximo passo claro: dá pra desenhar
+o formato (uma lista de "partes do pagamento", cada uma com forma +
+valor, a última calculada automática como o restante pra sempre
+somar certinho) e implementar com calma numa sessão focada nisso.
+
+## Atualização anterior: cor do orçamento desacoplada da cor do sistema + atalhos de teclado (Esc, setas)
 
 Dois pedidos do Marcelo:
 
@@ -239,30 +309,6 @@ está distribuída em cor — vale o Marcelo testar com a própria logo
 real e confirmar que a cor extraída faz sentido, e que a marca d'água
 ficou com a proporção/opacidade boas.
 
-## Atualização anterior: logo enviada pelo consultório não fica mais presa num círculo, no orçamento exportado
-
-O Marcelo reparou que a logo do consultório (a que ele acabou de poder
-enviar em Configurações) aparecia cortada dentro de um círculo no
-orçamento exportado — fazia sentido pro ícone padrão (dente), mas não
-pra uma logo de verdade que a pessoa envia, que pode ter qualquer
-formato.
-
-**Corrigido** (`buildBudgetTemplateBodyHTML`/CSS em
-`app-frontend/src/App.jsx`): agora são dois casos diferentes —
-- **Sem logo enviada** (usando o ícone padrão do dente): continua
-  dentro do círculo de sempre, com o fundo suave — faz sentido pra um
-  ícone pensado pra caber ali.
-- **Com logo enviada**: mostra a imagem direto, sem círculo, sem
-  cortar — só limitada a uma altura máxima (56px) e largura máxima
-  (180px), mantendo a proporção original da imagem (`object-fit:
-  contain`), no mesmo canto superior esquerdo de sempre.
-
-Também atualizei o protótipo publicado com essa mudança (mesmo link
-de antes), com um novo botão "Simular logo enviada" pra comparar os
-dois estados lado a lado antes de fechar como certo.
-
-**Testado**: `npm run build` do frontend limpo, sem erros.
-
 ## Histórico resumido (atualizações mais antigas que 5 sessões atrás)
 
 O Marcelo pediu pra parar de guardar o detalhe completo de tudo — a
@@ -271,6 +317,7 @@ inteira (acima). O que já estava aqui de sessões mais antigas virou
 só uma lista de títulos, pra não perder o rastro de quando algo foi
 feito sem inflar o arquivo:
 
+- logo enviada pelo consultório não fica mais presa num círculo, no orçamento exportado — mostra a imagem direto, sem cortar, mantendo a proporção original
 - pacote principal do site 53% menor (809KB → 376KB) — Chart.js, html2canvas e o painel admin passaram a carregar sob demanda (import dinâmico), não mais sempre junto do pacote principal + logo do cabeçalho 94% menor (nova versão de 96px em vez de reaproveitar a de 512px)
 - modelo novo do orçamento exportado (logo, especialidade, cor escolhida pelo usuário, redes sociais) — motor trocado de canvas manual pra HTML/CSS de verdade + PNG/PDF/Imprimir/WhatsApp todos usando o motor novo
 - rótulos "Próxima cobrança dia X" (cartão Stripe) vs "Expira em" (licença dada pelo admin) corrigidos em Gerenciar Assinatura, usando confirmação síncrona direto na API do Stripe

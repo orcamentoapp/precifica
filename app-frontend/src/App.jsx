@@ -1086,8 +1086,12 @@ function ProcedureTable({
   onEqualizeMargins,
   columnWidths: columnWidthsProp,
   onResizeColumn,
+  onExport,
+  onImportFile,
 }) {
   const categories = settings.procedureCategories || [];
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const fileInputRef = useRef(null);
   // Mescla com o padrão, mas ignora qualquer largura salva menor que o
   // mínimo permitido no redimensionamento (90px) — protege contra um valor
   // corrompido/errado ter ficado salvo de uma tentativa anterior, em vez de
@@ -7060,9 +7064,8 @@ export default function App() {
   }
 
   const proceduresFileInputRef = useRef(null);
-  const [proceduresImportFeedback, setProceduresImportFeedback] = useState(""); // "" | "sucesso" | "erro"
   const materialsFileInputRef = useRef(null);
-  const [materialsImportFeedback, setMaterialsImportFeedback] = useState("");
+  const [materialsImportFeedback, setMaterialsImportFeedback] = useState(null);
 
   // Compara nomes ignorando maiúsculas/minúsculas e acentos, pra casar
   // "Prótese Total" com "protese total" na hora de importar.
@@ -7216,8 +7219,23 @@ export default function App() {
     persistProcedures([]);
   }
 
+  // Exportação/importação "de verdade" — carrega TUDO: cada procedimento
+  // com todos os campos (nome, categoria, custo, custo adicional, valor,
+  // margem, duração, sessões, materiais) + o catálogo de materiais
+  // completo (nome, marca, embalagem, preço). Usada tanto no botão
+  // "Arquivo" da própria tela de Procedimentos quanto no de Custos/
+  // Materiais — é a mesma função nos dois lugares, pra sempre ter os
+  // dados completos disponíveis pra backup ou pra servir de modelo padrão
+  // de conta nova.
   function handleExportProcedures() {
-    const blob = new Blob([JSON.stringify(procedures, null, 2)], { type: "application/json" });
+    const payload = {
+      precificaBackup: true,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      procedures,
+      materialsCatalog,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const fileNameBase = (settings.clinicName || "procedimentos")
@@ -7226,30 +7244,123 @@ export default function App() {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-");
     a.href = url;
-    a.download = `${fileNameBase}-procedimentos.json`;
+    a.download = `${fileNameBase}-procedimentos-e-custos.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
+  // Detecta sozinho qual dos 3 formatos de arquivo é:
+  // 1) backup completo daqui mesmo (o que handleExportProcedures gera) —
+  //    { procedures, materialsCatalog } — importa os dois de uma vez,
+  //    SUBSTITUINDO a lista de procedimentos e o catálogo (é um backup
+  //    completo, não uma mesclagem).
+  // 2) um array puro de procedimentos (backups bem antigos, de antes do
+  //    catálogo de materiais existir) — só substitui os procedimentos.
+  // 3) o formato da calculadora avulsa externa original ({ DATA, state,
+  //    catalog }, sem os campos de valor/margem/duração/sessões) — nesse
+  //    caso não dá pra "substituir" (esse formato não tem os outros
+  //    campos), então casa por nome com o que já existe e MESCLA: só
+  //    preenche os materiais de cada procedimento, cria os que não
+  //    existem ainda (com os campos padrão) e soma materiais novos no
+  //    catálogo — mesma lógica que já existia em handleImportMaterialsFile.
   async function handleImportProceduresFile(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      // Aceita tanto um arquivo só com a lista de procedimentos (formato novo)
-      // quanto um backup completo antigo (formato { procedures: [...] }),
-      // pra não quebrar backups feitos antes dessa mudança.
-      const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.procedures) ? parsed.procedures : null;
-      if (!list) throw new Error("invalid");
-      persistProcedures(list);
-      setProceduresImportFeedback("Importado!");
+
+      if (Array.isArray(parsed)) {
+        persistProcedures(parsed);
+        setMaterialsImportFeedback({ type: "sucesso", text: `${parsed.length} procedimento(s) importado(s).` });
+      } else if (Array.isArray(parsed?.procedures)) {
+        persistProcedures(parsed.procedures);
+        const hasCatalog = Array.isArray(parsed.materialsCatalog);
+        if (hasCatalog) persistMaterialsCatalog(parsed.materialsCatalog);
+        setMaterialsImportFeedback({
+          type: "sucesso",
+          text: `${parsed.procedures.length} procedimento(s) importado(s)${
+            hasCatalog ? ` + ${parsed.materialsCatalog.length} material(is) no catálogo` : ""
+          }.`,
+        });
+      } else if (parsed?.DATA && parsed?.state) {
+        const importedCatalog = Array.isArray(parsed?.catalog) ? parsed.catalog : [];
+        const importedState = parsed?.state && typeof parsed.state === "object" ? parsed.state : {};
+
+        const existingKeys = new Set(
+          materialsCatalog.map((c) => `${normalizeMatchKey(c.name)}|${normalizeMatchKey(c.brand)}`)
+        );
+        const newCatalogItems = [];
+        importedCatalog.forEach((c) => {
+          const key = `${normalizeMatchKey(c.nome)}|${normalizeMatchKey(c.marca)}`;
+          if (existingKeys.has(key)) return;
+          existingKeys.add(key);
+          newCatalogItems.push({
+            id: uid(),
+            name: c.nome || "",
+            brand: c.marca || "",
+            packageQty: c.quantidade || "",
+            packageUnit: c.unidade || "",
+            packagePrice: c.valor || "",
+          });
+        });
+        const nextCatalog = newCatalogItems.length > 0 ? [...materialsCatalog, ...newCatalogItems] : materialsCatalog;
+        if (newCatalogItems.length > 0) persistMaterialsCatalog(nextCatalog);
+
+        let matched = 0;
+        let created = 0;
+        const nextProcedures = procedures.map((p) => ({ ...p }));
+        Object.entries(importedState).forEach(([cat, procsMap]) => {
+          const category = cat === "Sem categoria" ? "" : cat;
+          Object.entries(procsMap || {}).forEach(([procName, usages]) => {
+            const key = normalizeMatchKey(procName);
+            let target = nextProcedures.find((p) => normalizeMatchKey(p.name) === key);
+            const materials = (usages || []).map((u) => ({
+              id: uid(),
+              material: u.material || "",
+              brand: u.marca || "",
+              qty: u.qtd || "",
+              unit: u.unidade || "",
+            }));
+            if (target) {
+              target.materials = materials;
+              matched++;
+            } else {
+              nextProcedures.push({
+                id: uid(),
+                name: procName,
+                category,
+                cost: 0,
+                additionalCost: 0,
+                durationMinutes: 30,
+                sessions: 1,
+                laborCost: 0,
+                marginPercent: 40,
+                valorMinimo: 0,
+                valorBase: 0,
+                materials,
+              });
+              created++;
+            }
+          });
+        });
+        if (matched > 0 || created > 0) persistProcedures(nextProcedures);
+
+        const parts = [
+          `${created} procedimento(s) criado(s)`,
+          `${matched} procedimento(s) já existente(s) atualizado(s)`,
+          `${newCatalogItems.length} material(is) novo(s) no catálogo`,
+        ];
+        setMaterialsImportFeedback({ type: "sucesso", text: parts.join(" — ") });
+      } else {
+        throw new Error("invalid");
+      }
     } catch (err) {
-      setProceduresImportFeedback("Arquivo inválido");
+      setMaterialsImportFeedback({ type: "erro", text: "Arquivo inválido." });
     }
-    setTimeout(() => setProceduresImportFeedback(""), 2500);
+    setTimeout(() => setMaterialsImportFeedback(null), 4000);
     e.target.value = "";
   }
 
@@ -7621,8 +7732,8 @@ export default function App() {
             onAddCatalogItem={addCatalogItem}
             onUpdateCatalogItem={updateCatalogItem}
             onDeleteCatalogItem={deleteCatalogItem}
-            onExport={handleExportMaterialsData}
-            onImportFile={handleImportMaterialsFile}
+            onExport={handleExportProcedures}
+            onImportFile={handleImportProceduresFile}
             onDeleteAllProcedures={handleDeleteAllProcedures}
             importFeedback={materialsImportFeedback}
             fileInputRef={materialsFileInputRef}
@@ -7680,13 +7791,37 @@ export default function App() {
                       <Redo2 className="w-4 h-4" /> Refazer
                     </button>
                   )}
-                  <button
-                    onClick={handleResetColumnWidths}
-                    title="Redefinir larguras das colunas pro padrão"
-                    className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-stone-200 text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition"
-                  >
-                    <Columns3 className="w-4 h-4" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setFileMenuOpen((v) => !v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+                    >
+                      Arquivo <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                    {fileMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-50 overflow-hidden">
+                        <button
+                          onClick={() => {
+                            onExport();
+                            setFileMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                        >
+                          <Download className="w-3.5 h-3.5 text-stone-400" /> Exportar
+                        </button>
+                        <button
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                            setFileMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-stone-400" /> Importar
+                        </button>
+                      </div>
+                    )}
+                    <input ref={fileInputRef} type="file" accept="application/json" onChange={onImportFile} className="hidden" />
+                  </div>
                   <button
                     onClick={() => navigateTab("calculadora")}
                     title="Criar procedimentos, categorias e calcular custo por material"
@@ -7721,6 +7856,8 @@ export default function App() {
                 onEqualizeMargins={equalizeMargins}
                 columnWidths={settings.procedureColumnWidths}
                 onResizeColumn={handleResizeColumn}
+                onExport={handleExportProcedures}
+                onImportFile={handleImportProceduresFile}
               />
             )}
 
