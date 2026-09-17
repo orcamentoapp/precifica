@@ -360,12 +360,12 @@ function budgetTemplateCSS(vars) {
   .bt-total-bar { margin: 24px 48px 0; background: ${vars.brandSoft}; border-radius: 10px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
   .bt-total-label { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; }
   .bt-total-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; color: ${vars.brandDark}; }
-  .bt-info-row { margin: 32px 48px 0; display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px; position: relative; z-index: 1; }
+  .bt-info-row { margin: 32px 48px 0; display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; position: relative; z-index: 1; }
   .bt-info-block { display: flex; gap: 14px; }
   .bt-info-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5c6b67; margin-bottom: 6px; font-weight: 600; }
   .bt-info-block ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: #5c6b67; line-height: 1.7; }
-  .bt-payment-lines { display: flex; flex-direction: column; gap: 6px; }
-  .bt-payment-line { font-size: 14px; color: #1c2b27; line-height: 1.5; }
+  .bt-payment-lines { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .bt-payment-line { font-size: 14px; color: #1c2b27; line-height: 1.5; white-space: nowrap; }
   .bt-closing { text-align: center; margin: 40px 48px 0; padding-top: 20px; border-top: 1px solid #dde7e3; position: relative; z-index: 1; }
   .bt-closing-title { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: ${vars.brandDark}; font-weight: 600; margin-bottom: 4px; }
   .bt-closing-sub { font-size: 13px; color: #5c6b67; }

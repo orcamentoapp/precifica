@@ -49,7 +49,37 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — logo de fundo sem distorção + maquininha fora do orçamento do cliente
+## ✅ Feito nesta sessão — "Forma - Valor" ainda quebrava linha (valor caía pra baixo)
+
+O Marcelo mandou print mostrando que, mesmo já no formato "Forma -
+Valor", a coluna de forma de pagamento no modelo exportado era
+estreita demais — o texto quebrava linha no meio ("PIX / Dinheiro à
+vista -" numa linha, "R$ 2.200,00" na de baixo), o que visualmente
+parecia estar "embaixo" em vez de "ao lado".
+
+**Corrigido** (`budgetTemplateCSS`, dentro de `app-frontend/src/App.jsx`):
+- A coluna de "Forma de pagamento" dividia espaço 1:1.4 com a coluna
+  de "Informações importantes" — troquei pra 1.6:1, dando bem mais
+  largura pra forma de pagamento (que geralmente é só 1-3 linhas
+  curtas) e um pouco menos pra informações importantes (que já é
+  texto corrido/lista, se ajusta bem quebrando linha).
+- Adicionei `white-space: nowrap` em cada linha de forma de pagamento
+  — força cada linha "Forma - Valor" a ficar sempre numa linha só,
+  nunca quebrando o valor pra linha de baixo.
+
+Com as duas mudanças juntas, o texto some do teste que ele mandou
+("PIX / Dinheiro à vista - R$ 2.200,00") cabe numa linha só com
+folga.
+
+**Testado**: `npm run build` do frontend limpo. **Não testei clicando
+de verdade.** Se algum orçamento tiver uma forma de pagamento com
+nome bem comprido (principalmente em pagamento dividido, com vários
+parcelamentos), o `nowrap` garante que não quebra linha, mas em
+teoria pode fazer o texto ultrapassar visualmente a coluna nesse
+cenário extremo — vale ficar de olho nisso especificamente com
+orçamentos de pagamento dividido com muitas partes.
+
+## Log anterior — logo de fundo sem distorção + maquininha fora do orçamento do cliente
 
 O Marcelo mandou um novo PNG exportado mostrando dois problemas que eu
 não tinha resolvido direito:
