@@ -7,6 +7,7 @@ import AuthLogo from "../AuthLogo";
 export default function Register({ onRegistered, onBackToLogin, initialLicenseCode, lockedEmail }) {
   const [licenseGroups, setLicenseGroups] = useState(initialLicenseCode || ["", "", "", ""]);
   const [email, setEmail] = useState(lockedEmail || "");
+  const [confirmEmail, setConfirmEmail] = useState(lockedEmail || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +47,10 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
     }
     if (password !== confirmPassword) {
       setError("As senhas não conferem");
+      return;
+    }
+    if (!lockedEmail && email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
+      setError("Os e-mails digitados não conferem — confira e tente de novo.");
       return;
     }
 
@@ -133,6 +138,23 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
               Esse é o e-mail que recebeu a chave, por isso não pode ser alterado aqui. Comprou com outro e-mail?
               Entre em contato com o suporte.
             </p>
+          )}
+
+          {!lockedEmail && (
+            <>
+              <label style={{ ...labelStyle, marginTop: 12 }}>Confirmar e-mail</label>
+              <input
+                type="email"
+                value={confirmEmail}
+                onChange={(e) => setConfirmEmail(e.target.value)}
+                onPaste={(e) => e.preventDefault()}
+                style={inputStyle}
+                required
+              />
+              <p style={{ fontSize: 11, color: "#a8a29e", margin: "5px 0 0" }}>
+                Digite de novo (sem colar) — é pra esse e-mail que a confirmação de cadastro vai.
+              </p>
+            </>
           )}
 
           <label style={{ ...labelStyle, marginTop: 12 }}>Senha</label>

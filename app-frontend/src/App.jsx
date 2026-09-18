@@ -4072,8 +4072,16 @@ function calcProcedure(proc, settings, materialsCatalog) {
   const margin = Number(proc.marginPercent) || 0;
   const suggestedBase = Math.round(margin < 100 ? totalCost / (1 - margin / 100) : totalCost);
   const listPrice = Number(proc.valorBase) > 0 ? Number(proc.valorBase) : suggestedBase;
-  // Sem custo cadastrado ainda, usa o valor de tabela como base pra "cobrar mantendo margem"
-  const adjustmentBasis = totalCost > 0 ? suggestedBase : listPrice;
+  // Base usada pra calcular o valor final cobrado (protegendo a margem
+  // quando quem paga a taxa/imposto é o cliente): SEMPRE o preço de tabela
+  // (listPrice — o "Valor" que o profissional definiu, ou o sugerido
+  // enquanto ele ainda não definiu nenhum). Antes disso preferia
+  // suggestedBase sempre que havia custo cadastrado, o que fazia o valor
+  // cobrado de verdade ignorar um "Valor" definido manualmente e
+  // recalcular sozinho toda vez que o custo por trás mudasse (custo da
+  // hora clínica, pró-labore etc, em Configurações) — o preço final tem
+  // que seguir sempre o Valor definido, não o custo.
+  const adjustmentBasis = listPrice;
   const taxPct = Number(settings.taxProvisionPercent) || 0;
   const methods = buildPaymentMethods(settings);
 
@@ -4107,7 +4115,12 @@ function calcBudget(procList, settings, clientLevelPercent = 0, materialsCatalog
     const margin = Number(proc.marginPercent) || 0;
     const suggestedBase = Math.round(margin < 100 ? totalCost / (1 - margin / 100) : totalCost);
     const listPrice = Number(proc.valorBase) > 0 ? Number(proc.valorBase) : suggestedBase;
-    const basis = totalCost > 0 ? suggestedBase : listPrice;
+    // Mesma correção de calcProcedure: a base pra proteger a margem no
+    // valor final cobrado é sempre o preço de tabela (listPrice), nunca o
+    // valor sugerido recalculado a partir do custo — senão o valor cobrado
+    // ignora o "Valor" definido manualmente e muda sozinho quando o custo
+    // por trás muda.
+    const basis = listPrice;
     sumCost += totalCost;
     sumDirectCost += directCost + additionalCost;
     sumLaborCost += laborCost;
@@ -4719,7 +4732,21 @@ function ProcedureTable({
                           <input
                             type="number"
                             value={p.marginPercent}
-                            onChange={(e) => onUpdate(p.id, { marginPercent: e.target.value })}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const newMargin = Number(raw);
+                              const totalCost = calc ? calc.totalCost : 0;
+                              const patch = { marginPercent: raw };
+                              // Editar a margem manualmente é a única coisa que deve
+                              // mexer no preço automaticamente: recalcula o "Valor" pra
+                              // bater exatamente com essa margem nova, dado o custo
+                              // atual — muda o preço porque foi uma ação direta da
+                              // pessoa na margem, não porque o custo mudou sozinho.
+                              if (raw !== "" && totalCost > 0 && newMargin < 100) {
+                                patch.valorBase = Math.round(totalCost / (1 - newMargin / 100));
+                              }
+                              onUpdate(p.id, patch);
+                            }}
                             className="w-full min-w-0 text-sm font-mono text-right bg-stone-100/70 border border-stone-200 hover:border-teal-300 hover:bg-stone-50 focus:bg-white focus:border-teal-400 rounded-full px-2.5 py-1 outline-none transition"
                           />
                           <span className="text-stone-400 shrink-0">%</span>
@@ -5365,7 +5392,7 @@ function MaterialUsageTable({ materials, materialsCatalog, onChange, onReorder, 
   );
 }
 
-function ProcedureEditModal({ proc, categories, onUpdate, onClose, onAddCategory, materialsCatalog, onAddCatalogItem }) {
+function ProcedureEditModal({ proc, categories, onUpdate, onClose, onAddCategory, materialsCatalog, settings, onAddCatalogItem }) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryValue, setNewCategoryValue] = useState("");
 
@@ -5492,7 +5519,19 @@ function ProcedureEditModal({ proc, categories, onUpdate, onClose, onAddCategory
               <input
                 type="number"
                 value={proc.marginPercent}
-                onChange={(e) => onUpdate(proc.id, { marginPercent: e.target.value })}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const newMargin = Number(raw);
+                  const totalCost = calcProcedure(proc, settings, materialsCatalog).totalCost || 0;
+                  const patch = { marginPercent: raw };
+                  // Mesma regra do que na tabela: mudar a margem manualmente é o
+                  // único jeito do preço mudar sozinho — recalcula o "Valor" pra
+                  // bater com essa margem nova, dado o custo atual.
+                  if (raw !== "" && totalCost > 0 && newMargin < 100) {
+                    patch.valorBase = Math.round(totalCost / (1 - newMargin / 100));
+                  }
+                  onUpdate(proc.id, patch);
+                }}
                 className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
               />
             </div>
@@ -5741,7 +5780,7 @@ function CalculadoraSection({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" data-tour="calculadora-mode-toggle">
         <button
           onClick={() => setMode("procedimentos")}
           className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition ${
@@ -7305,7 +7344,11 @@ function SimulationPanel({
                 )}
               </div>
             )}
-            {!patientMode && <InlineStarPicker level={clientLevel} onChange={setClientLevel} />}
+            {!patientMode && (
+              <div data-tour="simulation-star-picker">
+                <InlineStarPicker level={clientLevel} onChange={setClientLevel} />
+              </div>
+            )}
             {patientMode ? (
               <button
                 type="button"
@@ -7382,7 +7425,7 @@ function SimulationPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" data-tour="simulation-add-procedure">
             <ProcedureCombobox procedures={procedures} value="" onChange={addItem} />
           </div>
           <button
@@ -8039,6 +8082,7 @@ function TabNav({ tab, setTab, darkMode }) {
             key={t.key}
             ref={(el) => (tabRefs.current[t.key] = el)}
             onClick={() => setTab(t.key)}
+            data-tour={t.key === "procedures" ? "tabnav-procedures" : t.key === "simulation" ? "tabnav-simulation" : undefined}
             className="relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300"
             style={{ color: tab === t.key ? "#fafaf9" : darkMode ? "#a1a1aa" : "#78716c" }}
           >
@@ -8062,6 +8106,7 @@ function TabNav({ tab, setTab, darkMode }) {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
+              data-tour={t.key === "procedures" ? "tabnav-procedures" : t.key === "simulation" ? "tabnav-simulation" : undefined}
               className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
               style={{ color: active ? "#0f766e" : "#a8a29e" }}
             >
@@ -8216,7 +8261,7 @@ function ImageCropModal({ imageSrc, onCancel, onSave }) {
   );
 }
 
-function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }) {
+function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, onStartTour }) {
   const [open, setOpen] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const [contactSubject, setContactSubject] = useState("");
@@ -8273,6 +8318,7 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }
       <button
         onClick={() => setOpen((o) => !o)}
         title="Abrir opções"
+        data-tour="account-menu-button"
         className="relative shrink-0 rounded-full flex items-center justify-center overflow-hidden transition hover:brightness-95"
         style={{
           width: "56px",
@@ -8326,6 +8372,17 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings }
               />
             </button>
           </div>
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              onStartTour && onStartTour();
+            }}
+            className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm hover:bg-stone-50 transition border-t border-stone-100"
+          >
+            <span>Rever tutorial</span>
+            <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
+          </button>
 
           <button
             onClick={() => setShowContact((v) => !v)}
@@ -8729,7 +8786,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
 
         <div>
           <div className="text-xs text-stone-500 mb-1">Logo do consultório/clínica</div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" data-tour="settings-clinic-logo">
             <div className="w-14 h-14 shrink-0 rounded-lg border border-stone-200 bg-stone-50 flex items-center justify-center overflow-hidden">
               {settings.clinicLogoDataUrl ? (
                 <img src={settings.clinicLogoDataUrl} alt="Logo do consultório" className="w-full h-full object-contain" />
@@ -8786,6 +8843,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
             value={settings.clinicName}
             onChange={(e) => onChange({ ...settings, clinicName: e.target.value })}
             placeholder="Nome do consultório/clínica ou da(o) profissional"
+            data-tour="settings-clinic-name"
             className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
           />
         </div>
@@ -9075,7 +9133,7 @@ const SETTINGS_NAV_GROUPS = [
 
 function SettingsSideNav() {
   return (
-    <nav className="hidden md:block w-52 shrink-0 sticky top-4 self-start space-y-5">
+    <nav className="hidden md:block w-52 shrink-0 sticky top-4 self-start space-y-5" data-tour="settings-sidenav">
       {SETTINGS_NAV_GROUPS.map((g) => (
         <div key={g.label}>
           <a href={g.href} className="block text-sm font-semibold text-stone-800 hover:text-teal-700 transition mb-1.5">
@@ -10218,12 +10276,296 @@ function SettingsPanel({ settings, onChange }) {
   );
 }
 
+// ---------- Tutorial guiado (tour) pra quem tá usando o Precifica pela
+// primeira vez ----------
+// Cada passo aponta pra um elemento real da tela (via atributo
+// data-tour="..."), que fica destacado com um "spotlight" enquanto o balão
+// de texto explica o que é. Passos com requireClick:true esperam a pessoa
+// clicar de verdade no botão destacado pra avançar (em vez de um botão
+// genérico de "Próximo") — é assim que o tutorial ensina "clique aqui" em
+// vez de só descrever.
+const TOUR_STEPS = [
+  {
+    tab: "profile-settings",
+    target: '[data-tour="settings-clinic-name"]',
+    title: "Nome da clínica",
+    body: "Preenche aqui o nome que aparece no topo do app e no orçamento que o paciente recebe.",
+  },
+  {
+    tab: "profile-settings",
+    target: '[data-tour="settings-clinic-logo"]',
+    title: "Logo",
+    body: "Envie a logo da sua clínica ou laboratório — ela aparece no cabeçalho do orçamento exportado e como marca d'água de fundo.",
+  },
+  {
+    tab: "profile-settings",
+    target: '[data-tour="settings-sidenav"]',
+    title: "Mais configurações",
+    body: "Por aqui você também define o custo da sua hora clínica, o imposto e as formas de pagamento aceitas (cartão, boleto, à vista). Pode preencher aos poucos, sem pressa.",
+  },
+  {
+    target: '[data-tour="tabnav-procedures"]',
+    title: "Procedimentos",
+    body: 'Clique em "Procedimentos" pra ver a lista de procedimentos já cadastrados na sua conta.',
+    requireClick: true,
+  },
+  {
+    tab: "procedures",
+    target: '[data-tour="procedures-open-calculadora"]',
+    title: "Custos e materiais",
+    body: "Clique aqui pra configurar quanto cada procedimento custa: horas, materiais usados e margem de lucro.",
+    requireClick: true,
+  },
+  {
+    tab: "calculadora",
+    target: '[data-tour="calculadora-mode-toggle"]',
+    title: "São valores base",
+    body: "Os procedimentos e o catálogo de materiais já vêm preenchidos com valores de exemplo — são só um ponto de partida. Ajuste preços, custos e margens aos poucos, de acordo com a realidade da sua clínica ou laboratório.",
+  },
+  {
+    target: '[data-tour="tabnav-simulation"]',
+    title: "Novo Orçamento",
+    body: 'Clique em "+ Novo Orçamento" pra simular um orçamento pra um paciente.',
+    requireClick: true,
+  },
+  {
+    tab: "simulation",
+    target: '[data-tour="simulation-add-procedure"]',
+    title: "Monte o orçamento",
+    body: "Pesquise e selecione os procedimentos do paciente aqui — pode adicionar quantos precisar.",
+  },
+  {
+    tab: "simulation",
+    target: '[data-tour="simulation-star-picker"]',
+    title: "Nível do paciente",
+    body: "As estrelas ajustam a margem automaticamente pra cima (de +10% a +50%), conforme o perfil do paciente — sem precisar mexer no preço de cada procedimento na mão.",
+  },
+  {
+    target: '[data-tour="account-menu-button"]',
+    title: "Prontinho!",
+    body: 'Obrigado por usar o Precifica! Qualquer dúvida, sugestão ou bug que encontrar, clica aqui no seu ícone, em "Contato / Suporte", e manda uma mensagem pra gente.',
+    isLast: true,
+  },
+];
+
+function WelcomeModal({ onStart, onSkip }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
+      <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center">
+        <div className="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-4">
+          <Stethoscope className="w-7 h-7 text-teal-700" />
+        </div>
+        <h2 className="text-lg font-bold text-stone-800 mb-2">Bem-vindo(a) ao Precifica!</h2>
+        <p className="text-sm text-stone-500 leading-relaxed mb-6">
+          Antes de começar, preparamos um tour rápido pra te mostrar onde configurar os dados da sua clínica, seus
+          procedimentos e materiais, e como montar seu primeiro orçamento. Leva menos de 2 minutos.
+        </p>
+        <button
+          onClick={onStart}
+          className="w-full bg-teal-700 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-teal-800 transition mb-2"
+        >
+          Começar tour guiado
+        </button>
+        <button onClick={onSkip} className="w-full text-sm text-stone-400 hover:text-stone-600 transition py-1">
+          Pular, quero explorar sozinho
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Acha, entre TODOS os elementos que batem com o seletor, o primeiro que
+// está de fato visível na tela (largura/altura > 0) — importante porque
+// alguns alvos (ex: os botões da TabNav) existem em dobro no DOM, um pra
+// desktop e outro pra mobile, e o escondido via CSS (display:none) tem
+// medida zero.
+function findVisibleTourTarget(selector) {
+  const els = document.querySelectorAll(selector);
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return el;
+  }
+  return null;
+}
+
+function OnboardingTour({ step, setStep, tab, navigateTab, onFinish }) {
+  const [rect, setRect] = useState(null);
+  const current = TOUR_STEPS[step];
+  const clickCleanupRef = useRef(null);
+
+  // Passos com "tab" definido já começam trocando de aba sozinhos (passos
+  // de "clique aqui pra ir pra outra aba" ficam de propósito sem essa
+  // troca automática — é o clique de verdade da pessoa que deve mudar de
+  // aba, não o tutorial fazendo isso por ela).
+  useEffect(() => {
+    if (current?.tab && tab !== current.tab) {
+      navigateTab(current.tab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  useEffect(() => {
+    if (!current) return;
+    let cancelled = false;
+    let rafId = null;
+    let attempts = 0;
+
+    function attachClick(el) {
+      if (!current.requireClick || clickCleanupRef.current) return;
+      function handleClick() {
+        setStep((s) => s + 1);
+      }
+      el.addEventListener("click", handleClick);
+      clickCleanupRef.current = () => el.removeEventListener("click", handleClick);
+    }
+
+    function measure() {
+      if (cancelled) return;
+      const el = findVisibleTourTarget(current.target);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+        attachClick(el);
+      } else if (attempts < 60) {
+        attempts += 1;
+        rafId = requestAnimationFrame(measure);
+      } else {
+        setRect(null);
+      }
+    }
+
+    setRect(null);
+    if (clickCleanupRef.current) {
+      clickCleanupRef.current();
+      clickCleanupRef.current = null;
+    }
+    measure();
+
+    const interval = setInterval(() => {
+      const el = findVisibleTourTarget(current.target);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setRect((prev) => {
+        if (prev && prev.top === r.top && prev.left === r.left && prev.width === r.width && prev.height === r.height) {
+          return prev;
+        }
+        return { top: r.top, left: r.left, width: r.width, height: r.height };
+      });
+      attachClick(el);
+    }, 300);
+    window.addEventListener("resize", measure);
+
+    return () => {
+      cancelled = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      clearInterval(interval);
+      window.removeEventListener("resize", measure);
+      if (clickCleanupRef.current) {
+        clickCleanupRef.current();
+        clickCleanupRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, tab]);
+
+  if (!current) return null;
+
+  function goNext() {
+    if (current.isLast) {
+      onFinish();
+    } else {
+      setStep((s) => s + 1);
+    }
+  }
+
+  const pad = 8;
+  const spotStyle = rect
+    ? {
+        position: "fixed",
+        top: rect.top - pad,
+        left: rect.left - pad,
+        width: rect.width + pad * 2,
+        height: rect.height + pad * 2,
+        borderRadius: 14,
+        border: "2px solid #14b8a6",
+        pointerEvents: "none",
+        zIndex: 9998,
+        transition: "top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease",
+        animation: "tourPulse 1.6s ease-in-out infinite",
+      }
+    : {
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,22,0.62)",
+        zIndex: 9998,
+      };
+
+  // Posiciona o balão de texto perto do alvo (embaixo, ou em cima se não
+  // tiver espaço embaixo), sem deixar vazar pra fora da tela.
+  const tooltipWidth = 300;
+  let tooltipStyle = { position: "fixed", zIndex: 9999, width: tooltipWidth };
+  if (rect) {
+    const spaceBelow = window.innerHeight - (rect.top + rect.height);
+    const below = spaceBelow > 190 || rect.top < 190;
+    tooltipStyle.left = Math.min(Math.max(rect.left, 12), Math.max(12, window.innerWidth - tooltipWidth - 12));
+    tooltipStyle.top = below
+      ? Math.min(rect.top + rect.height + pad * 2 + 6, window.innerHeight - 20)
+      : Math.max(12, rect.top - pad * 2 - 6 - 170);
+  } else {
+    tooltipStyle.left = "50%";
+    tooltipStyle.top = "50%";
+    tooltipStyle.transform = "translate(-50%, -50%)";
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes tourPulse {
+          0%, 100% { box-shadow: 0 0 0 9999px rgba(15,23,22,0.62), 0 0 0 0 rgba(20,184,166,0.55); }
+          50% { box-shadow: 0 0 0 9999px rgba(15,23,22,0.62), 0 0 0 8px rgba(20,184,166,0); }
+        }
+      `}</style>
+      <div style={spotStyle} />
+      <div style={tooltipStyle} className="bg-white rounded-2xl shadow-2xl p-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">
+            Passo {step + 1} de {TOUR_STEPS.length}
+          </span>
+          <button onClick={onFinish} className="text-stone-300 hover:text-stone-500 transition" title="Fechar tutorial">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <h3 className="text-sm font-bold text-stone-800 mb-1">{current.title}</h3>
+        <p className="text-xs text-stone-500 leading-relaxed mb-3">{current.body}</p>
+        {current.requireClick && (
+          <p className="text-xs font-semibold text-teal-700 mb-2">↑ Clique no botão destacado pra continuar</p>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <button onClick={onFinish} className="text-xs text-stone-400 hover:text-stone-600 transition">
+            Pular tutorial
+          </button>
+          {!current.requireClick && (
+            <button
+              onClick={goNext}
+              className="bg-teal-700 text-white text-xs font-semibold rounded-lg px-3.5 py-2 hover:bg-teal-800 transition"
+            >
+              {current.isLast ? "Concluir" : "Próximo"}
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [procedures, setProcedures] = useState([]);
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState(() => tabFromPath(window.location.pathname));
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [tourStep, setTourStep] = useState(-1); // -1 = tour inativo
 
   // Troca de aba "de verdade" — atualiza o estado E a URL (com pushState,
   // sem recarregar a página), pra dar pra favoritar/compartilhar o link de
@@ -10399,9 +10741,42 @@ export default function App() {
           if (Array.isArray(storedPatients)) setPatients(storedPatients);
         }
       } catch (e) {}
+      // Popup de boas-vindas: mostra só UMA vez, na primeira vez que a
+      // conta carrega (sem essa chave salva ainda) — a partir daqui a
+      // pessoa sempre pode rever o tutorial pelo menu de conta ("Rever
+      // tutorial"), então não precisa insistir mostrando de novo sozinho.
+      try {
+        const ob = await window.storage.get("onboarding", false);
+        if (!ob || !ob.value) {
+          setShowWelcome(true);
+          await window.storage.set("onboarding", JSON.stringify({ seenAt: new Date().toISOString() }), false);
+        }
+      } catch (e) {}
       setLoaded(true);
     })();
   }, []);
+
+  // A partir daqui, sempre que o CUSTO por trás de um procedimento mudar
+  // (custo da hora clínica / pró-labore em Configurações, ou o preço de
+  // algum material do catálogo) — sem que o profissional tenha mexido no
+  // "Valor" ou na margem daquele procedimento diretamente —, o Valor
+  // continua exatamente igual (ver calcProcedure/calcBudget) e é a margem
+  // % que se ajusta sozinha pra continuar batendo com a realidade. Isso é
+  // literalmente a mesma conta do botão "Igualar tudo", só que rodando
+  // sozinha em vez de precisar clicar toda vez. Só a margem se re-equilibra
+  // automaticamente — o preço só muda se o próprio profissional editar a
+  // margem na mão (ver os onChange de marginPercent na tabela/modal de
+  // edição).
+  const costSyncSkipFirstRun = useRef(true);
+  useEffect(() => {
+    if (!loaded) return;
+    if (costSyncSkipFirstRun.current) {
+      costSyncSkipFirstRun.current = false;
+      return;
+    }
+    equalizeMargins(procedures.map((p) => p.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.laborCalc, materialsCatalog, loaded]);
 
   useEffect(() => {
     function handleWheel() {
@@ -11157,7 +11532,7 @@ export default function App() {
   // de um loop síncrono).
   function equalizeMargins(procIds) {
     const idSet = new Set(procIds);
-    pushCheckpointNow(procedures);
+    let changed = false;
     const next = procedures.map((p) => {
       if (!idSet.has(p.id)) return p;
       const calc = calcProcedure(p, settings, materialsCatalog);
@@ -11165,8 +11540,13 @@ export default function App() {
       const valorBase = Number(p.valorBase) || 0;
       if (!(totalCost > 0 && valorBase > 0)) return p;
       const requiredMargin = 100 * (1 - totalCost / valorBase);
-      return { ...p, marginPercent: Number(requiredMargin.toFixed(2)) };
+      const rounded = Number(requiredMargin.toFixed(2));
+      if (rounded === (Number(p.marginPercent) || 0)) return p;
+      changed = true;
+      return { ...p, marginPercent: rounded };
     });
+    if (!changed) return;
+    pushCheckpointNow(procedures);
     persistProcedures(next);
   }
 
@@ -11238,6 +11618,10 @@ export default function App() {
                 onChange={persistSettings}
                 onLogoUpload={handleLogoUpload}
                 onOpenProfileSettings={() => navigateTab("profile-settings")}
+                onStartTour={() => {
+                  setShowWelcome(false);
+                  setTourStep(0);
+                }}
               />
               <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />
           </div>
@@ -11400,6 +11784,7 @@ export default function App() {
                   <button
                     onClick={() => navigateTab("calculadora")}
                     title="Criar procedimentos, categorias e calcular custo por material"
+                    data-tour="procedures-open-calculadora"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-700 text-white text-sm font-medium hover:bg-teal-800 transition"
                   >
                     <Calculator className="w-4 h-4" /> Custos / Materiais
@@ -11466,10 +11851,31 @@ export default function App() {
               onClose={() => setEditingProcId(null)}
               onAddCategory={handleAddCategory}
               materialsCatalog={materialsCatalog}
+              settings={settings}
               onAddCatalogItem={addCatalogItem}
             />
           );
         })()}
+
+      {showWelcome && (
+        <WelcomeModal
+          onStart={() => {
+            setShowWelcome(false);
+            setTourStep(0);
+          }}
+          onSkip={() => setShowWelcome(false)}
+        />
+      )}
+
+      {tourStep >= 0 && (
+        <OnboardingTour
+          step={tourStep}
+          setStep={setTourStep}
+          tab={tab}
+          navigateTab={navigateTab}
+          onFinish={() => setTourStep(-1)}
+        />
+      )}
     </div>
   );
 }

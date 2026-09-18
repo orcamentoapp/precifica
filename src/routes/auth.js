@@ -78,9 +78,37 @@ router.post("/register", async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Chave de licença não encontrada" });
     }
-    if (license.status !== "unused" || license.user_id) {
+    if (license.status !== "unused") {
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "Essa chave de licença já foi utilizada" });
+    }
+    if (license.user_id) {
+      // A chave já tem um cadastro pendente vinculado (alguém começou o
+      // cadastro com ela mas nunca confirmou o e-mail) — o status continua
+      // "unused" até a confirmação, então isso não significa que a chave
+      // já foi ativada de verdade. O caso mais comum é a pessoa ter digitado
+      // o PRÓPRIO e-mail errado da primeira vez: ela nunca vai conseguir
+      // confirmar aquele e-mail (não é a caixa de entrada dela), e sem essa
+      // liberação ficaria travada pra sempre vendo "chave já utilizada" ao
+      // tentar de novo com o e-mail certo.
+      // Só quem já tem a chave em mãos consegue chegar aqui, então é seguro
+      // tratar uma nova tentativa como a mesma pessoa corrigindo o cadastro
+      // anterior: apaga a conta pendente antiga (libera a chave) e segue
+      // normalmente com os dados dessa tentativa nova.
+      const { rows: pendingRows } = await client.query("SELECT id, email_verified FROM users WHERE id = $1", [
+        license.user_id,
+      ]);
+      const pendingUser = pendingRows[0];
+      if (pendingUser && pendingUser.email_verified) {
+        // Isso não deveria acontecer (e-mail confirmado deveria ter deixado
+        // o status "active"), mas por segurança: se por algum motivo o
+        // e-mail já foi confirmado, trata como uso de verdade e bloqueia.
+        await client.query("ROLLBACK");
+        return res.status(409).json({ error: "Essa chave de licença já foi utilizada" });
+      }
+      if (pendingUser) {
+        await client.query("DELETE FROM users WHERE id = $1", [pendingUser.id]);
+      }
     }
     if (license.buyer_email && license.buyer_email !== email.trim().toLowerCase()) {
       await client.query("ROLLBACK");

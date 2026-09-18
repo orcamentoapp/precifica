@@ -130,6 +130,216 @@ teoria pode fazer o texto ultrapassar visualmente a coluna nesse
 cenário extremo — vale ficar de olho nisso especificamente com
 orçamentos de pagamento dividido com muitas partes.
 
+## ✅ Feito nesta sessão — BUG CRÍTICO corrigido: preço final ignorava o "Valor" definido manualmente
+
+O Marcelo reportou: configurar custos fixos, pró-labore, imposto etc
+em Configurações fazia os preços finais mudarem sozinhos em
+Procedimentos, e ele não queria isso — queria o preço sempre seguir o
+"Valor" que ele define, com a MARGEM (%) se ajustando sozinha pra
+refletir a realidade, e isso acontecendo por padrão (sem precisar
+clicar no "Igualar" toda vez) — só mudando o preço de verdade se ele
+mexer na margem manualmente.
+
+**Achei a causa raiz, e é mais séria do que parecia**: dentro de
+`calcProcedure`/`calcBudget` (`app-frontend/src/App.jsx`), existe uma
+variável interna (`adjustmentBasis`/`basis`) usada pra calcular o
+valor REALMENTE cobrado do paciente (o número grande na tela de Novo
+Orçamento, o que vai pro PDF/WhatsApp, tudo) — e ela **sempre
+preferia o "valor sugerido" recalculado a partir do custo + margem**
+(`suggestedBase`), IGNORANDO o "Valor" (`valorBase`) que o
+profissional define manualmente em Procedimentos, sempre que havia
+algum custo cadastrado (ou seja, quase sempre). Isso significa que o
+campo "Valor" só servia de referência visual na tabela — o preço
+DE VERDADE cobrado no orçamento já vinha sendo recalculado sozinho a
+cada mudança de custo há muito tempo, com ou sem o "Igualar", pra
+QUALQUER procedimento com custo cadastrado. Corrigi pra sempre usar o
+"Valor" como base (caindo pro sugerido só quando o profissional ainda
+não definiu nenhum valor) — agora o preço cobrado segue exatamente o
+que está em "Valor", nunca mais recalcula sozinho por causa de custo.
+
+**Isso é uma mudança de comportamento em dinheiro real** — se algum
+procedimento tinha um "Valor" definido que já estava desalinhado do
+que o custo+margem sugeririam (bem provável, já que isso vinha sendo
+mascarado há um tempo), o preço que vai aparecer/ser cobrado a partir
+de agora pode ser DIFERENTE do que aparecia antes nas telas de Novo
+Orçamento/exportação (o "Valor" da tabela de Procedimentos, esse
+sempre foi o número certo — o que muda é o orçamento passar a
+respeitar ele de verdade).
+
+**Segunda parte — margem se ajustando sozinha** (a função "Igualar",
+que já existia como botão manual, agora roda sozinha): criei um efeito
+que dispara automaticamente sempre que o custo da hora clínica/
+pró-labore (em Configurações) OU o preço de algum material do
+catálogo mudar — ele recalcula a margem % de todo procedimento com
+"Valor" definido, pra continuar batendo com a realidade, sem precisar
+clicar em "Igualar tudo" manualmente. Só mexe na margem, nunca no
+Valor. (Aproveitei pra fazer o "Igualar"/"Igualar tudo" manuais só
+gravarem alguma coisa quando tem mudança de verdade — antes disso,
+clicar neles sempre criava um checkpoint de desfazer e salvava de
+novo, mesmo sem nada ter mudado.)
+
+**Terceira parte — editar a margem manualmente muda o preço**: agora,
+tanto na tabela de Procedimentos quanto no modal de edição, mudar a
+margem (%) na mão recalcula o "Valor" na hora pra bater com essa nova
+margem, dado o custo atual — é o único jeito do preço mudar
+automaticamente, exatamente como pedido.
+
+**Sobre o "imposto"**: conferi e ele nunca entrou nessa conta —
+imposto só é descontado do valor recebido DEPOIS da venda (pra
+calcular o lucro líquido/realizado), nunca mexeu no preço cobrado nem
+no custo do procedimento. Então mexer no imposto não deveria (e
+continua não devendo) alterar nenhum preço.
+
+**Testado**: `npm run build` do frontend limpo, e conferi que não
+sobrou nenhum outro lugar do código usando a lógica antiga
+(`adjustmentBasis`/`basis` preferindo o sugerido). **Não testei
+clicando de verdade — e essa é a mais importante de todas as sessões
+pra testar com calma antes de confiar**, dado que mexe direto em
+quanto dinheiro é cobrado:
+1. Pega um procedimento com "Valor" já definido, confere o número.
+2. Muda o custo da hora clínica ou o pró-labore em Configurações.
+3. Confere se o "Valor" desse procedimento continua o mesmo (antes
+   dessa correção, o preço cobrado num orçamento novo teria mudado
+   mesmo com o Valor intacto — agora não deve mudar).
+4. Adiciona esse procedimento a um Novo Orçamento e confere se o
+   preço mostrado bate com o "Valor" da tabela.
+5. Muda a margem (%) manualmente na tabela de Procedimentos e confere
+   se o "Valor" recalcula sozinho.
+
+## Log anterior — tutorial guiado (onboarding) pra usuários novos
+
+O Marcelo pediu um tutorial dentro do próprio sistema pra ensinar
+gente nova a usar o Precifica: popup de boas-vindas, depois um passo a
+passo destacando os botões de verdade que a pessoa precisa clicar,
+cobrindo Configurações (nome/logo), Procedimentos/Materiais
+(explicando que são valores base, editáveis com o tempo), Simulação
+de orçamento e as estrelas (nível do paciente), terminando com um
+agradecimento e indicação do canal de Contato/Suporte.
+
+**Como funciona** (tudo em `app-frontend/src/App.jsx`):
+
+1. **Popup de boas-vindas** (`WelcomeModal`) — aparece automaticamente
+   só UMA vez, na primeira vez que a conta carrega (controlado por uma
+   chave nova salva na conta, `"onboarding"`, no mesmo esquema de
+   `procedures`/`settings`). Tem dois botões: "Começar tour guiado"
+   (inicia o tutorial) ou "Pular, quero explorar sozinho" (fecha sem
+   iniciar — mas não trava a pessoa: dá pra rever o tutorial depois a
+   qualquer momento, ver item 4).
+
+2. **O tour em si** (`OnboardingTour` + lista `TOUR_STEPS`, 10 passos)
+   — cada passo aponta pra um elemento REAL da tela (marcado no código
+   com um atributo `data-tour="..."`: o campo Nome e o botão de Logo
+   em Configurações, o menu lateral de Configurações, os botões
+   "Procedimentos" e "+ Novo Orçamento" da navegação, o botão "Custos
+   / Materiais", o alternador Procedimentos/Materiais dentro da
+   Calculadora, o campo de busca de procedimento e as estrelas na tela
+   de Novo Orçamento, e o ícone de conta no canto superior). O elemento
+   apontado fica com uma borda destacada pulsando (spotlight, escurece
+   o resto da tela ao redor) e um balão de texto explica o que é.
+   - Passos que pedem uma ação (ex: "clique em Procedimentos", "clique
+     em Custos/Materiais") esperam o clique de verdade no botão
+     destacado pra avançar sozinho — SEM botão genérico de "Próximo"
+     nesses (o próprio clique no botão real é o que avança), exatamente
+     como pedido: "quero que o tutorial sempre destaque os botoes que é
+     pra ser clicado pra iniciar a ação".
+   - Passos só explicativos (nível do paciente/estrelas, aviso sobre
+     valores base) têm um botão "Próximo" no próprio balão.
+   - Em qualquer passo dá pra clicar em "Pular tutorial" (ou no X) pra
+     sair a qualquer momento.
+   - Funciona atravessando abas: passos que já têm uma aba definida
+     (ex: o passo das estrelas precisa estar em "Novo Orçamento")
+     trocam de aba sozinhos ao entrar nesse passo; os passos que
+     ENSINAM a trocar de aba clicando num botão da navegação ficam sem
+     essa troca automática de propósito — é o clique real da pessoa que
+     deve mudar de aba.
+
+3. **Conteúdo dos 10 passos** (nessa ordem): Nome da clínica → Logo →
+   aviso de que dá pra configurar custo da hora/imposto/formas de
+   pagamento no menu lateral → clique em Procedimentos → clique em
+   Custos/Materiais → aviso de que os valores já vêm preenchidos como
+   BASE, editáveis com o tempo → clique em Novo Orçamento → como
+   buscar/adicionar procedimento → o que as estrelas fazem (+10% a
+   +50% de margem por nível) → agradecimento final + "qualquer dúvida,
+   sugestão ou bug, manda mensagem pelo Contato/Suporte".
+
+4. **Rever tutorial** — novo item no menu de conta (ícone no canto
+   superior direito), logo acima de "Contato / Suporte", que reinicia
+   o tour a qualquer momento — útil tanto pra quem pulou a primeira
+   vez quanto pra testar.
+
+**Detalhe técnico**: o "spotlight" mede a posição do botão real na
+tela (`getBoundingClientRect`) com um pequeno polling (pra dar tempo
+da troca de aba renderizar o elemento novo) e reajusta sozinho se a
+tela rolar ou a janela for redimensionada. Nos dois passos que apontam
+pra um botão da navegação (que existe em dobro no código — uma versão
+pra desktop, outra pra mobile), o tour escolhe automaticamente qual
+das duas está realmente visível.
+
+**Testado**: `npm run build` do frontend limpo. Fiz a mesma varredura
+de escopo de sempre (todos os `data-tour` batem com os `target` da
+lista `TOUR_STEPS`, e os novos componentes/estado ficam no lugar
+certo — nada declarado dentro do escopo errado). **Não testei
+clicando de verdade** — vale o Marcelo criar uma conta nova (ou usar
+"Rever tutorial") e passar pelo tour inteiro conferindo se o destaque
+encontra cada botão certinho, inclusive no celular.
+
+## Log anterior — chave de licença travava pra sempre se a pessoa digitasse o próprio e-mail errado
+
+O Marcelo reportou um caso real: uma pessoa ativou uma chave de
+licença com o e-mail errado (digitou errado o próprio e-mail) e, ao
+tentar de novo com o e-mail certo, a chave dizia "já foi utilizada" —
+ela nunca ia conseguir confirmar aquele cadastro (o e-mail digitado
+não existe/não é dela), então ficava travada pra sempre sem
+intervenção manual.
+
+**Causa raiz** (`src/routes/auth.js`, rota `/register`): quando
+alguém começa um cadastro com uma chave, a chave já fica vinculada
+àquela conta (`licenses.user_id`) na hora — mas o `status` da chave
+só vira `"active"` depois que o e-mail é CONFIRMADO. Ou seja, uma
+conta nunca confirmada deixa a chave com `user_id` preenchido mas
+`status` ainda `"unused"` — só que o código de registro tratava
+"chave com `user_id` preenchido" como "já usada" e bloqueava
+qualquer nova tentativa, mesmo que aquela conta anterior nunca tivesse
+sido confirmada (ou seja, mesmo que fosse só uma tentativa abandonada
+por causa do erro de digitação).
+
+**Corrigido** — arrumei o self-heal: agora, ao tentar registrar uma
+chave que já tem `user_id` mas a conta vinculada **nunca confirmou o
+e-mail**, o sistema entende que é a MESMA pessoa corrigindo uma
+tentativa anterior (só quem tem a chave em mãos consegue chegar
+nesse ponto, então é seguro assumir isso) — apaga a conta antiga
+abandonada e deixa o cadastro novo seguir normalmente, sem precisar
+de nenhuma ação manual do Marcelo. Só bloqueia de verdade quando a
+conta vinculada já confirmou o e-mail (aí sim é uso genuíno da
+chave).
+
+**Camada extra de prevenção** (`app-frontend/src/screens/Register.jsx`):
+adicionei um campo "Confirmar e-mail" na tela de ativação de chave
+(só aparece quando o e-mail não vem travado — ou seja, só no fluxo
+de chave avulsa, tipo a que gerou esse caso; no fluxo de assinatura
+via Stripe o e-mail já vem fixo do checkout). Colar no campo é
+bloqueado de propósito (`onPaste` desabilitado), pra obrigar a pessoa
+a digitar de novo de verdade — colar o mesmo e-mail errado duas
+vezes não pegaria o erro de digitação. Se os dois e-mails não
+baterem, mostra erro ANTES de mandar pro servidor, evitando o
+problema na origem na maioria dos casos.
+
+**Resolvendo o caso específico que ele mandou agora**: depois desse
+deploy, a MESMA pessoa pode simplesmente tentar ativar a chave de
+novo com o e-mail certo — vai funcionar sozinho agora (o self-heal
+apaga a tentativa antiga automaticamente). Se ele quiser resolver
+manualmente antes/sem esperar o deploy, dá pra ir em Admin → aba
+Usuários, achar a conta com o e-mail errado (ela aparece lá mesmo
+sem confirmar o e-mail) e clicar em "Remover" — ou achar a chave na
+aba Licenças e usar o botão "Excluir conta" ali mesmo; nos dois
+casos a chave volta a ficar livre na hora.
+
+**Testado**: `node --check` no `auth.js` (backend) e `npm run build`
+do frontend, os dois limpos. **Não testei o fluxo completo de
+verdade** (criar conta, não confirmar, tentar de novo com outro
+e-mail) — vale o Marcelo confirmar com a própria pessoa que ficou
+travada, já que é um caso real esperando resolução.
+
 ## Log anterior — logo de fundo sem distorção + maquininha fora do orçamento do cliente
 
 O Marcelo mandou um novo PNG exportado mostrando dois problemas que eu
