@@ -8528,7 +8528,7 @@ function ImageCropModal({ imageSrc, onCancel, onSave }) {
   );
 }
 
-function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, onStartTour }) {
+function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, onOpenHelpCenter }) {
   const [open, setOpen] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const [contactSubject, setContactSubject] = useState("");
@@ -8643,11 +8643,11 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, 
           <button
             onClick={() => {
               setOpen(false);
-              onStartTour && onStartTour();
+              onOpenHelpCenter && onOpenHelpCenter();
             }}
             className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm hover:bg-stone-50 transition border-t border-stone-100"
           >
-            <span>Rever tutorial</span>
+            <span>Central de Ajuda</span>
             <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
           </button>
 
@@ -9397,30 +9397,43 @@ const SETTINGS_NAV_GROUPS = [
     ],
   },
   {
-    label: "Tutoriais",
-    href: "#sec-tutoriais",
+    label: "Ajuda",
     items: [
-      { label: "Dados da clínica", href: "#sub-tutorial-dados-clinica" },
-      { label: "Procedimentos e materiais", href: "#sub-tutorial-procedimentos-materiais" },
-      { label: "Novo orçamento", href: "#sub-tutorial-novo-orcamento" },
+      { label: "Central de Ajuda", action: "help" },
+      { label: "Rever Tutorial inicial", action: "tour" },
     ],
   },
 ];
 
-function SettingsSideNav() {
+function SettingsSideNav({ onOpenHelpCenter, onStartTour }) {
   return (
     <nav className="hidden md:block w-52 shrink-0 sticky top-4 self-start space-y-5" data-tour="settings-sidenav">
       {SETTINGS_NAV_GROUPS.map((g) => (
         <div key={g.label}>
-          <a href={g.href} className="block text-sm font-semibold text-stone-800 hover:text-teal-700 transition mb-1.5">
-            {g.label}
-          </a>
+          {g.href ? (
+            <a href={g.href} className="block text-sm font-semibold text-stone-800 hover:text-teal-700 transition mb-1.5">
+              {g.label}
+            </a>
+          ) : (
+            <span className="block text-sm font-semibold text-stone-800 mb-1.5">{g.label}</span>
+          )}
           <div className="space-y-1 border-l border-stone-200 pl-3">
-            {g.items.map((it) => (
-              <a key={it.href} href={it.href} className="block text-xs text-stone-500 hover:text-teal-700 transition py-0.5">
-                {it.label}
-              </a>
-            ))}
+            {g.items.map((it) =>
+              it.action ? (
+                <button
+                  key={it.action}
+                  type="button"
+                  onClick={() => (it.action === "help" ? onOpenHelpCenter?.() : onStartTour?.())}
+                  className="block w-full text-left text-xs text-stone-500 hover:text-teal-700 transition py-0.5"
+                >
+                  {it.label}
+                </button>
+              ) : (
+                <a key={it.href} href={it.href} className="block text-xs text-stone-500 hover:text-teal-700 transition py-0.5">
+                  {it.label}
+                </a>
+              )
+            )}
           </div>
         </div>
       ))}
@@ -9761,47 +9774,6 @@ function HelpCenterModal({ articles, initialArticleId, onClose }) {
   );
 }
 
-// Card "Central de Ajuda" — último grupo do menu de Configurações. Cada
-// artigo de HELP_ARTICLES tem um botão "Ler artigo", que abre o
-// HelpCenterModal já naquele artigo (dá pra navegar pra qualquer outro por
-// lá também). Isso é diferente do tour guiado rápido de boas-vindas
-// (spotlight na tela, ver TOUR_SECTIONS/OnboardingTour) — que continua
-// existindo do mesmo jeito, sem mudanças, acessível por "Rever tutorial" no
-// menu do perfil.
-function HelpCenterSettingsCard() {
-  const [openArticleId, setOpenArticleId] = useState(null);
-  return (
-    <SettingsCard id="sec-tutoriais" icon={<BookOpen className="w-4 h-4 text-teal-700" />} title="Central de Ajuda">
-      <p className="text-xs text-stone-400 mb-4 leading-relaxed">
-        Um artigo detalhado pra cada parte do sistema — clique em "Ler artigo" pra abrir a explicação completa.
-      </p>
-      <div className="space-y-3">
-        {HELP_ARTICLES.map((article) => (
-          <div
-            key={article.id}
-            id={`sub-tutorial-${article.id}`}
-            className="flex items-center justify-between gap-3 border border-stone-200 rounded-xl px-4 py-3 scroll-mt-4"
-          >
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-stone-800">{article.title}</div>
-              <div className="text-xs text-stone-400 mt-0.5">{article.summary}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpenArticleId(article.id)}
-              className="shrink-0 text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 py-2 hover:bg-teal-800 transition"
-            >
-              Ler artigo
-            </button>
-          </div>
-        ))}
-      </div>
-      {openArticleId && (
-        <HelpCenterModal articles={HELP_ARTICLES} initialArticleId={openArticleId} onClose={() => setOpenArticleId(null)} />
-      )}
-    </SettingsCard>
-  );
-}
 
 function SettingsCard({ icon, title, children, id }) {
   // Sempre nasce fechado — no celular, fica minimizado até a pessoa clicar
@@ -11247,7 +11219,8 @@ export default function App() {
   const [tab, setTab] = useState(() => tabFromPath(window.location.pathname));
   const [showWelcome, setShowWelcome] = useState(false);
   const [tourStep, setTourStep] = useState(-1); // -1 = tour inativo
-  const [activeTourSteps, setActiveTourSteps] = useState(TOUR_STEPS); // qual lista de passos o tour guiado de boas-vindas está seguindo (sempre TOUR_STEPS completo — a Central de Ajuda em Configurações é outra coisa, não usa esse tour)
+  const [activeTourSteps, setActiveTourSteps] = useState(TOUR_STEPS); // qual lista de passos o tour guiado de boas-vindas está seguindo (sempre TOUR_STEPS completo)
+  const [helpCenterOpen, setHelpCenterOpen] = useState(false); // abre o HelpCenterModal — acionado pelo menu do perfil e pelo menu lateral de Configurações
 
   // Troca de aba "de verdade" — atualiza o estado E a URL (com pushState,
   // sem recarregar a página), pra dar pra favoritar/compartilhar o link de
@@ -12306,11 +12279,7 @@ export default function App() {
                 onChange={persistSettings}
                 onLogoUpload={handleLogoUpload}
                 onOpenProfileSettings={() => navigateTab("profile-settings")}
-                onStartTour={() => {
-                  setShowWelcome(false);
-                  setActiveTourSteps(TOUR_STEPS);
-                  setTourStep(0);
-                }}
+                onOpenHelpCenter={() => setHelpCenterOpen(true)}
               />
               <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />
           </div>
@@ -12350,7 +12319,14 @@ export default function App() {
           />
         ) : tab === "perfil" || tab === "profile-settings" ? (
           <div className="flex gap-6 items-start max-w-4xl mx-auto">
-            <SettingsSideNav />
+            <SettingsSideNav
+              onOpenHelpCenter={() => setHelpCenterOpen(true)}
+              onStartTour={() => {
+                setShowWelcome(false);
+                setActiveTourSteps(TOUR_STEPS);
+                setTourStep(0);
+              }}
+            />
             <div className="flex-1 min-w-0 grid grid-cols-1 gap-5">
               <ProfileSettingsPage
                 settings={settings}
@@ -12360,7 +12336,6 @@ export default function App() {
                 clinicLogoError={clinicLogoError}
               />
               <SettingsPanel settings={settings} onChange={persistSettings} />
-              <HelpCenterSettingsCard />
             </div>
           </div>
         ) : tab === "calculadora" ? (
@@ -12567,6 +12542,10 @@ export default function App() {
           navigateTab={navigateTab}
           onFinish={() => setTourStep(-1)}
         />
+      )}
+
+      {helpCenterOpen && (
+        <HelpCenterModal articles={HELP_ARTICLES} initialArticleId={HELP_ARTICLES[0].id} onClose={() => setHelpCenterOpen(false)} />
       )}
     </div>
   );

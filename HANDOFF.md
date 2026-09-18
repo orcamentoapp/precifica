@@ -49,6 +49,49 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
+## ✅ Feito nesta sessão — Central de Ajuda simplificada: só o modal, acionado de 2 lugares
+
+O Marcelo aprovou o conteúdo dos artigos (modal com lista + artigo,
+ver captura "Image 1" que ele mandou), mas pediu pra remover a forma
+como se chegava até ele:
+
+- **Removido**: o card "Central de Ajuda" no meio de Configurações,
+  com um botão "Ler artigo" por artigo (era `HelpCenterSettingsCard`
+  — função apagada).
+- **Removido**: o grupo "Tutoriais" no menu lateral de Configurações
+  (`SettingsSideNav`), que linkava com anchors pra dentro daquele
+  card (`#sub-tutorial-*`) — ids que nem batiam mais direito com
+  `HELP_ARTICLES` desde a sessão anterior.
+- **Removido**: o botão "Rever tutorial" do menu do perfil
+  (`OptionsMenu`).
+
+**O que existe agora**: só o `HelpCenterModal` (lista de artigos +
+conteúdo, exatamente como já estava) — sem nenhum card fixo na tela,
+só abre quando acionado. Acesso em 2 lugares, como pedido:
+
+1. **Menu do perfil** (ícone de conta, canto superior direito) — o
+   botão que era "Rever tutorial" agora é **"Central de Ajuda"** e
+   abre o modal direto (a partir do primeiro artigo, Dashboard — dá
+   pra navegar pra qualquer outro por dentro do próprio modal).
+2. **Menu lateral de Configurações** (`SettingsSideNav`, coluna da
+   esquerda, só aparece no desktop) — troquei o grupo "Tutoriais"
+   por um novo grupo **"Ajuda"**, com dois botões:
+   - **Central de Ajuda** — abre o mesmo `HelpCenterModal`.
+   - **Rever Tutorial inicial** — dispara o tour guiado de
+     boas-vindas (`OnboardingTour`/`TOUR_STEPS`), o mesmo que corria
+     no primeiro acesso — só mudou de lugar (do menu do perfil pra
+     aqui), o motor em si não foi tocado.
+
+**Como foi feito por baixo**: o estado que controla se o modal está
+aberto (`helpCenterOpen`/`setHelpCenterOpen`) subiu pro componente
+principal do App (mesmo nível de `tourStep`), e o `HelpCenterModal`
+é renderizado uma vez só, junto do `OnboardingTour` — os dois
+gatilhos (menu do perfil e menu de Configurações) só chamam
+`setHelpCenterOpen(true)`. `SettingsSideNav` agora recebe
+`onOpenHelpCenter` e `onStartTour` como props; o grupo "Ajuda" no
+menu tem itens do tipo `action` (não são mais links `<a href>` de
+scroll, são botões que disparam essas funções).
+
 ## ✅ Feito nesta sessão — editar o valor de um procedimento só naquele orçamento (não altera o catálogo)
 
 Pedido do Marcelo: em Novo Orçamento, depois de adicionar um
