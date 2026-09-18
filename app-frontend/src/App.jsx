@@ -6501,7 +6501,13 @@ function SimulationPanel({
   );
   const splitNetTotal = splitChargedTotal - splitFeeTotal - splitTaxTotal;
   const splitMarginTotal = splitNetTotal !== 0 ? (splitProfitTotal / splitNetTotal) * 100 : null;
-  const paymentReady = splitMode ? splitValid : Boolean(row) && boletoEntradaMet;
+  // Quando nenhuma forma de pagamento é escolhida, o orçamento assume à
+  // vista (Pix/dinheiro) por padrão — esse texto avisa o paciente disso no
+  // modelo exportado (PDF/PNG/WhatsApp/Impressão) em vez de simplesmente
+  // não mostrar nada sobre forma de pagamento.
+  const DEFAULT_PAYMENT_NOTE =
+    "Valor referente ao pagamento à vista (Pix ou dinheiro). Outras formas de pagamento podem ter acréscimo de taxas e encargos.";
+  const paymentReady = splitMode ? splitValid : category === "" ? true : Boolean(row) && boletoEntradaMet;
 
   function toggleSplitMode() {
     if (splitMode) {
@@ -6634,7 +6640,7 @@ function SimulationPanel({
           : `${label} - ${money(amount)}`;
       });
     }
-    if (!row) return [];
+    if (!row) return [DEFAULT_PAYMENT_NOTE];
     const total = row.adjustedPrice != null ? row.adjustedPrice : subtotal;
     const label = row.label;
     const lines = [
@@ -6670,7 +6676,7 @@ function SimulationPanel({
         ? buildSplitMethodLabel()
         : row
         ? row.label + (showMachineName ? ` · ${activePreset.name}` : "")
-        : null,
+        : "À vista (Pix ou dinheiro)",
       paymentSplit: splitMode
         ? splitPartsResolved.map((p) => ({
             methodKey: p.methodKey,
@@ -6708,7 +6714,7 @@ function SimulationPanel({
     const validityMonthsLabel = `${validityMonths} ${validityMonths === 1 ? "mês" : "meses"}`;
 
     const procedures = budgetProcs.map((p) => ({ name: p.name, value: (Number(p.valorBase) || 0) * markupMult }));
-    const total = splitMode ? splitChargedTotal : row.adjustedPrice != null ? row.adjustedPrice : subtotal;
+    const total = splitMode ? splitChargedTotal : row && row.adjustedPrice != null ? row.adjustedPrice : subtotal;
     const paymentLines = buildPaymentLines();
 
     return renderBudgetTemplateToCanvas({
@@ -7123,7 +7129,7 @@ function SimulationPanel({
     if (paymentLines.length > 0) {
       lines.push("Forma de pagamento:");
       paymentLines.forEach((line) => lines.push(`- ${line}`));
-      lines.push(`Total: ${money(splitMode ? splitChargedTotal : row.adjustedPrice != null ? row.adjustedPrice : subtotal)}`);
+      lines.push(`Total: ${money(splitMode ? splitChargedTotal : row && row.adjustedPrice != null ? row.adjustedPrice : subtotal)}`);
     }
     const orgLabel = settings.orgLabel || "Consultório";
     const footerCro = settings.professionalRegistration || "";
@@ -7823,6 +7829,52 @@ function SimulationPanel({
             Preencha a entrada mínima de <span className="font-semibold">{money(minDownPayment)}</span> pra ver as parcelas
             e o valor total do boleto.
           </p>
+        </div>
+      ) : category === "" && budgetProcs.length > 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl">
+          <div className="px-6 sm:px-8 pt-10 pb-9 flex flex-col md:flex-row items-center md:items-start gap-8">
+            {!patientMode && (
+              <div className="w-56 shrink-0 text-left">
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs text-stone-400 whitespace-nowrap">Custo total</span>
+                    <span className="font-mono text-sm font-semibold text-rose-600">{money(calc.totalCost)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3 border-t border-stone-100 pt-2.5">
+                    <span className="text-xs text-stone-400 whitespace-nowrap">Nível do paciente</span>
+                    <span className="font-mono text-sm font-semibold text-stone-700">
+                      {calc.clientLevelPercent > 0 ? `+${pct(calc.clientLevelPercent)}` : "Padrão"}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3 border-t border-stone-100 pt-2.5">
+                    <span className="text-xs text-stone-400 whitespace-nowrap">Lucro à vista</span>
+                    <span
+                      className={`font-mono text-sm font-semibold text-right ${
+                        subtotal - calc.totalCost < 0 ? "text-rose-600" : "text-emerald-600"
+                      }`}
+                    >
+                      {subtotal !== 0 ? pct(((subtotal - calc.totalCost) / subtotal) * 100) : "—"} /{" "}
+                      {money(subtotal - calc.totalCost)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 text-center">
+              <div className="text-2xl sm:text-3xl font-bold text-stone-800 tracking-tight">
+                {budgetProcs.length === 1 ? budgetProcs[0].name : `${budgetProcs.length} procedimentos`}
+              </div>
+              <div className="text-lg sm:text-xl font-semibold text-teal-700 mt-1.5">Valor à vista</div>
+              <div className="text-6xl sm:text-7xl font-bold tracking-tight text-teal-800 font-mono mt-5 mb-1">
+                {money(subtotal)}
+              </div>
+              <p className="text-xs text-stone-400 mt-3 max-w-xs mx-auto">
+                Nenhuma forma de pagamento escolhida — esse é o valor à vista (Pix/dinheiro). Selecione uma forma de
+                pagamento acima se quiser calcular parcelamento, taxas ou repasse de encargos.
+              </p>
+            </div>
+          </div>
         </div>
       ) : budgetProcs.length > 0 ? (
         <div className="border border-dashed border-stone-300 rounded-2xl flex flex-col items-center justify-center py-16 text-stone-400">

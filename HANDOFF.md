@@ -49,7 +49,58 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — "Forma - Valor" ainda quebrava linha (valor caía pra baixo)
+## ✅ Feito nesta sessão — orçamento sem forma de pagamento escolhida agora mostra aviso de valor à vista
+
+Pedido do Marcelo: quando nenhuma forma de pagamento é selecionada no
+orçamento, ele quer um texto explicando que aquele valor é baseado em
+pagamento à vista (Pix ou dinheiro) e que outras formas de pagamento
+podem ter taxas/encargos — em vez de simplesmente não deixar
+salvar/exportar sem escolher uma forma.
+
+**Antes**, não escolher forma de pagamento bloqueava totalmente salvar
+e exportar (o botão "Salvar" ficava desabilitado, PDF/PNG/WhatsApp/
+Impressão não geravam nada) — a tela só mostrava "Escolha a forma de
+pagamento pra ver o valor a cobrar." e não tinha como seguir sem
+escolher uma.
+
+**Agora** (`app-frontend/src/App.jsx`, dentro de `SimulationPanel`):
+- `paymentReady` passou a considerar "nenhuma forma escolhida"
+  (`category === ""`) como um estado válido também — só continua
+  bloqueando quando uma forma FOI escolhida mas está incompleta (ex:
+  boleto sem a entrada mínima).
+- A tela de Novo Orçamento, quando nada está selecionado, mostra um
+  card com o valor total (à vista, sem taxa/imposto embutido) e o
+  aviso: *"Nenhuma forma de pagamento escolhida — esse é o valor à
+  vista (Pix/dinheiro). Selecione uma forma de pagamento acima se
+  quiser calcular parcelamento, taxas ou repasse de encargos."* — no
+  lugar do antigo placeholder tracejado "Escolha a forma de
+  pagamento...".
+- No modelo exportado (PDF/PNG/Impressão) e na mensagem de WhatsApp,
+  a seção "Forma de pagamento" mostra esse texto (frase mais curta,
+  version voltada pro paciente): *"Valor referente ao pagamento à
+  vista (Pix ou dinheiro). Outras formas de pagamento podem ter
+  acréscimo de taxas e encargos."* — no lugar de ficar vazio/"A
+  combinar".
+- No Histórico, o orçamento salvo sem forma escolhida aparece com
+  `"À vista (Pix ou dinheiro)"` em vez de "—".
+
+O texto do aviso ficou numa constante só (`DEFAULT_PAYMENT_NOTE`),
+reaproveitada tanto no card da tela quanto na exportação — não são
+frases idênticas (uma é mais longa/explicativa pra tela, a outra mais
+enxuta pro documento do paciente), mas a ideia é a mesma. Se o
+Marcelo quiser mudar o texto, é só me pedir — falei que não
+precisava ser com essas palavras exatas, então usei minha própria
+redação.
+
+**Testado**: `npm run build` do frontend limpo. Conferi que a nova
+constante e a lógica de `paymentReady` ficam dentro do escopo de
+`SimulationPanel` (mesma checagem de sempre pra evitar a classe de
+bug do `fileMenuOpen`). **Não testei clicando de verdade** — vale
+conferir: criar um orçamento, não escolher forma de pagamento, e ver
+se aparece o card com o aviso e se dá pra salvar/exportar/mandar por
+WhatsApp normalmente nesse estado.
+
+## Log anterior — "Forma - Valor" ainda quebrava linha (valor caía pra baixo)
 
 O Marcelo mandou print mostrando que, mesmo já no formato "Forma -
 Valor", a coluna de forma de pagamento no modelo exportado era
