@@ -49,7 +49,119 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — botões Custo/Desconto no orçamento + tela de Tutoriais em Configurações
+## ✅ Feito nesta sessão — editar o valor de um procedimento só naquele orçamento (não altera o catálogo)
+
+Pedido do Marcelo: em Novo Orçamento, depois de adicionar um
+procedimento à lista, poder clicar com o botão direito (ou toque e
+segure, no celular) e "Editar valor" — mudando o valor cobrado **só
+nesse orçamento específico**, sem tocar no valor cadastrado desse
+procedimento em Procedimentos.
+
+**Como foi implementado** (`app-frontend/src/App.jsx`, dentro de
+`SimulationPanel`):
+- Cada item do orçamento (`items`, dentro do estado do App) pode
+  carregar um campo opcional `valorBaseOverride`. Ele só existe
+  quando o valor daquele item específico foi ajustado; por padrão
+  não existe, e o item usa o `valorBase` do catálogo normalmente.
+- Ao montar `budgetProcs` (a lista que alimenta o cálculo e o
+  resumo do orçamento), se o item tiver `valorBaseOverride`, ele
+  sobrescreve o `valorBase` vindo do catálogo só naquele objeto
+  montado — o procedimento cadastrado em Procedimentos não é
+  alterado.
+- **Menu de contexto** em cada item da lista do orçamento — botão
+  direito no PC, toque e segure no celular (mesmo padrão de "toque e
+  segure" já usado na tabela de Procedimentos):
+  - Procedimento normal → "Editar valor" (abre modal com o valor
+    atual pra editar) e, se já tiver sido ajustado, "Restaurar valor
+    do cadastro" (remove o `valorBaseOverride`, volta a seguir o
+    catálogo).
+  - Item avulso (Custo/Desconto) → "Editar" (abre o mesmo modal que
+    já existia antes, agora também acessível pelo menu de contexto,
+    além do clique direto no item).
+  - "Remover" em qualquer um dos dois casos.
+- Quando um item está com valor ajustado, aparece um selo discreto
+  "· valor ajustado" ao lado do nome, na cor âmbar (só um indicador
+  visual, não é clicável).
+- **Importante — persistência no Histórico**: o valor ajustado
+  também é salvo dentro do próprio orçamento (`entry.procedures[].valorBaseOverride`,
+  em `handleSaveBudget`) e restaurado ao reabrir
+  (`handleReopenBudget`) — sem isso, reabrir um orçamento salvo
+  antes voltaria a usar o valor do catálogo, divergindo do que foi
+  realmente cobrado quando o orçamento foi salvo.
+- Build do frontend testado, sem erros.
+
+### Não foi tocado
+Itens avulsos (Custo/Desconto) já eram editáveis clicando direto —
+esse comportamento continua igual, só ganhou a opção adicional pelo
+menu de contexto.
+
+## ✅ Feito nesta sessão — "Tutoriais" de Configurações virou "Central de Ajuda" (artigos de texto, um por seção do sistema)
+
+Isso substitui o rascunho da sessão anterior (que reaproveitava o
+motor do tour de boas-vindas) — ver as respostas do Marcelo às
+perguntas que tinham ficado pendentes:
+- **Formato**: central de ajuda com artigos de texto por tópico —
+  **não** vídeo por enquanto, mas ele pretende gravar vídeos no
+  futuro, então cada artigo já tem um campo `videoUrl` (hoje `null`
+  em todos) pra encaixar um vídeo depois sem precisar mudar a
+  estrutura.
+- **Granularidade**: um artigo por seção do sistema (mais granular
+  que as 3 áreas do tour de boas-vindas).
+- Ele foi explícito: **não mexer no tour de boas-vindas** (`OnboardingTour`
+  / `TOUR_SECTIONS` / `TOUR_STEPS`) — "já está perfeito". Esse tour
+  continua exatamente como estava, disparado no primeiro acesso e via
+  "Rever tutorial" no menu do perfil. A Central de Ajuda é um sistema
+  **separado e novo**, só acessível pelo card em Configurações.
+
+**O que foi implementado** (`app-frontend/src/App.jsx`):
+- `HELP_ARTICLES` — array com 9 artigos, cada um `{ id, group, title,
+  summary, videoUrl, body }`. `group` é "Telas principais" ou
+  "Configurações" (usado só pra agrupar visualmente na lista).
+  `body` é uma lista de blocos `{ type: "p" | "h" | "list" | "tip",
+  ... }`, renderizados por `HelpArticleContent`. Os 9 artigos: Dashboard,
+  Novo Orçamento, Pacientes, Procedimentos, Custos/Materiais, Histórico,
+  Perfil/Dados da clínica, Custos (hora clínica e imposto), Formas de
+  Pagamento/Taxas.
+- Conteúdo de cada artigo foi escrito com base nos textos/tooltips que
+  já existiam no próprio app (campos de Configurações, tooltips das
+  colunas da tabela de Procedimentos, etc) — pra garantir que bate com
+  o comportamento real do sistema. Vale revisar com calma e ajustar o
+  tom/nível de detalhe se quiser.
+- `HelpArticleContent` — renderiza um artigo (título, resumo,
+  player de vídeo SE `videoUrl` estiver preenchido, parágrafos, listas
+  com bullet, e caixas de "dica" destacadas em teal).
+- `HelpCenterModal` — modal com lista de artigos agrupada à esquerda
+  (desktop) e o artigo selecionado à direita; no celular vira
+  navegação de duas telas (lista → artigo, com botão de voltar) em vez
+  de coluna dupla.
+- `HelpCenterSettingsCard` (substituiu `TutorialsSettingsCard`) — card
+  "Central de Ajuda" em Configurações, listando os 9 artigos com botão
+  "Ler artigo" cada, que abre o `HelpCenterModal` já naquele artigo.
+- Ícones novos importados de `lucide-react`: `HelpCircle`, `BookOpen`,
+  `PlayCircle` (ainda não usado no JSX, deixado importado pra quando o
+  vídeo for adicionado — se o linter reclamar de import não usado,
+  pode remover ele até lá), `ArrowLeft`.
+- Build do frontend (`npm run build`) testado, sem erros.
+
+**O que NÃO foi tocado**: `TOUR_SECTIONS`, `TOUR_STEPS`,
+`OnboardingTour`, `WelcomeModal`, e o fluxo de "Rever tutorial" no
+menu do perfil — tudo isso continua idêntico a antes.
+
+### Pendências / próximos passos possíveis
+- **Revisar o texto dos 9 artigos** com o Marcelo — foi escrito pela
+  Claude a partir do comportamento real do app, mas vale ele ler e
+  ajustar tom, corrigir algo que não reflita a prática do consultório
+  dele, ou pedir mais detalhe em algum ponto.
+- Quando ele gravar os vídeos: subir cada vídeo em algum storage
+  (ou como asset do próprio deploy) e preencher o `videoUrl` do
+  artigo correspondente em `HELP_ARTICLES` — o player já aparece
+  sozinho, sem precisar mudar `HelpArticleContent`/`HelpCenterModal`.
+- Não perguntado ainda: se ele quer alguma forma de busca/filtro
+  dentro da Central de Ajuda (hoje é só uma lista simples, sem busca)
+  — só adicionar se ele sentir falta, o catálogo ainda é pequeno (9
+  itens).
+
+## ✅ Feito numa sessão anterior — botões Custo/Desconto no orçamento + tela de Tutoriais em Configurações (rascunho — SUBSTITUÍDO pela Central de Ajuda acima)
 
 Dois pedidos do Marcelo nesta sessão:
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal } from "lucide-react";
+import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal, HelpCircle, BookOpen, PlayCircle, ArrowLeft } from "lucide-react";
 import { apiRequest, clearToken } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
@@ -6476,7 +6476,14 @@ function SimulationPanel({
         };
       }
       const proc = procedures.find((p) => p.id === it.procId);
-      return proc ? { ...proc, instanceId: it.instanceId } : null;
+      if (!proc) return null;
+      const overridden = it.valorBaseOverride !== undefined && it.valorBaseOverride !== null && it.valorBaseOverride !== "";
+      return {
+        ...proc,
+        instanceId: it.instanceId,
+        valorBase: overridden ? Number(it.valorBaseOverride) : proc.valorBase,
+        valorOverridden: overridden,
+      };
     })
     .filter(Boolean);
   const clientMarkupPercent = CLIENT_LEVEL_MARKUP[clientLevel] || 0;
@@ -6630,6 +6637,73 @@ function SimulationPanel({
 
   const [customItemModal, setCustomItemModal] = useState(null); // null | { instanceId?, name, cost, valorBase }
 
+  // Edição do valor de um procedimento SÓ nesse orçamento específico —
+  // não altera o valor cadastrado no catálogo de Procedimentos. Guardado
+  // como `valorBaseOverride` no item (dentro de `items`), aplicado só na
+  // hora de montar `budgetProcs` mais abaixo.
+  const [editValueModal, setEditValueModal] = useState(null); // null | { instanceId, name, value }
+
+  function updateItemValueOverride(instanceId, valorBaseOverride) {
+    setItems(items.map((it) => (it.instanceId === instanceId ? { ...it, valorBaseOverride } : it)));
+  }
+
+  function clearItemValueOverride(instanceId) {
+    setItems(
+      items.map((it) => {
+        if (it.instanceId !== instanceId) return it;
+        const { valorBaseOverride, ...rest } = it;
+        return rest;
+      })
+    );
+  }
+
+  // Menu de contexto (botão direito no PC, toque e segure no celular) de
+  // cada item já adicionado ao orçamento — "Editar valor" pros
+  // procedimentos normais, ou "Editar"/"Remover" pros itens avulsos
+  // (Custo/Desconto).
+  const [itemContextMenu, setItemContextMenu] = useState(null); // { x, y, instanceId }
+  const itemLongPressTimerRef = useRef(null);
+  const itemLongPressMovedRef = useRef(false);
+  const itemSuppressClickRef = useRef(false);
+
+  function openItemContextMenu(point, instanceId) {
+    point.preventDefault?.();
+    const menuWidth = 220;
+    const menuHeight = 130;
+    const x = Math.min(point.clientX, Math.max(8, window.innerWidth - menuWidth - 8));
+    const y = Math.min(point.clientY, Math.max(8, window.innerHeight - menuHeight - 8));
+    setItemContextMenu({ x, y, instanceId });
+  }
+
+  function itemLongPressHandlers(instanceId) {
+    return {
+      onTouchStart: (e) => {
+        itemLongPressMovedRef.current = false;
+        const touch = e.touches[0];
+        const point = { clientX: touch.clientX, clientY: touch.clientY };
+        itemLongPressTimerRef.current = setTimeout(() => {
+          if (!itemLongPressMovedRef.current) {
+            itemSuppressClickRef.current = true;
+            openItemContextMenu(point, instanceId);
+          }
+        }, 500);
+      },
+      onTouchMove: () => {
+        itemLongPressMovedRef.current = true;
+        if (itemLongPressTimerRef.current) {
+          clearTimeout(itemLongPressTimerRef.current);
+          itemLongPressTimerRef.current = null;
+        }
+      },
+      onTouchEnd: () => {
+        if (itemLongPressTimerRef.current) {
+          clearTimeout(itemLongPressTimerRef.current);
+          itemLongPressTimerRef.current = null;
+        }
+      },
+    };
+  }
+
   function addCustomItem({ kind, name, cost, valorBase }) {
     setItems([...items, { instanceId: uid(), custom: true, kind, name, cost, valorBase }]);
   }
@@ -6714,7 +6788,12 @@ function SimulationPanel({
       procedures: budgetProcs.map((p) =>
         p.custom
           ? { custom: true, name: p.name || "Item avulso", cost: p.cost, valorBase: p.valorBase, category: "Avulso" }
-          : { procId: p.id, name: p.name || "Sem nome", category: p.category || "" }
+          : {
+              procId: p.id,
+              name: p.name || "Sem nome",
+              category: p.category || "",
+              ...(p.valorOverridden ? { valorBaseOverride: p.valorBase } : {}),
+            }
       ),
       category: splitMode ? "" : category,
       installments: splitMode ? 1 : installments,
@@ -7466,10 +7545,19 @@ function SimulationPanel({
                 const occurrence = nameCounts[p.id];
                 const displayName = occurrence > 1 ? `${p.name || "Sem nome"} (${occurrence})` : p.name || "Sem nome";
                 return (
-                  <div key={p.instanceId} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                  <div
+                    key={p.instanceId}
+                    className="flex items-center justify-between gap-2 px-4 py-2.5"
+                    onContextMenu={(e) => openItemContextMenu(e, p.instanceId)}
+                    {...itemLongPressHandlers(p.instanceId)}
+                  >
                     <div
                       className={`min-w-0 flex items-baseline gap-2 ${p.custom ? "cursor-pointer hover:underline" : ""}`}
                       onClick={() => {
+                        if (itemSuppressClickRef.current) {
+                          itemSuppressClickRef.current = false;
+                          return;
+                        }
                         if (!p.custom) return;
                         const kind = p.kind || (Number(p.valorBase) < 0 ? "desconto" : "custo");
                         setCustomItemModal({
@@ -7480,10 +7568,15 @@ function SimulationPanel({
                           valorBase: kind === "desconto" ? Math.abs(Number(p.valorBase) || 0) : p.valorBase,
                         });
                       }}
-                      title={p.custom ? "Clique para editar este item" : undefined}
+                      title={p.custom ? "Clique para editar este item" : "Botão direito (ou toque e segure) para editar o valor"}
                     >
                       <span className="text-sm font-medium text-stone-800 truncate">{displayName}</span>
                       {p.category && <span className="text-xs text-stone-400 shrink-0">{p.category}</span>}
+                      {p.valorOverridden && (
+                        <span className="text-[10px] font-medium text-amber-600 shrink-0" title="Valor ajustado só nesse orçamento — não altera o cadastro em Procedimentos">
+                          · valor ajustado
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="font-mono text-sm text-stone-600">{money((Number(p.valorBase) || 0) * markupMult)}</span>
@@ -7957,6 +8050,128 @@ function SimulationPanel({
         </div>
       )}
       </div>
+
+      {itemContextMenu &&
+        (() => {
+          const menuItem = budgetProcs.find((p) => p.instanceId === itemContextMenu.instanceId);
+          if (!menuItem) return null;
+          return (
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setItemContextMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setItemContextMenu(null);
+              }}
+            >
+              <div
+                className="absolute bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden py-1 w-56"
+                style={{ top: `${itemContextMenu.y}px`, left: `${itemContextMenu.x}px` }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {menuItem.custom ? (
+                  <button
+                    onClick={() => {
+                      const kind = menuItem.kind || (Number(menuItem.valorBase) < 0 ? "desconto" : "custo");
+                      setCustomItemModal({
+                        instanceId: menuItem.instanceId,
+                        kind,
+                        name: menuItem.name,
+                        cost: menuItem.cost,
+                        valorBase: kind === "desconto" ? Math.abs(Number(menuItem.valorBase) || 0) : menuItem.valorBase,
+                      });
+                      setItemContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition inline-flex items-center gap-2"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-stone-400" /> Editar
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditValueModal({ instanceId: menuItem.instanceId, name: menuItem.name, value: menuItem.valorBase });
+                        setItemContextMenu(null);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition inline-flex items-center gap-2"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-stone-400" /> Editar valor
+                    </button>
+                    {menuItem.valorOverridden && (
+                      <button
+                        onClick={() => {
+                          clearItemValueOverride(menuItem.instanceId);
+                          setItemContextMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 transition"
+                      >
+                        Restaurar valor do cadastro
+                      </button>
+                    )}
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    removeItem(menuItem.instanceId);
+                    setItemContextMenu(null);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition"
+                >
+                  Remover
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+      {editValueModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setEditValueModal(null)}>
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-stone-800 mb-1 text-sm">Editar valor — {editValueModal.name}</h3>
+            <p className="text-xs text-stone-400 mb-4">
+              Vale só pra esse orçamento — não altera o valor cadastrado desse procedimento em Procedimentos.
+            </p>
+            <div>
+              <label className="text-xs text-stone-500 block mb-1">Valor cobrado nesse orçamento (R$)</label>
+              <input
+                type="number"
+                autoFocus
+                value={editValueModal.value}
+                onChange={(e) => setEditValueModal({ ...editValueModal, value: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+              />
+            </div>
+            <div className="flex justify-between items-center gap-2 mt-5">
+              <button
+                onClick={() => {
+                  clearItemValueOverride(editValueModal.instanceId);
+                  setEditValueModal(null);
+                }}
+                className="text-xs font-medium text-stone-500 hover:underline"
+              >
+                Restaurar valor do cadastro
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditValueModal(null)}
+                  className="text-xs font-medium text-stone-500 border border-stone-200 rounded-lg px-3 py-2 hover:bg-stone-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    updateItemValueOverride(editValueModal.instanceId, editValueModal.value);
+                    setEditValueModal(null);
+                  }}
+                  className="text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 py-2 hover:bg-teal-800"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {customItemModal && (
         <div
@@ -9213,37 +9428,377 @@ function SettingsSideNav() {
   );
 }
 
-// Card "Tutoriais" — último grupo do menu de Configurações. Cada seção de
-// TOUR_SECTIONS vira um tutorial independente, com seu próprio botão
-// "Iniciar" (roda só aqueles passos, terminando com "Concluir" no
-// último — usa o mesmo motor OnboardingTour do tour completo).
-function TutorialsSettingsCard({ onStartSection }) {
+// ─────────────────────────────────────────────────────────────────────────
+// CENTRAL DE AJUDA — artigos detalhados em texto, um por seção do sistema.
+// Isso é INDEPENDENTE do tour guiado de boas-vindas (TOUR_SECTIONS /
+// OnboardingTour, mais abaixo): aquele é o tour rápido/spotlight que roda na
+// primeira vez que a pessoa entra no app (ou via "Rever tutorial" no menu do
+// perfil) — não foi tocado. A Central de Ajuda é uma coisa nova, acessada só
+// pelo card "Central de Ajuda" em Configurações, com um artigo de texto mais
+// longo e completo por seção. Cada artigo tem um campo opcional `videoUrl`:
+// hoje fica sempre `null` (não existe vídeo ainda), mas quando o Marcelo
+// gravar os vídeos, basta preencher esse campo em cada artigo — o player
+// aparece sozinho no topo do artigo, sem precisar mudar o componente.
+const HELP_ARTICLES = [
+  {
+    id: "dashboard",
+    group: "Telas principais",
+    title: "Dashboard",
+    summary: "Os números do seu consultório: orçado, recebido, ticket médio e aprovação.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "O Dashboard é a tela inicial do Precifica — ele resume o desempenho dos seus orçamentos no período que você escolher (30 dias, 90 dias ou 12 meses, no seletor no canto superior direito)." },
+      { type: "h", text: "Os 4 números do topo" },
+      { type: "list", items: [
+        "Orçado no período — soma do valor de todos os orçamentos salvos no período, não importa o status.",
+        "Recebido (pago) — soma só dos orçamentos marcados com status \"Pago\" (ver o artigo de Histórico pra entender os status).",
+        "Ticket médio — orçado dividido pela quantidade de orçamentos do período.",
+        "Taxa de aprovação — dos orçamentos que já foram decididos (aprovado, pago ou reprovado — não conta os que ainda estão \"Em aberto\"), qual porcentagem foi aprovada ou paga.",
+      ] },
+      { type: "h", text: "Os gráficos" },
+      { type: "list", items: [
+        "\"Orçado vs recebido, por mês\" — linha comparando quanto foi orçado e quanto efetivamente entrou (pago), mês a mês.",
+        "\"Orçamentos por status\" — rosca mostrando a proporção de orçamentos em cada status no período.",
+        "\"Procedimentos mais orçados\" — os 5 procedimentos que mais apareceram nos orçamentos do período, do mais pro menos comum.",
+      ] },
+      { type: "tip", text: "Se os números parecem \"zerados\" ou incompletos, o motivo mais comum é orçamento sem status atualizado — dá uma olhada no Histórico e marque cada um como Aprovado, Pago ou Reprovado conforme o paciente decide." },
+    ],
+  },
+  {
+    id: "novo-orcamento",
+    group: "Telas principais",
+    title: "Novo Orçamento",
+    summary: "Como montar um orçamento, usar as estrelas de nível do paciente, custos extras e desconto.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "É aqui que você monta um orçamento pra um paciente — some quantos procedimentos precisar, ajusta o nível do paciente e exporta ou apresenta o resultado." },
+      { type: "h", text: "Passo a passo" },
+      { type: "list", items: [
+        "Preencha o nome do paciente (se já for cadastrado em Pacientes, telefone e email preenchem sozinhos ao digitar o nome).",
+        "Use o campo \"Buscar procedimento\" pra adicionar quantos procedimentos o paciente vai fazer — pode repetir o mesmo procedimento mais de uma vez.",
+        "Ajuste as estrelas de nível do paciente, se quiser (ver abaixo).",
+        "Exporte em PDF/PNG, imprima, ou clique em \"Apresentação\" pra mostrar o orçamento numa tela limpa, sem os números de custo/margem — só o que o paciente precisa ver.",
+      ] },
+      { type: "h", text: "Estrelas de nível do paciente" },
+      { type: "p", text: "As 5 estrelas ao lado do nome do orçamento ajustam a margem de lucro pra cima automaticamente, sem precisar mexer manualmente no preço de cada procedimento: 1 estrela = +10%, 2 = +20%, 3 = +30%, 4 = +40%, 5 = +50%. É útil pra pacientes de convênio/particular com perfis diferentes, ou pra aplicar uma margem extra em casos específicos (urgência, pagamento facilitado, etc). Clicar de novo na mesma estrela ativa tira o nível (volta pra 0%)." },
+      { type: "h", text: "Botões \"+ Custo\" e \"+ Desconto\"" },
+      { type: "list", items: [
+        "\"+ Custo\" (vermelho) — adiciona um item avulso ao orçamento que não é um procedimento cadastrado: um custo extra terceirizado, uma taxa de laboratório, etc. Você define o nome, o custo (o que sai do seu bolso) e o valor cobrado do paciente por esse item.",
+        "\"+ Desconto\" (verde) — aplica um desconto direto no orçamento: você só informa o valor do desconto, e ele é subtraído do total, sem afetar o custo de nenhum procedimento.",
+        "Pra editar um item avulso já adicionado (custo ou desconto), clique nele na lista do orçamento — o mesmo modal abre de novo com os valores salvos.",
+      ] },
+      { type: "tip", text: "\"Apresentação\" é a forma mais profissional de mostrar o orçamento pro paciente na tela — ela esconde custo, margem e qualquer número interno, mostrando só os procedimentos e o valor final." },
+    ],
+  },
+  {
+    id: "pacientes",
+    group: "Telas principais",
+    title: "Pacientes",
+    summary: "Cadastro de pacientes, sincronização automática com orçamentos, e histórico por paciente.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "A aba Pacientes guarda o cadastro (nome, telefone, email) de cada paciente e conecta automaticamente com os orçamentos salvos em nome dele." },
+      { type: "list", items: [
+        "Você não precisa cadastrar o paciente antes de orçar: basta digitar o nome dele em Novo Orçamento e salvar — o cadastro aparece aqui sozinho.",
+        "Clique em \"Novo paciente\" pra cadastrar manualmente (útil pra já deixar telefone/email prontos antes do primeiro orçamento).",
+        "Clique no nome de um paciente que já tem orçamentos (ele tem uma setinha do lado) pra expandir e ver todo o histórico de orçamentos daquele paciente, com data, procedimentos, valor e status — clique em qualquer um deles pra reabrir e continuar editando.",
+        "Os ícones de lápis e X no final de cada linha editam ou removem o cadastro do paciente (isso não apaga os orçamentos já salvos em nome dele).",
+      ] },
+      { type: "tip", text: "A busca no topo funciona por nome, telefone ou email — útil pra achar rápido um paciente numa lista grande." },
+    ],
+  },
+  {
+    id: "procedimentos",
+    group: "Telas principais",
+    title: "Procedimentos",
+    summary: "A tabela de procedimentos, colunas de custo/margem/lucro, categorias e edição.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "Aqui fica o catálogo de procedimentos do seu consultório — cada linha é um procedimento com seu custo, margem e preço cobrado, organizados por categoria." },
+      { type: "h", text: "As colunas da tabela" },
+      { type: "list", items: [
+        "Custo — custo de materiais clínicos usados no procedimento (não inclui tempo de cadeira nem custo adicional).",
+        "Custo adicional — terceirização (outro dentista) ou material de laboratório (ex: prótese), somado ao custo total.",
+        "Valor cobrado — o que é cobrado do paciente por esse procedimento.",
+        "Margem — margem de lucro alvo sobre o custo total. Clique direito (ou toque e segure, no celular) num valor de margem pra igualar a margem de todos os procedimentos visíveis de uma vez.",
+        "Sugerido — preço mínimo pra bater a margem definida, calculado a partir do custo total.",
+        "Duração — tempo de cadeira por sessão, em minutos.",
+        "Sessões — número de sessões necessárias; multiplica a Duração no cálculo do custo total de tempo.",
+        "Custo Total (vermelho) — soma de materiais + custo adicional + custo do tempo em cadeira.",
+        "Lucro (verde) — valor cobrado menos o custo total, antes de taxas de pagamento e impostos.",
+      ] },
+      { type: "h", text: "Categorias e organização" },
+      { type: "p", text: "Os procedimentos ficam agrupados em categorias reais (criar, editar e excluir categoria, não só uma divisão visual). Arraste procedimentos e categorias pra reordenar — a ordem é salva. No celular, toque e segure num procedimento pra abrir o menu de contexto (editar, excluir, etc); no computador, use o botão direito." },
+      { type: "list", items: [
+        "Clique num procedimento pra editar em detalhes — inclusive vincular os materiais usados, que calculam o custo automaticamente (ver o artigo de Custos/Materiais).",
+        "O botão de desfazer/refazer no topo da tela cobre as últimas alterações feitas na tabela.",
+        "Colunas são redimensionáveis arrastando a borda — a largura escolhida é lembrada.",
+      ] },
+      { type: "tip", text: "O botão \"Custos e materiais\" no topo leva pra a aba Custos/Materiais, onde fica o catálogo de materiais que alimenta o Custo de cada procedimento." },
+    ],
+  },
+  {
+    id: "custos-materiais",
+    group: "Telas principais",
+    title: "Custos/Materiais",
+    summary: "Catálogo de materiais, vínculo de material a procedimento, e importar/exportar.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "É a calculadora de custos de materiais, integrada ao Precifica — o custo de cada procedimento pode ser calculado automaticamente a partir dos materiais realmente usados nele, em vez de você digitar um custo estimado na mão." },
+      { type: "h", text: "Duas abas" },
+      { type: "list", items: [
+        "Procedimentos — mesma lista de procedimentos e categorias do catálogo (ver artigo de Procedimentos), com a coluna \"Uso\" mostrando os materiais vinculados a cada um.",
+        "Materiais — o catálogo de materiais em si: nome, marca, unidade de medida (ml, g, unidade, etc) e preço de compra. É esse preço que alimenta o cálculo de custo dos procedimentos que usam aquele material.",
+      ] },
+      { type: "h", text: "Como funciona o vínculo" },
+      { type: "p", text: "Ao editar um procedimento, você informa quais materiais ele usa e a quantidade de cada um (ex: \"2ml de anestésico\"). O Precifica calcula sozinho o custo desse consumo, com base no preço cadastrado do material — e se você reajustar o preço do material no catálogo, o custo de todos os procedimentos que usam ele é recalculado automaticamente." },
+      { type: "list", items: [
+        "Renomear um material no catálogo propaga o novo nome pra todos os procedimentos que já usam ele.",
+        "Importar uma planilha de materiais cria automaticamente os procedimentos que ainda não existem no catálogo.",
+        "Tem um botão pra exportar (backup) e importar o catálogo completo, e outro pra apagar todos os procedimentos de uma vez (com confirmação), se precisar recomeçar do zero.",
+      ] },
+      { type: "tip", text: "Os procedimentos e materiais já vêm com valores de exemplo, como ponto de partida — vale ir ajustando preço, custo e margem aos poucos, conforme a realidade real da sua clínica ou laboratório." },
+    ],
+  },
+  {
+    id: "historico",
+    group: "Telas principais",
+    title: "Histórico",
+    summary: "Todos os orçamentos salvos, filtro por status, e como reabrir ou excluir.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "O Histórico lista todos os orçamentos já salvos, com busca e filtro por status." },
+      { type: "list", items: [
+        "Em aberto — orçamento salvo, ainda sem decisão do paciente (é o status inicial).",
+        "Aprovado — o paciente topou fazer o tratamento, mas ainda não pagou.",
+        "Pago — o paciente já pagou (esse é o único status que conta como \"Recebido\" no Dashboard).",
+        "Reprovado — o paciente decidiu não seguir com o tratamento.",
+      ] },
+      { type: "p", text: "Clique em qualquer orçamento pra reabrir e continuar editando em Novo Orçamento, ou use o menu de status pra atualizar a decisão do paciente sem precisar reabrir o orçamento inteiro." },
+      { type: "tip", text: "Manter o status atualizado é o que faz os números do Dashboard (recebido, taxa de aprovação) refletirem a realidade — vale o hábito de marcar o status assim que o paciente decide." },
+    ],
+  },
+  {
+    id: "dados-clinica",
+    group: "Configurações",
+    title: "Perfil / Dados da clínica",
+    summary: "Nome, logo e dados da clínica que aparecem no orçamento exportado.",
+    videoUrl: null,
+    body: [
+      { type: "p", text: "O card \"Perfil\", em Configurações, guarda os dados que identificam sua clínica ou consultório nos orçamentos exportados e nas telas de apresentação." },
+      { type: "list", items: [
+        "Nome da clínica — aparece no topo do app e no cabeçalho do orçamento que o paciente recebe.",
+        "Logo — aparece no cabeçalho do orçamento exportado e como marca d'água de fundo.",
+        "Registro profissional (CRO/CRM) — tipo, UF e número, estruturados em campos separados.",
+      ] },
+      { type: "p", text: "O menu lateral de Configurações (sempre visível no computador) dá acesso rápido a todos os outros cards — Custos, Formas de Pagamento/Taxas e Central de Ajuda — sem precisar rolar a página." },
+    ],
+  },
+  {
+    id: "custo-hora-imposto",
+    group: "Configurações",
+    title: "Custos (hora clínica e imposto)",
+    summary: "Como o Precifica calcula seu custo por hora, e a provisão de imposto por regime.",
+    videoUrl: null,
+    body: [
+      { type: "h", text: "Custo da hora clínica" },
+      { type: "list", items: [
+        "Custos fixos mensais — tudo que você paga todo mês, atenda ou não: aluguel, água/luz/internet, salário da equipe, softwares. Não inclua material específico de procedimento (esse entra separado, no cadastro de cada procedimento).",
+        "Pró-labore desejado — quanto você quer receber de salário/lucro líquido por mês; é sua meta pessoal, não um custo da clínica, mas é somado aos custos fixos pra calcular o valor a cobrar.",
+        "Horas produtivas por mês — considere seu expediente de trabalho, não só o tempo efetivo com paciente na cadeira. Ex: 8h/dia, 5 dias por semana ≈ 160h/mês.",
+      ] },
+      { type: "p", text: "Com esses três números, o Precifica calcula seu \"Custo / hora resultante\" — é esse valor que entra no cálculo de custo de cada procedimento, junto com a Duração e as Sessões cadastradas nele." },
+      { type: "h", text: "Imposto" },
+      { type: "p", text: "Você escolhe o regime — Profissional liberal (CPF) ou CNPJ — e informa um percentual de provisão de imposto." },
+      { type: "list", items: [
+        "CNPJ (Simples Nacional) — use a \"Alíquota efetiva total\" que já vem pronta na guia de pagamento (DAS) todo mês.",
+        "CNPJ (Lucro Presumido) — peça ao seu contador a soma de IRPJ + CSLL + PIS + COFINS + ISS sobre a receita.",
+        "Profissional liberal (CPF) — o IR pelo Carnê-Leão usa uma tabela progressiva sobre receita menos despesas do ano inteiro; não existe alíquota fixa por atendimento, então esse campo é uma provisão estimada.",
+      ] },
+      { type: "tip", text: "Esse percentual é sempre uma aproximação, em qualquer um dos dois regimes — ele serve pra reservar uma margem realista dentro do preço, não é o cálculo exato do imposto que você vai pagar. Volte aqui de vez em quando e atualize conforme sua situação muda." },
+    ],
+  },
+  {
+    id: "formas-pagamento",
+    group: "Configurações",
+    title: "Formas de Pagamento/Taxas",
+    summary: "Quem absorve a taxa de cada forma de pagamento, e como configurar cartão, boleto e taxas personalizadas.",
+    videoUrl: null,
+    body: [
+      { type: "h", text: "Quem paga as taxas" },
+      { type: "list", items: [
+        "Cliente paga (padrão) — a taxa da forma de pagamento é embutida no valor cobrado; o valor final aumenta conforme a taxa do método escolhido.",
+        "Consultório assume — o valor cobrado do paciente é sempre o mesmo, não importa a forma de pagamento; o consultório absorve a taxa, reduzindo o lucro daquela venda. Você pode definir a partir de quantas parcelas no crédito o cliente passa a assumir a taxa (deixe em branco pra sempre absorver) — débito, PIX, boleto e convênio não são afetados por esse limite.",
+      ] },
+      { type: "h", text: "Cartão" },
+      { type: "p", text: "Você pode cadastrar mais de uma \"maquininha\" (preset), cada uma com sua taxa de débito e sua tabela de taxa por número de parcelas no crédito — útil se você usa operadoras diferentes ou quer comparar cenários." },
+      { type: "h", text: "Boleto e taxas personalizadas" },
+      { type: "p", text: "Boleto tem sua própria tabela de parcelamento (1x = à vista, até 18x). Em \"Taxas personalizadas\" você pode cadastrar outras formas de pagamento específicas do seu consultório (convênio, por exemplo), cada uma com seu próprio percentual de taxa." },
+      { type: "tip", text: "Essas configurações valem pra todo orçamento novo — mudanças aqui não alteram orçamentos já salvos no Histórico." },
+    ],
+  },
+];
+
+function HelpArticleContent({ article }) {
   return (
-    <SettingsCard id="sec-tutoriais" icon={<ClipboardList className="w-4 h-4 text-teal-700" />} title="Tutoriais">
+    <div>
+      <h3 className="text-lg font-semibold text-stone-800 mb-1">{article.title}</h3>
+      <p className="text-sm text-stone-400 mb-4 leading-relaxed">{article.summary}</p>
+      {article.videoUrl && (
+        <div className="mb-5 rounded-xl overflow-hidden border border-stone-200 bg-stone-50 aspect-video flex items-center justify-center">
+          <video src={article.videoUrl} controls className="w-full h-full" />
+        </div>
+      )}
+      <div className="space-y-3">
+        {article.body.map((block, i) => {
+          if (block.type === "h") {
+            return (
+              <h4 key={i} className="text-sm font-semibold text-stone-700 pt-1">
+                {block.text}
+              </h4>
+            );
+          }
+          if (block.type === "list") {
+            return (
+              <ul key={i} className="space-y-1.5 pl-1">
+                {block.items.map((it, j) => (
+                  <li key={j} className="text-sm text-stone-600 leading-relaxed flex gap-2">
+                    <span className="text-teal-600 shrink-0">•</span>
+                    <span>{it}</span>
+                  </li>
+                ))}
+              </ul>
+            );
+          }
+          if (block.type === "tip") {
+            return (
+              <div key={i} className="flex items-start gap-2 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2.5">
+                <HelpCircle className="w-3.5 h-3.5 text-teal-700 shrink-0 mt-0.5" />
+                <p className="text-xs text-teal-800 leading-relaxed">{block.text}</p>
+              </div>
+            );
+          }
+          return (
+            <p key={i} className="text-sm text-stone-600 leading-relaxed">
+              {block.text}
+            </p>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Modal da Central de Ajuda: lista de artigos (agrupados por seção) à
+// esquerda no desktop, conteúdo do artigo selecionado à direita. No celular,
+// vira uma navegação de duas telas (lista → artigo, com botão de voltar).
+function HelpCenterModal({ articles, initialArticleId, onClose }) {
+  const [selectedId, setSelectedId] = useState(initialArticleId || articles[0].id);
+  const selected = articles.find((a) => a.id === selectedId) || articles[0];
+  const groups = [];
+  articles.forEach((a) => {
+    let g = groups.find((g) => g.name === a.group);
+    if (!g) {
+      g = { name: a.group, items: [] };
+      groups.push(g);
+    }
+    g.items.push(a);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl w-full max-w-3xl h-full max-h-[640px] flex overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Lista de artigos — some no celular quando um artigo está aberto */}
+        <div className={`w-full sm:w-56 shrink-0 border-r border-stone-100 overflow-y-auto ${selectedId ? "hidden sm:block" : "block"}`}>
+          <div className="px-4 py-3.5 border-b border-stone-100 flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-teal-700" />
+            <span className="text-sm font-semibold text-stone-800">Central de Ajuda</span>
+          </div>
+          {groups.map((g) => (
+            <div key={g.name} className="py-2">
+              <div className="px-4 text-[11px] font-semibold uppercase tracking-wide text-stone-400 mb-1">{g.name}</div>
+              {g.items.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setSelectedId(a.id)}
+                  className={`w-full text-left px-4 py-2 text-sm transition ${
+                    a.id === selectedId ? "bg-teal-50 text-teal-800 font-medium" : "text-stone-600 hover:bg-stone-50"
+                  }`}
+                >
+                  {a.title}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Conteúdo do artigo — ocupa a tela inteira no celular */}
+        <div className={`flex-1 min-w-0 flex flex-col ${selectedId ? "block" : "hidden sm:block"}`}>
+          <div className="px-4 py-3 border-b border-stone-100 flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              className="sm:hidden text-stone-400 hover:text-stone-600"
+              title="Voltar pra lista"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-stone-400 flex-1 truncate">{selected.group}</span>
+            <button type="button" onClick={onClose} className="text-stone-300 hover:text-stone-500" title="Fechar">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            <HelpArticleContent article={selected} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Card "Central de Ajuda" — último grupo do menu de Configurações. Cada
+// artigo de HELP_ARTICLES tem um botão "Ler artigo", que abre o
+// HelpCenterModal já naquele artigo (dá pra navegar pra qualquer outro por
+// lá também). Isso é diferente do tour guiado rápido de boas-vindas
+// (spotlight na tela, ver TOUR_SECTIONS/OnboardingTour) — que continua
+// existindo do mesmo jeito, sem mudanças, acessível por "Rever tutorial" no
+// menu do perfil.
+function HelpCenterSettingsCard() {
+  const [openArticleId, setOpenArticleId] = useState(null);
+  return (
+    <SettingsCard id="sec-tutoriais" icon={<BookOpen className="w-4 h-4 text-teal-700" />} title="Central de Ajuda">
       <p className="text-xs text-stone-400 mb-4 leading-relaxed">
-        Um tutorial rápido pra cada etapa — clique em "Iniciar" pra ver o passo a passo destacado direto na tela.
+        Um artigo detalhado pra cada parte do sistema — clique em "Ler artigo" pra abrir a explicação completa.
       </p>
       <div className="space-y-3">
-        {TOUR_SECTIONS.map((section) => (
+        {HELP_ARTICLES.map((article) => (
           <div
-            key={section.id}
-            id={`sub-tutorial-${section.id}`}
+            key={article.id}
+            id={`sub-tutorial-${article.id}`}
             className="flex items-center justify-between gap-3 border border-stone-200 rounded-xl px-4 py-3 scroll-mt-4"
           >
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-stone-800">{section.title}</div>
-              <div className="text-xs text-stone-400 mt-0.5">{section.description}</div>
+              <div className="text-sm font-semibold text-stone-800">{article.title}</div>
+              <div className="text-xs text-stone-400 mt-0.5">{article.summary}</div>
             </div>
             <button
               type="button"
-              onClick={() => onStartSection(section.steps)}
+              onClick={() => setOpenArticleId(article.id)}
               className="shrink-0 text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 py-2 hover:bg-teal-800 transition"
             >
-              Iniciar
+              Ler artigo
             </button>
           </div>
         ))}
       </div>
+      {openArticleId && (
+        <HelpCenterModal articles={HELP_ARTICLES} initialArticleId={openArticleId} onClose={() => setOpenArticleId(null)} />
+      )}
     </SettingsCard>
   );
 }
@@ -10692,7 +11247,7 @@ export default function App() {
   const [tab, setTab] = useState(() => tabFromPath(window.location.pathname));
   const [showWelcome, setShowWelcome] = useState(false);
   const [tourStep, setTourStep] = useState(-1); // -1 = tour inativo
-  const [activeTourSteps, setActiveTourSteps] = useState(TOUR_STEPS); // qual lista de passos o tour em andamento está seguindo — o tour completo (TOUR_STEPS) ou só uma seção específica (ver tela "Tutoriais" em Configurações)
+  const [activeTourSteps, setActiveTourSteps] = useState(TOUR_STEPS); // qual lista de passos o tour guiado de boas-vindas está seguindo (sempre TOUR_STEPS completo — a Central de Ajuda em Configurações é outra coisa, não usa esse tour)
 
   // Troca de aba "de verdade" — atualiza o estado E a URL (com pushState,
   // sem recarregar a página), pra dar pra favoritar/compartilhar o link de
@@ -11102,7 +11657,13 @@ export default function App() {
       if (it.custom) {
         validItems.push({ instanceId: uid(), custom: true, name: it.name, cost: it.cost, valorBase: it.valorBase });
       } else if (procedures.some((p) => p.id === it.procId)) {
-        validItems.push({ instanceId: uid(), procId: it.procId });
+        validItems.push({
+          instanceId: uid(),
+          procId: it.procId,
+          ...(it.valorBaseOverride !== undefined && it.valorBaseOverride !== null && it.valorBaseOverride !== ""
+            ? { valorBaseOverride: it.valorBaseOverride }
+            : {}),
+        });
       } else {
         missingCount++;
       }
@@ -11799,12 +12360,7 @@ export default function App() {
                 clinicLogoError={clinicLogoError}
               />
               <SettingsPanel settings={settings} onChange={persistSettings} />
-              <TutorialsSettingsCard
-                onStartSection={(steps) => {
-                  setActiveTourSteps(steps);
-                  setTourStep(0);
-                }}
-              />
+              <HelpCenterSettingsCard />
             </div>
           </div>
         ) : tab === "calculadora" ? (
