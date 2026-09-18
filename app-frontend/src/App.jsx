@@ -4071,7 +4071,12 @@ function calcProcedure(proc, settings, materialsCatalog) {
   const totalCost = directCost + additionalCost + laborCost;
   const margin = Number(proc.marginPercent) || 0;
   const suggestedBase = Math.round(margin < 100 ? totalCost / (1 - margin / 100) : totalCost);
-  const listPrice = Number(proc.valorBase) > 0 ? Number(proc.valorBase) : suggestedBase;
+  // "!== 0" (não "> 0"): preço zero é "ainda não definido" (cai pro
+  // sugerido), mas um valor NEGATIVO é um preço de verdade — é assim que um
+  // item de desconto no orçamento (valorBase negativo) funciona, e um
+  // "> 0" cortaria esse valor fora, voltando pro sugerido e perdendo o
+  // desconto.
+  const listPrice = Number(proc.valorBase) !== 0 ? Number(proc.valorBase) : suggestedBase;
   // Base usada pra calcular o valor final cobrado (protegendo a margem
   // quando quem paga a taxa/imposto é o cliente): SEMPRE o preço de tabela
   // (listPrice — o "Valor" que o profissional definiu, ou o sugerido
@@ -4114,7 +4119,10 @@ function calcBudget(procList, settings, clientLevelPercent = 0, materialsCatalog
     const totalCost = directCost + additionalCost + laborCost;
     const margin = Number(proc.marginPercent) || 0;
     const suggestedBase = Math.round(margin < 100 ? totalCost / (1 - margin / 100) : totalCost);
-    const listPrice = Number(proc.valorBase) > 0 ? Number(proc.valorBase) : suggestedBase;
+    // "!== 0", não "> 0" — ver o mesmo comentário em calcProcedure: um
+    // valorBase negativo é um item de desconto de verdade, não "não
+    // definido".
+    const listPrice = Number(proc.valorBase) !== 0 ? Number(proc.valorBase) : suggestedBase;
     // Mesma correção de calcProcedure: a base pra proteger a margem no
     // valor final cobrado é sempre o preço de tabela (listPrice), nunca o
     // valor sugerido recalculado a partir do custo — senão o valor cobrado
@@ -6457,8 +6465,9 @@ function SimulationPanel({
           id: it.instanceId,
           instanceId: it.instanceId,
           custom: true,
+          kind: it.kind || "custo",
           name: it.name || "Item avulso",
-          category: "Avulso",
+          category: it.kind === "desconto" ? "Desconto" : "Avulso",
           cost: Number(it.cost) || 0,
           durationMinutes: 0,
           sessions: 1,
@@ -6621,12 +6630,12 @@ function SimulationPanel({
 
   const [customItemModal, setCustomItemModal] = useState(null); // null | { instanceId?, name, cost, valorBase }
 
-  function addCustomItem({ name, cost, valorBase }) {
-    setItems([...items, { instanceId: uid(), custom: true, name, cost, valorBase }]);
+  function addCustomItem({ kind, name, cost, valorBase }) {
+    setItems([...items, { instanceId: uid(), custom: true, kind, name, cost, valorBase }]);
   }
 
-  function updateCustomItem(instanceId, { name, cost, valorBase }) {
-    setItems(items.map((it) => (it.instanceId === instanceId ? { ...it, name, cost, valorBase } : it)));
+  function updateCustomItem(instanceId, { kind, name, cost, valorBase }) {
+    setItems(items.map((it) => (it.instanceId === instanceId ? { ...it, kind, name, cost, valorBase } : it)));
   }
 
   function removeItem(instanceId) {
@@ -7428,13 +7437,23 @@ function SimulationPanel({
           <div className="flex-1 min-w-0" data-tour="simulation-add-procedure">
             <ProcedureCombobox procedures={procedures} value="" onChange={addItem} />
           </div>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
           <button
             type="button"
-            onClick={() => setCustomItemModal({ name: "", cost: "", valorBase: "" })}
-            title="Adicionar item avulso (custo adicional, serviço terceirizado, etc — algo que não está na lista de procedimentos)"
-            className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full border border-stone-200 text-stone-600 hover:bg-stone-100 transition"
+            onClick={() => setCustomItemModal({ kind: "custo", name: "", cost: "", valorBase: "" })}
+            title="Adicionar um custo extra a esse orçamento (serviço terceirizado, taxa de laboratório, etc)"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 text-rose-600 text-sm font-medium py-2 hover:bg-rose-50 transition"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" /> Custo
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomItemModal({ kind: "desconto", name: "Desconto", cost: "0", valorBase: "" })}
+            title="Aplicar um desconto nesse orçamento"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-sm font-medium py-2 hover:bg-emerald-50 transition"
+          >
+            <Plus className="w-4 h-4" /> Desconto
           </button>
         </div>
 
@@ -7450,11 +7469,18 @@ function SimulationPanel({
                   <div key={p.instanceId} className="flex items-center justify-between gap-2 px-4 py-2.5">
                     <div
                       className={`min-w-0 flex items-baseline gap-2 ${p.custom ? "cursor-pointer hover:underline" : ""}`}
-                      onClick={() =>
-                        p.custom &&
-                        setCustomItemModal({ instanceId: p.instanceId, name: p.name, cost: p.cost, valorBase: p.valorBase })
-                      }
-                      title={p.custom ? "Clique para editar este item avulso" : undefined}
+                      onClick={() => {
+                        if (!p.custom) return;
+                        const kind = p.kind || (Number(p.valorBase) < 0 ? "desconto" : "custo");
+                        setCustomItemModal({
+                          instanceId: p.instanceId,
+                          kind,
+                          name: p.name,
+                          cost: p.cost,
+                          valorBase: kind === "desconto" ? Math.abs(Number(p.valorBase) || 0) : p.valorBase,
+                        });
+                      }}
+                      title={p.custom ? "Clique para editar este item" : undefined}
                     >
                       <span className="text-sm font-medium text-stone-800 truncate">{displayName}</span>
                       {p.category && <span className="text-xs text-stone-400 shrink-0">{p.category}</span>}
@@ -7939,10 +7965,18 @@ function SimulationPanel({
         >
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-semibold text-stone-800 mb-1 text-sm">
-              {customItemModal.instanceId ? "Editar item avulso" : "Novo item avulso"}
+              {customItemModal.kind === "desconto"
+                ? customItemModal.instanceId
+                  ? "Editar desconto"
+                  : "Novo desconto"
+                : customItemModal.instanceId
+                ? "Editar custo"
+                : "Novo custo"}
             </h3>
             <p className="text-xs text-stone-400 mb-4">
-              Pra custo adicional, serviço terceirizado ou qualquer coisa que não está na lista de procedimentos.
+              {customItemModal.kind === "desconto"
+                ? "Reduz o valor total desse orçamento — não mexe no custo."
+                : "Custo extra nesse orçamento — serviço terceirizado, taxa de laboratório, etc."}
             </p>
             <div className="space-y-3">
               <div>
@@ -7951,31 +7985,47 @@ function SimulationPanel({
                   autoFocus
                   value={customItemModal.name}
                   onChange={(e) => setCustomItemModal({ ...customItemModal, name: e.target.value })}
-                  placeholder="Ex: Prótese terceirizada, taxa de laboratório..."
+                  placeholder={
+                    customItemModal.kind === "desconto" ? "Ex: Desconto à vista..." : "Ex: Prótese terceirizada, taxa de laboratório..."
+                  }
                   className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {customItemModal.kind === "desconto" ? (
                 <div>
-                  <label className="text-xs text-stone-500 block mb-1">Custo (R$)</label>
+                  <label className="text-xs text-stone-500 block mb-1">Valor do desconto (R$)</label>
                   <input
                     type="number"
-                    value={customItemModal.cost}
-                    onChange={(e) => setCustomItemModal({ ...customItemModal, cost: e.target.value })}
-                    placeholder="Opcional"
-                    className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-stone-500 block mb-1">Valor cobrado (R$)</label>
-                  <input
-                    type="number"
+                    autoFocus={false}
                     value={customItemModal.valorBase}
                     onChange={(e) => setCustomItemModal({ ...customItemModal, valorBase: e.target.value })}
-                    className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+                    placeholder="0,00"
+                    className="w-full text-sm border border-emerald-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-400"
                   />
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-stone-500 block mb-1">Custo (R$)</label>
+                    <input
+                      type="number"
+                      value={customItemModal.cost}
+                      onChange={(e) => setCustomItemModal({ ...customItemModal, cost: e.target.value })}
+                      placeholder="Opcional"
+                      className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-stone-500 block mb-1">Valor cobrado (R$)</label>
+                    <input
+                      type="number"
+                      value={customItemModal.valorBase}
+                      onChange={(e) => setCustomItemModal({ ...customItemModal, valorBase: e.target.value })}
+                      className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-between items-center gap-2 mt-5">
               {customItemModal.instanceId ? (
@@ -8001,10 +8051,12 @@ function SimulationPanel({
                 <button
                   onClick={() => {
                     if (!customItemModal.name.trim()) return;
+                    const isDesconto = customItemModal.kind === "desconto";
                     const payload = {
+                      kind: customItemModal.kind,
                       name: customItemModal.name.trim(),
-                      cost: customItemModal.cost,
-                      valorBase: customItemModal.valorBase,
+                      cost: isDesconto ? 0 : customItemModal.cost,
+                      valorBase: isDesconto ? -Math.abs(Number(customItemModal.valorBase) || 0) : customItemModal.valorBase,
                     };
                     if (customItemModal.instanceId) {
                       updateCustomItem(customItemModal.instanceId, payload);
@@ -9129,6 +9181,15 @@ const SETTINGS_NAV_GROUPS = [
       { label: "Taxas personalizadas", href: "#sub-taxas-personalizadas" },
     ],
   },
+  {
+    label: "Tutoriais",
+    href: "#sec-tutoriais",
+    items: [
+      { label: "Dados da clínica", href: "#sub-tutorial-dados-clinica" },
+      { label: "Procedimentos e materiais", href: "#sub-tutorial-procedimentos-materiais" },
+      { label: "Novo orçamento", href: "#sub-tutorial-novo-orcamento" },
+    ],
+  },
 ];
 
 function SettingsSideNav() {
@@ -9149,6 +9210,41 @@ function SettingsSideNav() {
         </div>
       ))}
     </nav>
+  );
+}
+
+// Card "Tutoriais" — último grupo do menu de Configurações. Cada seção de
+// TOUR_SECTIONS vira um tutorial independente, com seu próprio botão
+// "Iniciar" (roda só aqueles passos, terminando com "Concluir" no
+// último — usa o mesmo motor OnboardingTour do tour completo).
+function TutorialsSettingsCard({ onStartSection }) {
+  return (
+    <SettingsCard id="sec-tutoriais" icon={<ClipboardList className="w-4 h-4 text-teal-700" />} title="Tutoriais">
+      <p className="text-xs text-stone-400 mb-4 leading-relaxed">
+        Um tutorial rápido pra cada etapa — clique em "Iniciar" pra ver o passo a passo destacado direto na tela.
+      </p>
+      <div className="space-y-3">
+        {TOUR_SECTIONS.map((section) => (
+          <div
+            key={section.id}
+            id={`sub-tutorial-${section.id}`}
+            className="flex items-center justify-between gap-3 border border-stone-200 rounded-xl px-4 py-3 scroll-mt-4"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-stone-800">{section.title}</div>
+              <div className="text-xs text-stone-400 mt-0.5">{section.description}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onStartSection(section.steps)}
+              className="shrink-0 text-xs font-semibold bg-teal-700 text-white rounded-lg px-3 py-2 hover:bg-teal-800 transition"
+            >
+              Iniciar
+            </button>
+          </div>
+        ))}
+      </div>
+    </SettingsCard>
   );
 }
 
@@ -10284,69 +10380,98 @@ function SettingsPanel({ settings, onChange }) {
 // clicar de verdade no botão destacado pra avançar (em vez de um botão
 // genérico de "Próximo") — é assim que o tutorial ensina "clique aqui" em
 // vez de só descrever.
-const TOUR_STEPS = [
+//
+// Os passos ficam agrupados em SEÇÕES (TOUR_SECTIONS) — cada seção é um
+// tutorial completo e independente sobre UMA etapa específica (dá pra
+// rodar ela sozinha, pela tela "Tutoriais" em Configurações, sem precisar
+// passar pelo tour inteiro) — e a lista `TOUR_STEPS` (usada pelo tour
+// completo, disparado pelo popup de boas-vindas ou por "Rever tutorial")
+// é só a junção de todas as seções em sequência.
+const TOUR_SECTIONS = [
   {
-    tab: "profile-settings",
-    target: '[data-tour="settings-clinic-name"]',
-    title: "Nome da clínica",
-    body: "Preenche aqui o nome que aparece no topo do app e no orçamento que o paciente recebe.",
+    id: "dados-clinica",
+    title: "Dados da clínica",
+    description: "Nome, logo, e onde configurar custo da hora, imposto e formas de pagamento.",
+    steps: [
+      {
+        tab: "profile-settings",
+        target: '[data-tour="settings-clinic-name"]',
+        title: "Nome da clínica",
+        body: "Preenche aqui o nome que aparece no topo do app e no orçamento que o paciente recebe.",
+      },
+      {
+        tab: "profile-settings",
+        target: '[data-tour="settings-clinic-logo"]',
+        title: "Logo",
+        body: "Envie a logo da sua clínica ou laboratório — ela aparece no cabeçalho do orçamento exportado e como marca d'água de fundo.",
+      },
+      {
+        tab: "profile-settings",
+        target: '[data-tour="settings-sidenav"]',
+        title: "Mais configurações",
+        body: "Por aqui você também define o custo da sua hora clínica, o imposto e as formas de pagamento aceitas (cartão, boleto, à vista). Pode preencher aos poucos, sem pressa.",
+      },
+    ],
   },
   {
-    tab: "profile-settings",
-    target: '[data-tour="settings-clinic-logo"]',
-    title: "Logo",
-    body: "Envie a logo da sua clínica ou laboratório — ela aparece no cabeçalho do orçamento exportado e como marca d'água de fundo.",
+    id: "procedimentos-materiais",
+    title: "Procedimentos e materiais",
+    description: "Como chegar nos custos de cada procedimento e no catálogo de materiais.",
+    steps: [
+      {
+        target: '[data-tour="tabnav-procedures"]',
+        title: "Procedimentos",
+        body: 'Clique em "Procedimentos" pra ver a lista de procedimentos já cadastrados na sua conta.',
+        requireClick: true,
+      },
+      {
+        tab: "procedures",
+        target: '[data-tour="procedures-open-calculadora"]',
+        title: "Custos e materiais",
+        body: "Clique aqui pra configurar quanto cada procedimento custa: horas, materiais usados e margem de lucro.",
+        requireClick: true,
+      },
+      {
+        tab: "calculadora",
+        target: '[data-tour="calculadora-mode-toggle"]',
+        title: "São valores base",
+        body: "Os procedimentos e o catálogo de materiais já vêm preenchidos com valores de exemplo — são só um ponto de partida. Ajuste preços, custos e margens aos poucos, de acordo com a realidade da sua clínica ou laboratório.",
+      },
+    ],
   },
   {
-    tab: "profile-settings",
-    target: '[data-tour="settings-sidenav"]',
-    title: "Mais configurações",
-    body: "Por aqui você também define o custo da sua hora clínica, o imposto e as formas de pagamento aceitas (cartão, boleto, à vista). Pode preencher aos poucos, sem pressa.",
-  },
-  {
-    target: '[data-tour="tabnav-procedures"]',
-    title: "Procedimentos",
-    body: 'Clique em "Procedimentos" pra ver a lista de procedimentos já cadastrados na sua conta.',
-    requireClick: true,
-  },
-  {
-    tab: "procedures",
-    target: '[data-tour="procedures-open-calculadora"]',
-    title: "Custos e materiais",
-    body: "Clique aqui pra configurar quanto cada procedimento custa: horas, materiais usados e margem de lucro.",
-    requireClick: true,
-  },
-  {
-    tab: "calculadora",
-    target: '[data-tour="calculadora-mode-toggle"]',
-    title: "São valores base",
-    body: "Os procedimentos e o catálogo de materiais já vêm preenchidos com valores de exemplo — são só um ponto de partida. Ajuste preços, custos e margens aos poucos, de acordo com a realidade da sua clínica ou laboratório.",
-  },
-  {
-    target: '[data-tour="tabnav-simulation"]',
-    title: "Novo Orçamento",
-    body: 'Clique em "+ Novo Orçamento" pra simular um orçamento pra um paciente.',
-    requireClick: true,
-  },
-  {
-    tab: "simulation",
-    target: '[data-tour="simulation-add-procedure"]',
-    title: "Monte o orçamento",
-    body: "Pesquise e selecione os procedimentos do paciente aqui — pode adicionar quantos precisar.",
-  },
-  {
-    tab: "simulation",
-    target: '[data-tour="simulation-star-picker"]',
-    title: "Nível do paciente",
-    body: "As estrelas ajustam a margem automaticamente pra cima (de +10% a +50%), conforme o perfil do paciente — sem precisar mexer no preço de cada procedimento na mão.",
-  },
-  {
-    target: '[data-tour="account-menu-button"]',
-    title: "Prontinho!",
-    body: 'Obrigado por usar o Precifica! Qualquer dúvida, sugestão ou bug que encontrar, clica aqui no seu ícone, em "Contato / Suporte", e manda uma mensagem pra gente.',
-    isLast: true,
+    id: "novo-orcamento",
+    title: "Novo orçamento",
+    description: "Como montar um orçamento, usar as estrelas de nível do paciente, e onde pedir ajuda.",
+    steps: [
+      {
+        target: '[data-tour="tabnav-simulation"]',
+        title: "Novo Orçamento",
+        body: 'Clique em "+ Novo Orçamento" pra simular um orçamento pra um paciente.',
+        requireClick: true,
+      },
+      {
+        tab: "simulation",
+        target: '[data-tour="simulation-add-procedure"]',
+        title: "Monte o orçamento",
+        body: "Pesquise e selecione os procedimentos do paciente aqui — pode adicionar quantos precisar.",
+      },
+      {
+        tab: "simulation",
+        target: '[data-tour="simulation-star-picker"]',
+        title: "Nível do paciente",
+        body: "As estrelas ajustam a margem automaticamente pra cima (de +10% a +50%), conforme o perfil do paciente — sem precisar mexer no preço de cada procedimento na mão.",
+      },
+      {
+        target: '[data-tour="account-menu-button"]',
+        title: "Prontinho!",
+        body: 'Obrigado por usar o Precifica! Qualquer dúvida, sugestão ou bug que encontrar, clica aqui no seu ícone, em "Contato / Suporte", e manda uma mensagem pra gente.',
+      },
+    ],
   },
 ];
+
+const TOUR_STEPS = TOUR_SECTIONS.flatMap((section) => section.steps);
 
 function WelcomeModal({ onStart, onSkip }) {
   return (
@@ -10388,9 +10513,10 @@ function findVisibleTourTarget(selector) {
   return null;
 }
 
-function OnboardingTour({ step, setStep, tab, navigateTab, onFinish }) {
+function OnboardingTour({ steps, step, setStep, tab, navigateTab, onFinish }) {
   const [rect, setRect] = useState(null);
-  const current = TOUR_STEPS[step];
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
   const clickCleanupRef = useRef(null);
 
   // Passos com "tab" definido já começam trocando de aba sozinhos (passos
@@ -10471,7 +10597,7 @@ function OnboardingTour({ step, setStep, tab, navigateTab, onFinish }) {
   if (!current) return null;
 
   function goNext() {
-    if (current.isLast) {
+    if (isLast) {
       onFinish();
     } else {
       setStep((s) => s + 1);
@@ -10529,7 +10655,7 @@ function OnboardingTour({ step, setStep, tab, navigateTab, onFinish }) {
       <div style={tooltipStyle} className="bg-white rounded-2xl shadow-2xl p-4">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">
-            Passo {step + 1} de {TOUR_STEPS.length}
+            Passo {step + 1} de {steps.length}
           </span>
           <button onClick={onFinish} className="text-stone-300 hover:text-stone-500 transition" title="Fechar tutorial">
             <X className="w-4 h-4" />
@@ -10549,7 +10675,7 @@ function OnboardingTour({ step, setStep, tab, navigateTab, onFinish }) {
               onClick={goNext}
               className="bg-teal-700 text-white text-xs font-semibold rounded-lg px-3.5 py-2 hover:bg-teal-800 transition"
             >
-              {current.isLast ? "Concluir" : "Próximo"}
+              {isLast ? "Concluir" : "Próximo"}
             </button>
           )}
         </div>
@@ -10566,6 +10692,7 @@ export default function App() {
   const [tab, setTab] = useState(() => tabFromPath(window.location.pathname));
   const [showWelcome, setShowWelcome] = useState(false);
   const [tourStep, setTourStep] = useState(-1); // -1 = tour inativo
+  const [activeTourSteps, setActiveTourSteps] = useState(TOUR_STEPS); // qual lista de passos o tour em andamento está seguindo — o tour completo (TOUR_STEPS) ou só uma seção específica (ver tela "Tutoriais" em Configurações)
 
   // Troca de aba "de verdade" — atualiza o estado E a URL (com pushState,
   // sem recarregar a página), pra dar pra favoritar/compartilhar o link de
@@ -11620,6 +11747,7 @@ export default function App() {
                 onOpenProfileSettings={() => navigateTab("profile-settings")}
                 onStartTour={() => {
                   setShowWelcome(false);
+                  setActiveTourSteps(TOUR_STEPS);
                   setTourStep(0);
                 }}
               />
@@ -11671,6 +11799,12 @@ export default function App() {
                 clinicLogoError={clinicLogoError}
               />
               <SettingsPanel settings={settings} onChange={persistSettings} />
+              <TutorialsSettingsCard
+                onStartSection={(steps) => {
+                  setActiveTourSteps(steps);
+                  setTourStep(0);
+                }}
+              />
             </div>
           </div>
         ) : tab === "calculadora" ? (
@@ -11861,6 +11995,7 @@ export default function App() {
         <WelcomeModal
           onStart={() => {
             setShowWelcome(false);
+            setActiveTourSteps(TOUR_STEPS);
             setTourStep(0);
           }}
           onSkip={() => setShowWelcome(false)}
@@ -11869,6 +12004,7 @@ export default function App() {
 
       {tourStep >= 0 && (
         <OnboardingTour
+          steps={activeTourSteps}
           step={tourStep}
           setStep={setTourStep}
           tab={tab}

@@ -49,7 +49,82 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
-## ✅ Feito nesta sessão — orçamento sem forma de pagamento escolhida agora mostra aviso de valor à vista
+## ✅ Feito nesta sessão — botões Custo/Desconto no orçamento + tela de Tutoriais em Configurações
+
+Dois pedidos do Marcelo nesta sessão:
+
+**1. Botão "+" (item avulso) virou dois botões: "+ Custo" (vermelho) e
+"+ Desconto" (verde)** — `app-frontend/src/App.jsx`, dentro de
+`SimulationPanel`, dois botões lado a lado logo abaixo de "Buscar
+procedimento", no lugar do antigo botão "+" redondo único.
+- **"+ Custo"** (vermelho) — funciona exatamente como o antigo "item
+  avulso": nome + campo "Custo (R$)" + campo "Valor cobrado (R$)",
+  pra um custo extra terceirizado, taxa de laboratório etc.
+- **"+ Desconto"** (verde) — modal simplificado, um campo só ("Valor
+  do desconto"): salva como `valorBase` NEGATIVO (`cost: 0`), então
+  desconta direto do total do orçamento sem mexer no custo.
+- Achei e corrigi um bug real no caminho: `calcProcedure`/`calcBudget`
+  tratavam qualquer `valorBase` que não fosse **estritamente maior que
+  zero** como "ainda não definido" (caindo pro valor sugerido, que
+  ignoraria o desconto) — troquei a checagem pra `!== 0`, então um
+  valor negativo agora é respeitado como um preço de verdade (o
+  desconto), e zero continua significando "não definido".
+- Cada item guarda de que tipo é (`kind: "custo"`/`"desconto"`), pra
+  reabrir o modal certo ao clicar nele de novo pra editar; itens
+  antigos sem esse campo (de um orçamento reaberto do Histórico, salvo
+  antes dessa mudança) continuam funcionando — o app deduz o tipo pelo
+  sinal do valor.
+
+**2. Item "Tutoriais" no menu de Configurações, com um tutorial
+específico por etapa** — reestruturei o tutorial guiado da sessão
+anterior: em vez de uma lista única (`TOUR_STEPS`), agora existem 3
+SEÇÕES independentes (`TOUR_SECTIONS`), cada uma um tutorial completo
+por si só:
+1. **Dados da clínica** (nome, logo, mais configurações)
+2. **Procedimentos e materiais** (clique em Procedimentos → Custos/
+   Materiais → aviso de valores base)
+3. **Novo orçamento** (clique em Novo Orçamento → buscar procedimento
+   → estrelas → agradecimento final)
+
+`TOUR_STEPS` (usado pelo popup de boas-vindas e por "Rever tutorial",
+que continuam disparando o tour INTEIRO, sem mudança nenhuma pro
+Marcelo notar aí) agora é só a junção das 3 seções em sequência —
+generalizei o motor (`OnboardingTour`) pra aceitar qualquer lista de
+passos via prop (`steps`), então rodar só uma seção usa exatamente o
+mesmo destaque/spotlight/avanço-por-clique de sempre, só que
+terminando em "Concluir" no fim daquela seção específica, não do tour
+inteiro.
+
+A tela de Configurações ganhou um card novo, "Tutoriais" (adicionei
+também como último grupo no menu lateral, `SETTINGS_NAV_GROUPS`),
+listando as 3 etapas com descrição curta e um botão "Iniciar" em cada
+uma — clicar chama `setActiveTourSteps(section.steps)` +
+`setTourStep(0)`, e o tour roda normalmente a partir dali (inclusive
+saindo da tela de Configurações sozinho quando o passo pede pra
+clicar em algum outro lugar, como já funcionava antes).
+
+**Cuidado que tomei**: a lista `SETTINGS_NAV_GROUPS` é avaliada assim
+que o arquivo carrega (não é uma função) — colocar `TOUR_SECTIONS.map(...)`
+direto dentro dela teria quebrado o app inteiro (TOUR_SECTIONS só é
+definida bem mais adiante no arquivo, então nesse ponto ainda não
+existiria — erro de "usar antes de inicializar"). Deixei os 3 links
+desse grupo como uma lista fixa (só texto, sem depender de
+TOUR_SECTIONS) — o card em si (que É uma função, roda só na hora de
+desenhar a tela) usa TOUR_SECTIONS sem problema nenhum.
+
+**Testado**: `npm run build` do frontend limpo (depois de corrigir o
+erro de sintaxe que eu mesmo introduzi no meio da sessão — deixei
+registrado no histórico de mensagens como um lembrete de que vale a
+pena conferir array/objeto fechados direito depois de editar um bloco
+grande). Conferi que todos os `data-tour` das 3 seções continuam
+batendo com os elementos certos, e que nenhuma variável nova ficou
+fora do escopo de onde devia estar. **Não testei clicando de
+verdade** — vale conferir: os botões "+ Custo"/"+ Desconto" no Novo
+Orçamento (incluindo editar um item já adicionado, dos dois tipos), e
+a tela de Tutoriais em Configurações (cada um dos 3 botões "Iniciar",
+conferindo se destaca os elementos certos e termina em "Concluir").
+
+## Log anterior — orçamento sem forma de pagamento escolhida agora mostra aviso de valor à vista
 
 Pedido do Marcelo: quando nenhuma forma de pagamento é selecionada no
 orçamento, ele quer um texto explicando que aquele valor é baseado em
@@ -130,7 +205,7 @@ teoria pode fazer o texto ultrapassar visualmente a coluna nesse
 cenário extremo — vale ficar de olho nisso especificamente com
 orçamentos de pagamento dividido com muitas partes.
 
-## ✅ Feito nesta sessão — BUG CRÍTICO corrigido: preço final ignorava o "Valor" definido manualmente
+## Log anterior — BUG CRÍTICO corrigido: preço final ignorava o "Valor" definido manualmente
 
 O Marcelo reportou: configurar custos fixos, pró-labore, imposto etc
 em Configurações fazia os preços finais mudarem sozinhos em
