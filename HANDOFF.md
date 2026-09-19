@@ -49,6 +49,122 @@ deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
 removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
 simplesmente fica parado, sem uso.
 
+## ✅ Feito nesta sessão — cards da Visão Geral clicáveis, abrindo a lista de usuários por trás do número
+
+Pedido do Marcelo: clicar em cards como "Assinaturas em risco",
+"Cancelamentos" ou "Conversão trial → pago" e ver a lista de quem
+está por trás daquele número, não só o total.
+
+**Backend** (`src/routes/admin.js`) — novo endpoint `GET
+/api/admin/dashboard-stats/group?group=<grupo>&days=<n>`, que
+devolve `{ label, users: [...] }`. Grupos disponíveis:
+`totalUsers`, `activePaid`, `activeTrial`, `atRisk` (não dependem do
+período), e `newUsers`, `cancelled`, `trialConversion` (respeitam o
+mesmo `days` do filtro da Visão Geral). Cada usuário retornado traz
+email, nome/clínica, tipo de licença e as datas relevantes pra
+aquele grupo específico (cadastro, validade, cancelamento, início do
+trial, se converteu ou não).
+
+**Frontend** (`app-frontend/src/AdminDashboard.jsx`):
+- `StatCard` ganhou uma prop `onClick` opcional — quando presente, o
+  card fica com cursor de mão e destaque no hover.
+- Novo `GroupUsersModal` — lista os usuários daquele grupo (nome/
+  e-mail, badge do tipo de licença, e as datas que fizerem sentido
+  pra cada um), com estado de carregamento e "nenhuma conta nesse
+  grupo agora" quando vazio.
+- Cards ligados a um grupo: **Usuários totais**, **Assinantes pagos
+  ativos**, **Em teste grátis agora**, **MRR estimado** (abre a
+  mesma lista de "Assinantes pagos ativos", já que é o que compõe
+  esse valor), **Conversão trial → pago** (só clicável quando já
+  existe algum trial, senão fica sem ação), **Novos cadastros**,
+  **Cancelamentos** e **Assinaturas em risco**.
+- **Não ficou clicável**: "Receita recebida" — esse número vem direto
+  da API do Stripe (faturas pagas), não tem uma lista de usuários do
+  nosso banco que bata exatamente com ele.
+
+Build do frontend testado, `node --check` no backend, sem erros.
+
+## ✅ Feito nesta sessão — campo "Descrição" opcional ao gerar uma chave de licença
+
+Pedido do Marcelo: ao gerar uma chave manualmente no admin, poder
+escrever uma descrição opcional (pra quem é, por qual motivo) — e
+essa descrição aparecer depois na lista de Usuários/Chaves.
+
+**Banco de dados** (`src/migrate.js`): nova coluna
+`licenses.description` (TEXT, opcional) — migração idempotente
+(`ADD COLUMN IF NOT EXISTS`), roda sozinha no próximo deploy, sem
+precisar de nada manual no Railway.
+
+**Backend** (`src/routes/admin.js`):
+- `POST /api/admin/licenses` agora aceita `description` no corpo da
+  requisição (opcional, aparado com `.trim()`, vira `null` se vazio)
+  e salva junto com a chave.
+- `GET /api/admin/users` agora também traz `license_description`
+  (a rota já usava `SELECT l.*` em `/licenses`, então essa não
+  precisou de mudança).
+
+**Frontend** (`app-frontend/src/AdminDashboard.jsx`):
+- Os 4 botões "+ Chave mensal/trial/anual/vitalícia" não geram mais
+  a chave na hora — agora abrem um modal pedindo a descrição (com
+  aviso de que é opcional e só aparece no painel, o cliente nunca
+  vê), com botão "Gerar chave" pra confirmar (ou "Cancelar").
+- A descrição aparece embaixo da origem ("Admin · Gerada
+  manualmente") em itálico, tanto na aba **Usuários** quanto na aba
+  **Chaves de licença** — só quando preenchida.
+
+Build do frontend testado, `node --check` no backend e na migração,
+sem erros.
+
+## ✅ Feito nesta sessão — 4 ajustes no painel admin (badges de licença, bug do menu de ações, e MRR/assinantes pagos só contando cartão de verdade)
+
+Tudo dentro de `app-frontend/src/AdminDashboard.jsx` (e `src/routes/admin.js` pro item 4):
+
+1. **Vitalícia sem "d restantes"** — `licenseBadge()` mostrava "Ativa ·
+   d restantes" pras licenças vitalícias (o número ficava em branco
+   porque vitalícia não tem `expires_at`). Agora, se
+   `user.license_type === "lifetime"`, mostra só "Ativa", sem nenhum
+   cálculo de dias.
+2. **Texto "d restantes" sem quebrar linha** — `StatusBadge` (usado
+   em todos os badges do painel admin) ganhou `whitespace-nowrap` —
+   antes "364d restantes" quebrava em duas linhas dentro do badge
+   pequeno, ficando estranho.
+3. **Bug do menu de ações fechando antes de confirmar** —
+   `RowActionsMenu` fechava o menu (`setOpen(false)`) em TODO clique,
+   incluindo o primeiro clique em "Remover"/"Remover chave"/"Excluir
+   conta", que só arma a confirmação (o texto vira "Confirmar
+   exclusão?" por 3 segundos) — como o menu fechava, o Marcelo tinha
+   que abrir de novo pra ver esse texto e clicar uma segunda vez.
+   Corrigido: cada ação agora pode declarar `keepOpen: true/false`;
+   as ações de exclusão usam `keepOpen: confirmDelete... !== id`
+   (mantém o menu aberto no clique que só arma a confirmação, fecha
+   no clique que de fato confirma/executa). As outras ações
+   (Renovar, Revogar, Bloquear) continuam fechando o menu normalmente
+   como antes.
+4. **MRR e "Assinantes pagos ativos" só contam quem paga de
+   verdade por cartão (Stripe)** — antes essas duas métricas da Visão
+   Geral contavam QUALQUER licença mensal/anual ativa, incluindo as
+   geradas manualmente no admin (sem cobrança nenhuma por trás) — o
+   que inflava os números artificialmente. Os dois `SELECT` em
+   `dashboard-stats` (`activePaidRes` e `planCountsRes`, que
+   alimentam `mrr`) agora exigem `stripe_subscription_id IS NOT
+   NULL` — só entra na conta quem tem assinatura Stripe de verdade
+   por trás. `revenueInPeriod` já vinha direto da API do Stripe (não
+   precisou mudar, já era só cobrança real). Atualizei também o texto
+   de ajuda (`hint`) desses dois cards pra deixar isso explícito.
+
+**Bônus, não pedido explicitamente mas junto do item 1** — adicionei
+indicação de **assinatura cancelada**: se
+`user.license_cancel_at_period_end` for `true` (cliente já cancelou
+o auto-renovo, mas ainda está dentro do período pago), o badge agora
+mostra "Cancelada · Xd restantes" (âmbar) em vez de "Ativa · Xd
+restantes" (teal) — antes não tinha nenhuma indicação disso na tabela
+de Usuários, só dava pra saber abrindo a conta do cliente lá no app
+dele.
+
+Build do frontend testado, sem erros. Backend só teve mudança de
+SQL (sem migração — não criou/alterou coluna nenhuma, só o filtro do
+`SELECT`), `node --check` passou limpo.
+
 ## ✅ Feito nesta sessão — Central de Ajuda simplificada: só o modal, acionado de 2 lugares
 
 O Marcelo aprovou o conteúdo dos artigos (modal com lista + artigo,

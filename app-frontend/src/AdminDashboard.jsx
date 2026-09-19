@@ -12,6 +12,7 @@ import {
   UserPlus,
   Percent,
   MoreVertical,
+  X,
 } from "lucide-react";
 
 function StatusBadge({ children, tone }) {
@@ -24,7 +25,9 @@ function StatusBadge({ children, tone }) {
     violet: "bg-violet-50 text-violet-700 border-violet-200",
   };
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${tones[tone]}`}
+    >
       {children}
     </span>
   );
@@ -42,7 +45,9 @@ function money(value) {
 // cores (teal/amber/rose/indigo) já têm override de modo escuro pronto no
 // index.css (mesmo usado no resto do app), então esse card funciona nos
 // dois temas sem precisar de nenhuma classe condicional extra.
-function StatCard({ icon: Icon, tone, label, value, hint }) {
+// Quando `onClick` é passado, o card vira clicável (cursor de mão + destaque
+// no hover) — usado pra abrir a lista de usuários por trás daquele número.
+function StatCard({ icon: Icon, tone, label, value, hint, onClick }) {
   const toneClasses = {
     teal: "bg-teal-50 text-teal-700",
     amber: "bg-amber-50 text-amber-700",
@@ -50,12 +55,82 @@ function StatCard({ icon: Icon, tone, label, value, hint }) {
     indigo: "bg-indigo-50 text-indigo-700",
   };
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-4" title={hint}>
+    <div
+      className={`bg-white border border-stone-200 rounded-2xl p-4 ${
+        onClick ? "cursor-pointer hover:border-teal-300 hover:shadow-sm transition" : ""
+      }`}
+      title={hint}
+      onClick={onClick}
+    >
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${toneClasses[tone]}`}>
         <Icon className="w-4 h-4" />
       </div>
       <div className="text-xs text-stone-500 mb-1">{label}</div>
       <div className="text-xl font-bold text-stone-800">{value}</div>
+    </div>
+  );
+}
+
+// Modal com a lista de usuários por trás de um dos números da Visão Geral
+// (ex: quem exatamente está em "Assinaturas em risco"). Os campos extra por
+// usuário variam de grupo pra grupo (data de cadastro, cancelamento, etc) —
+// só mostra os que vierem preenchidos na resposta da API.
+function GroupUsersModal({ data, loading, onClose }) {
+  const users = data?.users || [];
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="font-bold text-stone-800">{data?.label || "Carregando..."}</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-xs text-stone-500 mb-4">
+          {loading ? "Carregando..." : `${users.length} ${users.length === 1 ? "conta" : "contas"}`}
+        </p>
+        <div className="flex-1 overflow-y-auto -mx-6 px-6 divide-y divide-stone-100">
+          {loading ? (
+            <div className="text-xs text-stone-400 py-10 text-center">Carregando...</div>
+          ) : users.length === 0 ? (
+            <div className="text-xs text-stone-400 py-10 text-center">Nenhuma conta nesse grupo agora.</div>
+          ) : (
+            users.map((u) => (
+              <div key={u.id} className="py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-stone-800 truncate">
+                      {u.name || u.clinic_name || u.email}
+                    </div>
+                    <div className="text-xs text-stone-400 truncate">{u.email}</div>
+                  </div>
+                  {u.license_type && (
+                    <StatusBadge tone={licenseTypeInfo(u.license_type).tone}>
+                      {licenseTypeInfo(u.license_type).label}
+                    </StatusBadge>
+                  )}
+                </div>
+                {(u.created_at || u.cancelled_at || u.expires_at || u.trial_started_at || typeof u.converted === "boolean") && (
+                  <div className="text-[11px] text-stone-400 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {u.created_at && <span>Cadastro: {formatDate(u.created_at)}</span>}
+                    {u.trial_started_at && <span>Trial iniciado: {formatDate(u.trial_started_at)}</span>}
+                    {u.cancelled_at && <span>Cancelou em: {formatDate(u.cancelled_at)}</span>}
+                    {u.expires_at && <span>Validade: {formatDate(u.expires_at)}</span>}
+                    {typeof u.converted === "boolean" && (
+                      <span className={u.converted ? "text-teal-600 font-medium" : "text-stone-400"}>
+                        {u.converted ? "Converteu pra pago" : "Ainda não converteu"}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -72,11 +147,20 @@ function licenseBadge(user) {
   if (!user.license_code) return <StatusBadge tone="stone">Sem licença</StatusBadge>;
   if (user.status === "blocked") return <StatusBadge tone="rose">Conta bloqueada</StatusBadge>;
   if (user.license_status === "revoked") return <StatusBadge tone="rose">Revogada</StatusBadge>;
+  // Vitalícia não tem data de validade nenhuma — "d restantes" não faz
+  // sentido aqui (dava esse badge quebrado: "Ativa · d restantes", com o
+  // número em branco).
+  if (user.license_type === "lifetime") return <StatusBadge tone="teal">Ativa</StatusBadge>;
   const daysLeft = user.license_expires_at
     ? Math.ceil((new Date(user.license_expires_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
     : null;
   if (user.license_status === "expired" || (daysLeft !== null && daysLeft < 0)) {
     return <StatusBadge tone="rose">Expirada</StatusBadge>;
+  }
+  // Cliente já cancelou (não vai renovar sozinha), mas ainda está dentro do
+  // período já pago — continua com acesso até a validade.
+  if (user.license_cancel_at_period_end) {
+    return <StatusBadge tone="amber">Cancelada · {daysLeft}d restantes</StatusBadge>;
   }
   if (daysLeft !== null && daysLeft <= 5) return <StatusBadge tone="amber">Expira em {daysLeft}d</StatusBadge>;
   return <StatusBadge tone="teal">Ativa · {daysLeft}d restantes</StatusBadge>;
@@ -143,7 +227,7 @@ function RowActionsMenu({ actions }) {
             <button
               key={i}
               onClick={() => {
-                setOpen(false);
+                if (!a.keepOpen) setOpen(false);
                 a.onClick();
               }}
               className={`w-full text-left text-xs font-medium px-3 py-2 hover:bg-stone-50 transition ${
@@ -294,6 +378,10 @@ export default function AdminDashboard({ onLogout }) {
   const [newLicenseModal, setNewLicenseModal] = useState(null); // { code, expires... } | null
   const [renewModal, setRenewModal] = useState(null); // licenseId | null
   const [keyModalCode, setKeyModalCode] = useState(null); // código da licença sendo exibido no popup, ou null
+  const [generateModal, setGenerateModal] = useState(null); // { type } | null — abre pra escrever a descrição opcional antes de gerar
+  const [generateDescription, setGenerateDescription] = useState("");
+  const [groupModal, setGroupModal] = useState(null); // { label, users } | null — lista de usuários por trás de um card da Visão Geral
+  const [groupModalLoading, setGroupModalLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -346,6 +434,20 @@ export default function AdminDashboard({ onLogout }) {
     }
   }
 
+  async function openGroupModal(group) {
+    setGroupModalLoading(true);
+    setGroupModal({ label: null, users: [] });
+    try {
+      const data = await apiRequest(`/api/admin/dashboard-stats/group?group=${group}&days=${statsDays}`);
+      setGroupModal(data);
+    } catch (err) {
+      showToast("Erro: " + err.message);
+      setGroupModal(null);
+    } finally {
+      setGroupModalLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadStats(statsDays);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -385,13 +487,14 @@ export default function AdminDashboard({ onLogout }) {
     setTimeout(() => setToast(""), 3000);
   }
 
-  async function handleGenerateLicense(type) {
+  async function handleGenerateLicense(type, description) {
     try {
       const license = await apiRequest("/api/admin/licenses", {
         method: "POST",
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, description: description || undefined }),
       });
       setNewLicenseModal(license);
+      setGenerateModal(null);
       loadLicenses();
     } catch (err) {
       showToast("Erro: " + err.message);
@@ -499,25 +602,37 @@ export default function AdminDashboard({ onLogout }) {
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button
-              onClick={() => handleGenerateLicense("monthly")}
+              onClick={() => {
+                setGenerateDescription("");
+                setGenerateModal({ type: "monthly" });
+              }}
               className="text-xs font-semibold bg-teal-700 text-white px-3 py-2 rounded-lg hover:bg-teal-800 transition"
             >
               + Chave mensal (30d)
             </button>
             <button
-              onClick={() => handleGenerateLicense("trial")}
+              onClick={() => {
+                setGenerateDescription("");
+                setGenerateModal({ type: "trial" });
+              }}
               className="text-xs font-semibold bg-amber-600 text-white px-3 py-2 rounded-lg hover:bg-amber-700 transition"
             >
               + Chave trial (7d)
             </button>
             <button
-              onClick={() => handleGenerateLicense("annual")}
+              onClick={() => {
+                setGenerateDescription("");
+                setGenerateModal({ type: "annual" });
+              }}
               className="text-xs font-semibold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition"
             >
               + Chave anual (365d)
             </button>
             <button
-              onClick={() => handleGenerateLicense("lifetime")}
+              onClick={() => {
+                setGenerateDescription("");
+                setGenerateModal({ type: "lifetime" });
+              }}
               title="Pra quem participou do desenvolvimento do sistema — acesso sem cobrança e sem data de vencimento"
               className="text-xs font-semibold bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700 transition"
             >
@@ -593,28 +708,32 @@ export default function AdminDashboard({ onLogout }) {
                     tone="indigo"
                     label="Usuários totais"
                     value={stats.totalUsers}
-                    hint="Todas as contas ativas cadastradas na plataforma, de qualquer tipo de licença."
+                    hint="Todas as contas ativas cadastradas na plataforma, de qualquer tipo de licença. Clique pra ver a lista."
+                    onClick={() => openGroupModal("totalUsers")}
                   />
                   <StatCard
                     icon={Activity}
                     tone="teal"
                     label="Assinantes pagos ativos"
                     value={stats.activePaidSubscribers}
-                    hint="Licenças mensais ou anuais com status ativo agora — não inclui quem está em teste grátis."
+                    hint="Licenças mensais ou anuais com status ativo agora, pagas de verdade por cartão via Stripe — não conta quem está em teste grátis nem licenças geradas manualmente no admin. Clique pra ver a lista."
+                    onClick={() => openGroupModal("activePaid")}
                   />
                   <StatCard
                     icon={Percent}
                     tone="amber"
                     label="Em teste grátis agora"
                     value={stats.activeTrials}
-                    hint="Contas dentro do período de 7 dias de teste, ainda não convertidas em assinatura paga."
+                    hint="Contas dentro do período de 7 dias de teste, ainda não convertidas em assinatura paga. Clique pra ver a lista."
+                    onClick={() => openGroupModal("activeTrial")}
                   />
                   <StatCard
                     icon={DollarSign}
                     tone="indigo"
                     label="MRR estimado"
                     value={money(stats.mrr)}
-                    hint="Receita mensal recorrente estimada: soma do valor de todas as assinaturas mensais ativas, mais o valor anual dividido por 12."
+                    hint="Receita mensal recorrente estimada: soma do valor de todas as assinaturas mensais ativas pagas por cartão via Stripe, mais o valor anual dividido por 12 — licenças geradas manualmente no admin não entram nessa conta. Clique pra ver quem compõe esse valor."
+                    onClick={() => openGroupModal("activePaid")}
                   />
                   <StatCard
                     icon={DollarSign}
@@ -628,28 +747,36 @@ export default function AdminDashboard({ onLogout }) {
                     tone="teal"
                     label="Conversão trial → pago"
                     value={stats.conversionRate == null ? "— (sem trials ainda)" : `${stats.conversionRate.toFixed(0)}%`}
-                    hint="Do total de contas que já passaram por um teste grátis, quantas viraram assinatura paga."
+                    hint={
+                      stats.conversionRate == null
+                        ? "Do total de contas que já passaram por um teste grátis, quantas viraram assinatura paga."
+                        : "Do total de contas que já passaram por um teste grátis, quantas viraram assinatura paga. Clique pra ver a lista."
+                    }
+                    onClick={stats.conversionRate == null ? undefined : () => openGroupModal("trialConversion")}
                   />
                   <StatCard
                     icon={UserPlus}
                     tone="indigo"
                     label={`Novos cadastros (${stats.days}d)`}
                     value={stats.newUsersInPeriod}
-                    hint="Quantas contas novas foram criadas no período selecionado, de qualquer tipo de licença."
+                    hint="Quantas contas novas foram criadas no período selecionado, de qualquer tipo de licença. Clique pra ver a lista."
+                    onClick={() => openGroupModal("newUsers")}
                   />
                   <StatCard
                     icon={TrendingDown}
                     tone="rose"
                     label={`Cancelamentos (${stats.days}d)`}
                     value={stats.cancelledInPeriod}
-                    hint="Assinaturas que a pessoa pediu pra cancelar (não vai renovar) dentro do período selecionado."
+                    hint="Assinaturas que a pessoa pediu pra cancelar (não vai renovar) dentro do período selecionado. Clique pra ver a lista."
+                    onClick={() => openGroupModal("cancelled")}
                   />
                   <StatCard
                     icon={AlertTriangle}
                     tone="amber"
                     label="Assinaturas em risco"
                     value={stats.atRiskSubscriptions}
-                    hint="Assinaturas ativas que já foram marcadas pra não renovar automaticamente — ainda com acesso, mas vão parar de pagar em breve."
+                    hint="Assinaturas ativas que já foram marcadas pra não renovar automaticamente — ainda com acesso, mas vão parar de pagar em breve. Clique pra ver a lista."
+                    onClick={() => openGroupModal("atRisk")}
                   />
                 </div>
 
@@ -736,6 +863,11 @@ export default function AdminDashboard({ onLogout }) {
                           <>
                             <div className="text-xs font-medium text-stone-700">{userLicenseOriginInfo(user).label}</div>
                             <div className="text-[11px] text-stone-400">{userLicenseOriginInfo(user).detail}</div>
+                            {user.license_description && (
+                              <div className="text-[11px] text-stone-500 italic mt-0.5 max-w-[180px]" title={user.license_description}>
+                                "{user.license_description}"
+                              </div>
+                            )}
                           </>
                         ) : (
                           <span className="text-stone-400 text-xs">—</span>
@@ -785,6 +917,10 @@ export default function AdminDashboard({ onLogout }) {
                             {
                               label: confirmDeleteUser === user.id ? "Confirmar exclusão?" : "Remover",
                               danger: true,
+                              // keepOpen: no primeiro clique (ainda não confirmado) o menu
+                              // continua aberto pra mostrar "Confirmar exclusão?" — só fecha
+                              // no clique de confirmação, que já executa a remoção.
+                              keepOpen: confirmDeleteUser !== user.id,
                               onClick: () => handleDeleteUser(user),
                             },
                           ]}
@@ -840,6 +976,11 @@ export default function AdminDashboard({ onLogout }) {
                       <td className="px-3 py-3">
                         <div className="text-xs font-medium text-stone-700">{licenseOriginInfo(lic).label}</div>
                         <div className="text-[11px] text-stone-400">{licenseOriginInfo(lic).detail}</div>
+                        {lic.description && (
+                          <div className="text-[11px] text-stone-500 italic mt-0.5 max-w-[180px]" title={lic.description}>
+                            "{lic.description}"
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         {lic.status === "unused" && <StatusBadge tone="stone">Não usada</StatusBadge>}
@@ -867,12 +1008,14 @@ export default function AdminDashboard({ onLogout }) {
                               label: confirmDeleteLicense === lic.id ? "Confirmar exclusão?" : "Remover chave",
                               danger: true,
                               hidden: !!lic.user_id,
+                              keepOpen: confirmDeleteLicense !== lic.id,
                               onClick: () => handleDeleteLicense(lic),
                             },
                             {
                               label: confirmDeleteUser === lic.user_id ? "Confirmar exclusão?" : "Excluir conta",
                               danger: true,
                               hidden: !lic.user_id,
+                              keepOpen: confirmDeleteUser !== lic.user_id,
                               onClick: () => handleDeleteUser({ id: lic.user_id }),
                             },
                           ]}
@@ -888,6 +1031,45 @@ export default function AdminDashboard({ onLogout }) {
       </div>
 
       {keyModalCode && <LicenseKeyModal code={keyModalCode} onClose={() => setKeyModalCode(null)} />}
+
+      {generateModal && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          onClick={() => setGenerateModal(null)}
+        >
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-bold text-stone-800 mb-1">
+              Gerar chave {licenseTypeInfo(generateModal.type).label.toLowerCase()}
+            </h2>
+            <p className="text-xs text-stone-500 mb-4">
+              Descrição opcional — pra lembrar depois pra quem foi essa chave e por qual motivo. Só aparece aqui no
+              painel, o cliente nunca vê isso.
+            </p>
+            <textarea
+              autoFocus
+              value={generateDescription}
+              onChange={(e) => setGenerateDescription(e.target.value)}
+              placeholder='Ex: "Cortesia pro Dr. Fulano, indicação da Dra. Stephanie"'
+              rows={3}
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 mb-4 resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setGenerateModal(null)}
+                className="text-xs font-medium text-stone-500 border border-stone-200 px-3 py-2 rounded-lg hover:bg-stone-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleGenerateLicense(generateModal.type, generateDescription)}
+                className="text-xs font-semibold bg-teal-700 text-white px-3 py-2 rounded-lg hover:bg-teal-800"
+              >
+                Gerar chave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {newLicenseModal && (
         <div
@@ -947,6 +1129,10 @@ export default function AdminDashboard({ onLogout }) {
             </button>
           </div>
         </div>
+      )}
+
+      {groupModal && (
+        <GroupUsersModal data={groupModal} loading={groupModalLoading} onClose={() => setGroupModal(null)} />
       )}
 
       {toast && (

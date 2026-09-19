@@ -49,15 +49,19 @@ router.get("/dashboard-stats", async (req, res) => {
       recentSignupsRes,
     ] = await Promise.all([
       pool.query("SELECT COUNT(*)::int AS n FROM users WHERE role = 'user'"),
+      // Só conta como "assinante pago" quem realmente paga por cartão via
+      // Stripe (stripe_subscription_id preenchido) — licença mensal/anual
+      // gerada manualmente pelo admin (sem assinatura Stripe por trás) não é
+      // receita de verdade, não deve inflar essa métrica nem o MRR abaixo.
       pool.query(
-        "SELECT COUNT(*)::int AS n FROM licenses WHERE status = 'active' AND type IN ('monthly','annual') AND user_id IS NOT NULL"
+        "SELECT COUNT(*)::int AS n FROM licenses WHERE status = 'active' AND type IN ('monthly','annual') AND user_id IS NOT NULL AND stripe_subscription_id IS NOT NULL"
       ),
       pool.query(
         "SELECT COUNT(*)::int AS n FROM licenses WHERE status = 'active' AND type = 'trial' AND user_id IS NOT NULL"
       ),
       pool.query(
         `SELECT type, COUNT(*)::int AS n FROM licenses
-         WHERE status = 'active' AND type IN ('monthly','annual') AND user_id IS NOT NULL
+         WHERE status = 'active' AND type IN ('monthly','annual') AND user_id IS NOT NULL AND stripe_subscription_id IS NOT NULL
          GROUP BY type`
       ),
       pool.query(
@@ -138,6 +142,94 @@ router.get("/dashboard-stats", async (req, res) => {
   }
 });
 
+// Detalha, em usuários de verdade, quem compõe um dos números da Visão
+// Geral — usado quando o admin clica num card lá (ex: "Assinaturas em
+// risco") pra ver a lista de quem está por trás daquele número, em vez de só
+// o total. `group` identifica qual card; os grupos com recorte por período
+// (newUsers/cancelled/trialConversion) respeitam o mesmo `days` do filtro da
+// Visão Geral.
+router.get("/dashboard-stats/group", async (req, res) => {
+  const group = req.query.group;
+  const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+  const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  // Grupos "estado atual" — não dependem do período selecionado.
+  const STATIC_GROUPS = {
+    totalUsers: {
+      label: "Usuários totais",
+      sql: `SELECT u.id, u.email, u.name, u.clinic_name, u.created_at,
+                   (SELECT type FROM licenses WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) AS license_type
+            FROM users u WHERE u.role = 'user' ORDER BY u.created_at DESC`,
+      params: [],
+    },
+    activePaid: {
+      label: "Assinantes pagos ativos",
+      sql: `SELECT u.id, u.email, u.name, u.clinic_name, l.type AS license_type, l.expires_at
+            FROM licenses l JOIN users u ON u.id = l.user_id
+            WHERE l.status = 'active' AND l.type IN ('monthly','annual') AND l.stripe_subscription_id IS NOT NULL
+            ORDER BY l.expires_at ASC NULLS LAST`,
+      params: [],
+    },
+    activeTrial: {
+      label: "Em teste grátis agora",
+      sql: `SELECT u.id, u.email, u.name, u.clinic_name, l.type AS license_type, l.expires_at
+            FROM licenses l JOIN users u ON u.id = l.user_id
+            WHERE l.status = 'active' AND l.type = 'trial'
+            ORDER BY l.expires_at ASC NULLS LAST`,
+      params: [],
+    },
+    atRisk: {
+      label: "Assinaturas em risco",
+      sql: `SELECT u.id, u.email, u.name, u.clinic_name, l.type AS license_type, l.expires_at
+            FROM licenses l JOIN users u ON u.id = l.user_id
+            WHERE l.cancel_at_period_end = true AND l.status = 'active'
+            ORDER BY l.expires_at ASC NULLS LAST`,
+      params: [],
+    },
+  };
+
+  try {
+    let label, rows;
+    if (STATIC_GROUPS[group]) {
+      label = STATIC_GROUPS[group].label;
+      ({ rows } = await pool.query(STATIC_GROUPS[group].sql));
+    } else if (group === "newUsers") {
+      label = `Novos cadastros (${days}d)`;
+      ({ rows } = await pool.query(
+        `SELECT u.id, u.email, u.name, u.clinic_name, u.created_at,
+                (SELECT type FROM licenses WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) AS license_type
+         FROM users u WHERE u.role = 'user' AND u.created_at >= $1
+         ORDER BY u.created_at DESC`,
+        [periodStart]
+      ));
+    } else if (group === "cancelled") {
+      label = `Cancelamentos (${days}d)`;
+      ({ rows } = await pool.query(
+        `SELECT u.id, u.email, u.name, u.clinic_name, l.type AS license_type, l.cancelled_at, l.expires_at
+         FROM licenses l JOIN users u ON u.id = l.user_id
+         WHERE l.cancelled_at >= $1
+         ORDER BY l.cancelled_at DESC`,
+        [periodStart]
+      ));
+    } else if (group === "trialConversion") {
+      label = "Conversão trial → pago";
+      ({ rows } = await pool.query(
+        `SELECT u.id, u.email, u.name, u.clinic_name, l.type AS license_type, l.trial_started_at,
+                (l.type IN ('monthly','annual')) AS converted
+         FROM licenses l JOIN users u ON u.id = l.user_id
+         WHERE l.trial_started_at IS NOT NULL
+         ORDER BY l.trial_started_at DESC`
+      ));
+    } else {
+      return res.status(400).json({ error: "Grupo inválido" });
+    }
+    res.json({ label, users: rows });
+  } catch (err) {
+    console.error("Erro ao listar usuários do grupo da Visão Geral:", err);
+    res.status(500).json({ error: "Erro ao listar usuários desse grupo" });
+  }
+});
+
 // Lista os usuários ATIVOS (clientes com a conta não bloqueada), já trazendo
 // a licença mais recente de cada um (com origem/forma de aquisição) e o
 // nome/clínica de verdade, tirado das configurações que o próprio usuário
@@ -158,6 +250,7 @@ router.get("/users", async (req, res) => {
         l.buyer_email AS license_buyer_email,
         l.stripe_subscription_id AS license_stripe_subscription_id,
         l.cancel_at_period_end AS license_cancel_at_period_end,
+        l.description AS license_description,
         a.value AS settings_json
       FROM users u
       LEFT JOIN LATERAL (
@@ -221,14 +314,17 @@ router.delete("/users/:id", async (req, res) => {
 // Gera uma chave de licença NOVA e SOLTA (sem usuário ainda) — é essa chave
 // que você entrega pro cliente depois que ele pagar, pra ele usar no cadastro.
 // type: "monthly" (30 dias, padrão), "trial" (7 dias) ou "annual" (365 dias)
+// description: anotação livre e opcional (pra quem é, por qual motivo) —
+// só aparece no painel admin, nunca é mostrada pro cliente.
 router.post("/licenses", async (req, res) => {
-  const { type } = req.body || {};
+  const { type, description } = req.body || {};
   const licenseType = ["trial", "annual", "lifetime"].includes(type) ? type : "monthly";
+  const trimmedDescription = typeof description === "string" && description.trim() ? description.trim() : null;
   try {
     const code = generateLicenseCode();
     const { rows } = await pool.query(
-      "INSERT INTO licenses (code, status, type, source) VALUES ($1, 'unused', $2, 'admin') RETURNING *",
-      [code, licenseType]
+      "INSERT INTO licenses (code, status, type, source, description) VALUES ($1, 'unused', $2, 'admin', $3) RETURNING *",
+      [code, licenseType, trimmedDescription]
     );
     res.status(201).json(rows[0]);
   } catch (err) {

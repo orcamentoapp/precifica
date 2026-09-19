@@ -91,6 +91,12 @@ async function migrate() {
   await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMP;`);
   await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;`);
 
+  // Anotação livre e opcional que o admin pode escrever ao gerar uma chave
+  // manualmente — pra quem é (nome/clínica) e por qual motivo (ex: "cortesia
+  // pro Dr. Fulano", "reposição por bug no pagamento"). Só é preenchida na
+  // criação da chave; licenças de compra (Stripe) nunca têm isso.
+  await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS description TEXT;`);
+
   // Registra os eventos do Stripe já processados, pra nunca gerar/renovar a
   // licença duas vezes se o mesmo webhook chegar mais de uma vez (o Stripe
   // garante "pelo menos uma entrega", ou seja, pode repetir).
