@@ -5,6 +5,183 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
+## ✅ Feito nesta sessão — cabeçalho do painel admin no mesmo padrão do app do cliente
+
+Pedido do Marcelo: o topo do painel admin (`app-frontend/src/AdminDashboard.jsx`)
+passar a seguir o mesmo padrão visual do cabeçalho do app do cliente — só
+que com as 3 seções do admin como abas (Visão Geral, Usuários, Chaves de
+licença) em vez das telas do consultório; os botões de criar chave
+("+ Chave mensal/trial/anual/vitalícia") migram pra uma linha abaixo desse
+cabeçalho; e "Modo escuro"/"Sair" (que antes eram botões soltos no
+cabeçalho) migram pra dentro de um menu de conta, igual o menu de perfil
+do app do cliente.
+
+**O que mudou**:
+- **Cabeçalho**: agora é um card branco arredondado com sombra
+  (`bg-white border rounded-2xl shadow-sm`, mesmas classes/margens do
+  header do `App.jsx`), com logo+"Precifica" à esquerda, o menu de abas
+  no centro e o botão de conta à direita — mesmo layout em grid
+  (`md:grid-cols-[1fr_auto_1fr]`) do app do cliente.
+- **`AdminTabNav`** (novo componente, só existe dentro do
+  `AdminDashboard.jsx`) — clonei a estrutura do `TabNav` do app do
+  cliente: no desktop, pílula com fundo deslizante animado atrás da aba
+  ativa; no celular, vira barra fixa embaixo da tela com ícone + rótulo
+  (padrão de app nativo), em vez do menu em pílula pequena que existia
+  antes. As 3 abas: **Visão Geral** (`LayoutDashboard`), **Usuários**
+  (`Users`), **Chaves de licença** (`KeyRound`).
+- **`AdminAccountMenu`** (novo componente) — mesmo botão-avatar redondo
+  do `OptionsMenu` do cliente (só que sem foto/logo, sempre o ícone
+  genérico de usuário, já que admin não tem essa configuração), abrindo
+  um menu simples com **Modo escuro** (mesmo switch com animação) e
+  **Sair** — bem mais enxuto que o do cliente de propósito (não faz
+  sentido ter upload de logo, Central de Ajuda, Configurações de clínica
+  etc no admin).
+- **Botões de criar chave** — saíram do cabeçalho e viraram uma linha
+  própria logo abaixo dele (`+ Chave mensal/trial/anual/vitalícia`),
+  sempre visíveis independente da aba selecionada, exatamente como
+  pedido.
+- A antiga linha de abas em formato de pílula pequena (que ficava abaixo
+  do cabeçalho, redundante agora que as abas moraram no cabeçalho) foi
+  removida.
+
+**Testado**: `npm run build` do frontend limpo, sem warnings de import
+não usado (tirei `Sun`/`Moon` do topo, que só eram usados no botão de
+tema antigo que não existe mais). **Não testei clicando de verdade no
+navegador** (esse painel precisa de login de admin contra o banco de
+produção, não dá pra simular aqui) — vale o Marcelo conferir: se o menu
+de abas desliza certinho ao trocar de seção, se no celular vira a barra
+fixa embaixo, se o menu de conta abre/fecha bem e o switch de modo
+escuro continua funcionando igual antes, e se os 4 botões de criar chave
+aparecem certinho na nova posição.
+
+## Log anterior — 5 métricas novas + gráfico de tendência na Visão Geral
+
+Pedido do Marcelo depois da correção do bug "em risco" (ver log logo
+abaixo): implementar as métricas que eu tinha sugerido, no mesmo
+padrão dos cards existentes (sempre dados reais/atuais, `hint` no
+hover via `title`, clicável quando faz sentido abrir a lista por
+trás do número) — e perguntou se valia colocar gráfico também.
+
+**Testei as queries novas rodando uma migração de verdade num
+Postgres local** (não só `node --check`) — criei um banco de teste,
+rodei `src/migrate.js` nele, inseri dados fabricados cobrindo os
+casos de borda (assinante pago ativo, assinatura marcada "em risco",
+trial ativo, conta nunca confirmada, e uma licença ÓRFÃ de um usuário
+removido) e rodei cada query nova direto no `psql`, conferindo os
+números um por um contra o que eu esperava calculando na mão — todos
+bateram exatamente, incluindo a série dia-a-dia do gráfico. Banco de
+teste apagado no final, não sobrou nada.
+
+**Backend** (`src/routes/admin.js`):
+- `dashboard-stats` agora também retorna `churnRate`, `avgTicket`,
+  `estimatedLTV`, `avgDaysToCancel` e `unconfirmedSignups` (fórmulas
+  explicadas nos comentários do código, em cima de cada query/cálculo).
+  Todas as novas contagens que vêm de `licenses` já nascem com o
+  `EXISTS (... FROM users ...)` do bug corrigido acima — não reintroduzi
+  a mesma inconsistência.
+- Novo grupo `unconfirmed` em `dashboard-stats/group` — lista as contas
+  que nunca confirmaram e-mail (por trás do novo card).
+- Novo endpoint `GET /api/admin/dashboard-stats/trend?days=<n>` —
+  série diária de novos cadastros vs cancelamentos no período,
+  preenchendo os dias sem nenhum evento com zero (`generate_series`),
+  sempre calculada na hora a partir dos dados reais (sem nenhuma
+  tabela de histórico/snapshot nova).
+
+**Frontend** (`app-frontend/src/AdminDashboard.jsx`):
+- 5 `StatCard` novos na Visão Geral, mesmo componente/padrão dos
+  existentes: **Churn**, **Ticket médio**, **LTV estimado**, **Tempo
+  médio até cancelar** e **Nunca confirmaram e-mail** (esse último
+  clicável, abre a lista via o grupo `unconfirmed` novo).
+- Novo componente `TrendChart` — gráfico de linha em SVG puro (sem
+  biblioteca), duas séries (cadastros em teal, cancelamentos em rose —
+  mesmas cores dos cards, então a leitura já é familiar), com grid,
+  legenda, eixo com datas, linha de crosshair e tooltip ao passar o
+  mouse. Cores validadas pra contraste/daltonismo com o script da
+  skill de dataviz (`validate_palette.js`), passando tanto no tema
+  claro quanto no escuro (o app já suporta os dois). Fica entre os
+  cards e a tabela de "Cadastros recentes".
+
+**Sobre os números novos, pra revisar com calma** (são estimativas,
+não fatos):
+- **Churn** é uma aproximação: cancelamentos no período ÷ (assinantes
+  pagos ativos + esses cancelamentos) — não tenho um retrato
+  histórico de "quantos assinantes existiam no início do período"
+  guardado em lugar nenhum, essa é a forma padrão de estimar sem isso.
+- **LTV estimado** só aparece quando há churn > 0 no período (com
+  churn zero a fórmula clássica tende a infinito, não mostra nada
+  nesse caso — "precisa de churn > 0").
+- **Tempo médio até cancelar** é sempre o histórico INTEIRO (não
+  respeita o filtro de dias da Visão Geral) — de propósito, pra não
+  ficar um número instável pulando toda vez que o filtro de período
+  muda.
+
+Build do frontend (`npm run build`) e `node --check` do backend
+limpos. **Testei as queries direto no banco** (ver acima) mas **não
+testei clicando de verdade no navegador** — vale o Marcelo abrir a
+Visão Geral e conferir se os 5 cards novos aparecem com valores
+plausíveis, se "Nunca confirmaram e-mail" abre a lista certa ao
+clicar, e se o gráfico aparece corretamente (passando o mouse pra ver
+o tooltip, trocando entre 7/30/90 dias).
+
+## Log anterior — bug "Assinaturas em risco" (card mostrava 1, modal vinha vazio) + card do Railway removido
+
+O Marcelo reportou (com prints) que o card "Assinaturas em risco" da
+Visão Geral mostrava "1", mas ao clicar o modal vinha vazio ("Nenhuma
+conta nesse grupo agora").
+
+**Causa raiz** (`src/routes/admin.js`): o número do card
+(`dashboard-stats`) contava direto na tabela `licenses`
+(`cancel_at_period_end = true AND status = 'active'`), sem exigir que
+o usuário dono daquela licença ainda existisse. Já a lista do modal
+(`dashboard-stats/group`, grupo `atRisk`) faz `JOIN` com `users` —
+então uma licença "em risco" cujo usuário foi removido (lembrando: ao
+remover um usuário a licença dele fica órfã de propósito, não é
+apagada — ver rota `DELETE /users/:id`) contava no número mas
+desaparecia da lista, porque o `JOIN` a excluía. O Marcelo perguntou
+se o bug era só nesse card ou também nos outros — conferi TODOS os
+cards clicáveis da Visão Geral: os que dependem só da tabela `users`
+(**Usuários totais**, **Novos cadastros**) nunca tiveram o problema
+(a listagem também consulta `users` direto, sem `JOIN`); mas todos os
+que dependem de `licenses` tinham a mesma inconsistência silenciosa —
+**Assinantes pagos ativos**, **Em teste grátis agora**, os
+contadores por plano que alimentam o **MRR**, **Cancelamentos** e
+**Conversão trial → pago**, além do "em risco" que ele reportou.
+
+**Corrigido**: as 6 queries de contagem em `dashboard-stats`
+(`activePaidRes`, `activeTrialRes`, `planCountsRes`, `conversionRes`,
+`cancelledInPeriodRes`, `atRiskRes`) agora exigem
+`EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)` — só contam
+licenças cujo usuário ainda existe, batendo exatamente com o que as
+listas dos modais (`dashboard-stats/group`) mostram. Não mudei o
+comportamento de "usuário removido deixa a licença órfã" em si (só
+sincronizei a contagem com a listagem) — se no futuro o Marcelo
+quiser que remover um usuário também revogue/expire
+a licença dele automaticamente, é uma mudança separada, é só pedir.
+
+**Removido**: o card "Próxima cobrança do Railway" (contador de dias
+até o dia do mês configurado manualmente) que ficava no topo da Visão
+Geral — pedido do Marcelo pra tirar. Removi o componente inteiro
+(`RailwayBillingCard`, a função auxiliar `daysUntilNextOccurrence`, o
+estado `railwayBillingDay`/`saveRailwayBillingDay` e a chave de
+`localStorage` `admin_railway_billing_day`) — não sobrou nenhum
+resquício no código.
+
+**Testado**: `node --check` no backend e `npm run build` do frontend,
+os dois limpos. **Não testei clicando de verdade** — vale o Marcelo
+conferir se o card "Assinaturas em risco" (e os outros que dependem
+dessas contagens: Assinantes pagos ativos, Em teste grátis, MRR) bate
+com a lista ao clicar, e se o topo da Visão Geral não mostra mais o
+card do Railway.
+
+### Pendente — métricas novas pro painel (perguntado, ainda sem resposta)
+O Marcelo perguntou se tem mais alguma métrica interessante pro
+painel. Sugestões dadas na conversa (nenhuma implementada ainda,
+aguardando ele escolher): churn rate (%, não só a contagem de
+cancelamentos), LTV médio, ticket médio anual vs mensal, tempo médio
+até cancelar, cadastros que nunca ativaram/confirmaram e-mail, e um
+gráfico de MRR ao longo do tempo (hoje o painel só mostra o instante
+atual, sem histórico/tendência).
+
 ## REGRA FIXA DE ENTREGA — leia antes de gerar qualquer zip
 
 O Marcelo sempre sobe o zip completo pra continuar o projeto numa

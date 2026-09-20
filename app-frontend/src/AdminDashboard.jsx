@@ -1,8 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiRequest, clearToken } from "./api";
 import {
-  Sun,
-  Moon,
   Users,
   Activity,
   DollarSign,
@@ -13,6 +11,15 @@ import {
   Percent,
   MoreVertical,
   X,
+  Wallet,
+  Gem,
+  Clock,
+  MailWarning,
+  LayoutDashboard,
+  KeyRound,
+  User,
+  ChevronDown,
+  LogOut,
 } from "lucide-react";
 
 function StatusBadge({ children, tone }) {
@@ -67,6 +74,169 @@ function StatCard({ icon: Icon, tone, label, value, hint, onClick }) {
       </div>
       <div className="text-xs text-stone-500 mb-1">{label}</div>
       <div className="text-xl font-bold text-stone-800">{value}</div>
+    </div>
+  );
+}
+
+// Gráfico de tendência (novos cadastros vs cancelamentos, dia a dia, no
+// período selecionado) — SVG desenhado na mão (sem lib de gráfico), sempre
+// recalculado a partir dos dados reais atuais que vêm de
+// /dashboard-stats/trend. Cores fixas (validadas pra funcionar em claro e
+// escuro): teal pra cadastros, rose pra cancelamentos — as mesmas usadas nos
+// cards de cima, então a leitura já é familiar.
+const TREND_COLORS = { newUsers: "#0d9488", cancelled: "#f43f5e" };
+const TREND_W = 720;
+const TREND_H = 220;
+const TREND_PAD = { top: 16, right: 16, bottom: 26, left: 30 };
+
+function niceMax(value) {
+  if (value <= 4) return 4;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  const step = normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
+function TrendChart({ series, loading }) {
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const wrapRef = useRef(null);
+
+  const n = series?.length || 0;
+  const plotW = TREND_W - TREND_PAD.left - TREND_PAD.right;
+  const plotH = TREND_H - TREND_PAD.top - TREND_PAD.bottom;
+  const maxValue = niceMax(Math.max(1, ...(series || []).flatMap((d) => [d.new_users, d.cancelled])));
+
+  function xAt(i) {
+    return TREND_PAD.left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  }
+  function yAt(v) {
+    return TREND_PAD.top + plotH - (v / maxValue) * plotH;
+  }
+
+  function linePath(key) {
+    if (!series) return "";
+    return series.map((d, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(d[key]).toFixed(1)}`).join(" ");
+  }
+
+  function handleMove(e) {
+    if (!wrapRef.current || n === 0) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    const fraction = (e.clientX - rect.left) / rect.width;
+    const i = Math.max(0, Math.min(n - 1, Math.round(fraction * (n - 1))));
+    setHoverIndex(i);
+  }
+
+  const gridLines = [0, 0.25, 0.5, 0.75, 1];
+  const dateLabelEvery = Math.max(1, Math.ceil(n / 7));
+
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-5">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div>
+          <h3 className="text-sm font-semibold text-stone-800">Cadastros e cancelamentos por dia</h3>
+          <p className="text-xs text-stone-400">Tendência real do período selecionado, dia a dia.</p>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-stone-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TREND_COLORS.newUsers }} />
+            Novos cadastros
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TREND_COLORS.cancelled }} />
+            Cancelamentos
+          </span>
+        </div>
+      </div>
+
+      {loading || !series ? (
+        <div className="text-sm text-stone-400 py-16 text-center">Carregando gráfico...</div>
+      ) : n === 0 ? (
+        <div className="text-sm text-stone-400 py-16 text-center">Sem dados nesse período.</div>
+      ) : (
+        <div
+          ref={wrapRef}
+          className="relative"
+          onMouseMove={handleMove}
+          onMouseLeave={() => setHoverIndex(null)}
+        >
+          <svg viewBox={`0 0 ${TREND_W} ${TREND_H}`} className="w-full h-auto block" preserveAspectRatio="none">
+            {gridLines.map((g) => {
+              const y = TREND_PAD.top + plotH * (1 - g);
+              return (
+                <g key={g}>
+                  <line
+                    x1={TREND_PAD.left}
+                    x2={TREND_W - TREND_PAD.right}
+                    y1={y}
+                    y2={y}
+                    className="text-stone-200"
+                    stroke="currentColor"
+                    strokeWidth="1"
+                  />
+                  <text x={TREND_PAD.left - 6} y={y + 3} textAnchor="end" className="text-stone-400 text-[9px]" fill="currentColor">
+                    {Math.round(maxValue * g)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {series.map(
+              (d, i) =>
+                i % dateLabelEvery === 0 && (
+                  <text
+                    key={i}
+                    x={xAt(i)}
+                    y={TREND_H - 6}
+                    textAnchor="middle"
+                    className="text-stone-400 text-[9px]"
+                    fill="currentColor"
+                  >
+                    {new Date(d.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                  </text>
+                )
+            )}
+
+            {hoverIndex != null && (
+              <line
+                x1={xAt(hoverIndex)}
+                x2={xAt(hoverIndex)}
+                y1={TREND_PAD.top}
+                y2={TREND_PAD.top + plotH}
+                className="text-stone-300"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+              />
+            )}
+
+            <path d={linePath("new_users")} fill="none" stroke={TREND_COLORS.newUsers} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={linePath("cancelled")} fill="none" stroke={TREND_COLORS.cancelled} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+            {hoverIndex != null && (
+              <>
+                <circle cx={xAt(hoverIndex)} cy={yAt(series[hoverIndex].new_users)} r="3.5" fill={TREND_COLORS.newUsers} />
+                <circle cx={xAt(hoverIndex)} cy={yAt(series[hoverIndex].cancelled)} r="3.5" fill={TREND_COLORS.cancelled} />
+              </>
+            )}
+          </svg>
+
+          {hoverIndex != null && (
+            <div
+              className="absolute bg-stone-800 text-white text-[11px] rounded-lg px-2.5 py-1.5 pointer-events-none shadow-lg -translate-x-1/2 -translate-y-full"
+              style={{
+                left: `${(xAt(hoverIndex) / TREND_W) * 100}%`,
+                top: `${(Math.min(yAt(series[hoverIndex].new_users), yAt(series[hoverIndex].cancelled)) / TREND_H) * 100}%`,
+              }}
+            >
+              <div className="font-semibold mb-0.5">
+                {new Date(series[hoverIndex].day).toLocaleDateString("pt-BR")}
+              </div>
+              <div>Cadastros: {series[hoverIndex].new_users}</div>
+              <div>Cancelamentos: {series[hoverIndex].cancelled}</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -290,74 +460,160 @@ function nextBillingDate(user) {
   return isActiveStripe ? user.license_expires_at : null;
 }
 
-// Aviso de "dias até a próxima cobrança do Railway" — não vem de nenhuma
-// API do Railway (não temos acesso a isso), é um lembrete simples: o
-// próprio Marcelo diz em que DIA DO MÊS a cobrança cai (ex: dia 15), e o
-// card calcula sozinho quantos dias faltam pra próxima ocorrência desse
-// dia — sem precisar redigitar a data todo mês, já que é uma cobrança
-// recorrente (assim que ele assinar o plano Hobby, deixa de ser aquela
-// corrida entre 30 dias OU o crédito de teste acabar, e vira só um ciclo
-// mensal fixo). Guardado no navegador (localStorage) — é só o Marcelo quem
-// usa o painel admin, não precisa de backend pra isso.
-function daysUntilNextOccurrence(dayOfMonth) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const candidate = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
-  if (candidate < today) candidate.setMonth(candidate.getMonth() + 1);
-  return { days: Math.round((candidate - today) / 86400000), date: candidate };
+// Menu superior do painel admin — mesmo padrão visual do menu de abas do
+// app do cliente (pílula com fundo deslizante no desktop, barra fixa
+// embaixo no celular), só que com as 3 seções do admin em vez das telas do
+// consultório.
+const ADMIN_TABS = [
+  { key: "overview", label: "Visão Geral", icon: LayoutDashboard },
+  { key: "users", label: "Usuários", icon: Users },
+  { key: "licenses", label: "Chaves de licença", icon: KeyRound },
+];
+
+function AdminTabNav({ tab, setTab, darkMode }) {
+  const containerRef = useRef(null);
+  const tabRefs = useRef({});
+  const [pillStyle, setPillStyle] = useState(null);
+
+  useEffect(() => {
+    function updatePill() {
+      const container = containerRef.current;
+      const activeEl = tabRefs.current[tab];
+      if (container && activeEl) {
+        const containerRect = container.getBoundingClientRect();
+        const activeRect = activeEl.getBoundingClientRect();
+        setPillStyle({ left: activeRect.left - containerRect.left, width: activeRect.width });
+      }
+    }
+    updatePill();
+    window.addEventListener("resize", updatePill);
+    return () => window.removeEventListener("resize", updatePill);
+  }, [tab]);
+
+  return (
+    <>
+      {/* Desktop / telas largas: menu em pílula no cabeçalho */}
+      <nav
+        ref={containerRef}
+        className="hidden md:flex relative flex-wrap gap-1 rounded-full p-1"
+        style={{ backgroundColor: darkMode ? "#3f3f46" : "#f5f5f4" }}
+      >
+        {pillStyle && (
+          <div
+            className="absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-out"
+            style={{
+              left: `${pillStyle.left}px`,
+              width: `${pillStyle.width}px`,
+              backgroundColor: darkMode ? "#71717a" : "#292524",
+            }}
+          />
+        )}
+        {ADMIN_TABS.map((t) => (
+          <button
+            key={t.key}
+            ref={(el) => (tabRefs.current[t.key] = el)}
+            onClick={() => setTab(t.key)}
+            className="relative z-10 px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300"
+            style={{ color: tab === t.key ? "#fafaf9" : darkMode ? "#a1a1aa" : "#78716c" }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Mobile: barra de navegação fixa na parte inferior, padrão de app nativo */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch bg-white border-t border-stone-200 z-40"
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          boxShadow: "0 -2px 8px rgba(0,0,0,0.06)",
+        }}
+      >
+        {ADMIN_TABS.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+              style={{ color: active ? "#0f766e" : "#a8a29e" }}
+            >
+              <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
+              <span className="text-[11px] font-medium">{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </>
+  );
 }
 
-function RailwayBillingCard({ billingDay, onSave }) {
-  const [editing, setEditing] = useState(billingDay == null);
-  const [draft, setDraft] = useState(billingDay || 1);
+// Menu de conta do admin — mesmo botão-avatar redondo do app do cliente,
+// mas só com o que faz sentido pro admin: alternar modo escuro e sair (sem
+// upload de logo, configurações de clínica, central de ajuda etc — isso é
+// tudo específico do app do consultório).
+function AdminAccountMenu({ theme, onToggleTheme, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
-  if (editing) {
-    return (
-      <div className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
-        <span className="text-sm text-stone-600">Railway cobra todo dia</span>
-        <select
-          value={draft}
-          onChange={(e) => setDraft(Number(e.target.value))}
-          className="text-sm font-medium border border-stone-200 rounded-lg px-2 py-1.5 bg-white"
-        >
-          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <span className="text-sm text-stone-600">do mês</span>
-        <button
-          onClick={() => {
-            onSave(draft);
-            setEditing(false);
-          }}
-          className="text-xs font-semibold bg-teal-700 text-white px-3 py-1.5 rounded-lg hover:bg-teal-800"
-        >
-          Salvar
-        </button>
-      </div>
-    );
-  }
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const { days, date } = daysUntilNextOccurrence(billingDay);
-  const urgent = days <= 3;
   return (
-    <div
-      className={`border rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap ${
-        urgent ? "bg-rose-50 border-rose-200" : "bg-white border-stone-200"
-      }`}
-    >
-      <div>
-        <div className="text-xs text-stone-500 mb-0.5">Próxima cobrança do Railway</div>
-        <div className={`text-sm font-semibold ${urgent ? "text-rose-700" : "text-stone-800"}`}>
-          {days === 0 ? "É hoje" : `Faltam ${days} ${days === 1 ? "dia" : "dias"}`} —{" "}
-          {date.toLocaleDateString("pt-BR")}
-        </div>
-      </div>
-      <button onClick={() => setEditing(true)} className="text-xs font-medium text-stone-400 hover:text-stone-600">
-        Alterar dia
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Abrir opções"
+        className="shrink-0 rounded-full flex items-center justify-center overflow-hidden transition hover:brightness-95"
+        style={{
+          width: "44px",
+          height: "44px",
+          backgroundColor: "rgba(0,0,0,0.08)",
+          border: "1px solid rgba(0,0,0,0.08)",
+        }}
+      >
+        <User className="w-5 h-5 text-stone-400" />
       </button>
+      {open && (
+        <div className="fixed left-3 right-3 top-20 md:absolute md:left-auto md:right-0 md:top-auto md:mt-2 md:w-64 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50 text-stone-800">
+          <div className="px-4 py-3 border-b border-stone-100">
+            <div className="text-sm font-semibold text-stone-800">Painel administrativo</div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-stone-100">
+            <span className="text-sm">Modo escuro</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={theme === "dark"}
+              onClick={onToggleTheme}
+              className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+              style={{ backgroundColor: theme === "dark" ? "#0f766e" : "#d6d3d1" }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                style={{ transform: theme === "dark" ? "translateX(20px)" : "translateX(0)" }}
+              />
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-500 hover:bg-stone-50 hover:text-rose-600 transition border-t border-stone-100"
+          >
+            <LogOut className="w-3.5 h-3.5" /> Sair
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -386,21 +642,8 @@ export default function AdminDashboard({ onLogout }) {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsDays, setStatsDays] = useState(30);
-  const [railwayBillingDay, setRailwayBillingDay] = useState(() => {
-    try {
-      const v = localStorage.getItem("admin_railway_billing_day");
-      return v ? Number(v) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-
-  function saveRailwayBillingDay(day) {
-    setRailwayBillingDay(day);
-    try {
-      localStorage.setItem("admin_railway_billing_day", String(day));
-    } catch (e) {}
-  }
+  const [trend, setTrend] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(true);
 
   function toggleTheme() {
     setTheme((t) => {
@@ -434,6 +677,18 @@ export default function AdminDashboard({ onLogout }) {
     }
   }
 
+  async function loadTrend(days) {
+    setTrendLoading(true);
+    try {
+      const data = await apiRequest(`/api/admin/dashboard-stats/trend?days=${days}`);
+      setTrend(data.series);
+    } catch (err) {
+      setTrend(null);
+    } finally {
+      setTrendLoading(false);
+    }
+  }
+
   async function openGroupModal(group) {
     setGroupModalLoading(true);
     setGroupModal({ label: null, users: [] });
@@ -450,6 +705,7 @@ export default function AdminDashboard({ onLogout }) {
 
   useEffect(() => {
     loadStats(statsDays);
+    loadTrend(statsDays);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statsDays]);
 
@@ -582,98 +838,75 @@ export default function AdminDashboard({ onLogout }) {
     }
   }
 
+  function handleLogout() {
+    clearToken();
+    onLogout();
+  }
+
   return (
     <div className="min-h-screen bg-stone-50 font-sans">
-      <div className="max-w-6xl mx-auto px-5 py-8">
-        <header className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-          <div className="flex items-center gap-2.5">
-            <img src="/icons/logo-header.png" alt="Precifica" className="w-9 h-9 shrink-0" />
-            <div>
-              <div className="text-lg font-extrabold text-teal-700 leading-tight">Precifica</div>
-              <p className="text-xs text-stone-400">Painel administrativo</p>
+      <div style={{ paddingTop: "env(safe-area-inset-top, 0px)" }} className="bg-stone-50">
+        <header
+          style={{ position: "relative", zIndex: 30 }}
+          className="bg-white border border-stone-200 rounded-2xl shadow-sm mx-2 mt-2 md:mx-6 md:mt-5 max-w-6xl md:mx-auto"
+        >
+          <div className="px-3 py-3 md:px-5 md:py-3.5 flex items-center justify-between gap-2 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img src="/icons/logo-header.png" alt="Precifica" className="w-9 h-9 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-lg font-extrabold text-teal-700 leading-tight truncate">Precifica</div>
+                <p className="text-xs text-stone-400 truncate">Painel administrativo</p>
+              </div>
+            </div>
+
+            <AdminTabNav tab={tab} setTab={setTab} darkMode={theme === "dark"} />
+
+            <div className="flex items-center gap-2 justify-end min-w-0">
+              <AdminAccountMenu theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} />
+              <ChevronDown className="w-4 h-4 text-stone-400 shrink-0 hidden md:block" />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              title={theme === "dark" ? "Modo claro" : "Modo escuro"}
-              className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-100 transition"
-            >
-              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={() => {
-                setGenerateDescription("");
-                setGenerateModal({ type: "monthly" });
-              }}
-              className="text-xs font-semibold bg-teal-700 text-white px-3 py-2 rounded-lg hover:bg-teal-800 transition"
-            >
-              + Chave mensal (30d)
-            </button>
-            <button
-              onClick={() => {
-                setGenerateDescription("");
-                setGenerateModal({ type: "trial" });
-              }}
-              className="text-xs font-semibold bg-amber-600 text-white px-3 py-2 rounded-lg hover:bg-amber-700 transition"
-            >
-              + Chave trial (7d)
-            </button>
-            <button
-              onClick={() => {
-                setGenerateDescription("");
-                setGenerateModal({ type: "annual" });
-              }}
-              className="text-xs font-semibold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition"
-            >
-              + Chave anual (365d)
-            </button>
-            <button
-              onClick={() => {
-                setGenerateDescription("");
-                setGenerateModal({ type: "lifetime" });
-              }}
-              title="Pra quem participou do desenvolvimento do sistema — acesso sem cobrança e sem data de vencimento"
-              className="text-xs font-semibold bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700 transition"
-            >
-              + Chave vitalícia
-            </button>
-            <button
-              onClick={() => {
-                clearToken();
-                onLogout();
-              }}
-              className="text-xs font-medium text-stone-500 border border-stone-200 px-3 py-2 rounded-lg hover:bg-stone-100 transition"
-            >
-              Sair
-            </button>
-          </div>
         </header>
+      </div>
 
-        <div className="flex items-center gap-1.5 mb-5">
+      <div className="max-w-6xl mx-auto px-5 py-6 pb-[calc(1.5rem+64px+env(safe-area-inset-bottom,0px))] md:pb-6">
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
           <button
-            onClick={() => setTab("overview")}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full border transition ${
-              tab === "overview" ? "border-teal-400 bg-teal-50 text-teal-800" : "border-stone-200 text-stone-500"
-            }`}
+            onClick={() => {
+              setGenerateDescription("");
+              setGenerateModal({ type: "monthly" });
+            }}
+            className="text-xs font-semibold bg-teal-700 text-white px-3 py-2 rounded-lg hover:bg-teal-800 transition"
           >
-            Visão Geral
+            + Chave mensal (30d)
           </button>
           <button
-            onClick={() => setTab("users")}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full border transition ${
-              tab === "users" ? "border-teal-400 bg-teal-50 text-teal-800" : "border-stone-200 text-stone-500"
-            }`}
+            onClick={() => {
+              setGenerateDescription("");
+              setGenerateModal({ type: "trial" });
+            }}
+            className="text-xs font-semibold bg-amber-600 text-white px-3 py-2 rounded-lg hover:bg-amber-700 transition"
           >
-            Usuários
+            + Chave trial (7d)
           </button>
           <button
-            onClick={() => setTab("licenses")}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full border transition ${
-              tab === "licenses" ? "border-teal-400 bg-teal-50 text-teal-800" : "border-stone-200 text-stone-500"
-            }`}
+            onClick={() => {
+              setGenerateDescription("");
+              setGenerateModal({ type: "annual" });
+            }}
+            className="text-xs font-semibold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition"
           >
-            Chaves de licença
+            + Chave anual (365d)
+          </button>
+          <button
+            onClick={() => {
+              setGenerateDescription("");
+              setGenerateModal({ type: "lifetime" });
+            }}
+            title="Pra quem participou do desenvolvimento do sistema — acesso sem cobrança e sem data de vencimento"
+            className="text-xs font-semibold bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700 transition"
+          >
+            + Chave vitalícia
           </button>
         </div>
 
@@ -681,8 +914,6 @@ export default function AdminDashboard({ onLogout }) {
 
         {tab === "overview" ? (
           <div className="space-y-5">
-            <RailwayBillingCard billingDay={railwayBillingDay} onSave={saveRailwayBillingDay} />
-
             <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-sm text-stone-500">
                 O painel executivo do Precifica: assinantes, receita e conversão em uma única visão.
@@ -778,7 +1009,47 @@ export default function AdminDashboard({ onLogout }) {
                     hint="Assinaturas ativas que já foram marcadas pra não renovar automaticamente — ainda com acesso, mas vão parar de pagar em breve. Clique pra ver a lista."
                     onClick={() => openGroupModal("atRisk")}
                   />
+                  <StatCard
+                    icon={TrendingDown}
+                    tone="rose"
+                    label="Churn"
+                    value={stats.churnRate == null ? "— (sem base ainda)" : `${stats.churnRate.toFixed(1)}%`}
+                    hint="Aproximação: cancelamentos no período dividido pelos assinantes pagos ativos + esses cancelamentos. Quanto maior, maior a proporção de assinantes pagos se perdendo no período."
+                  />
+                  <StatCard
+                    icon={Wallet}
+                    tone="teal"
+                    label="Ticket médio"
+                    value={stats.avgTicket == null ? "—" : money(stats.avgTicket)}
+                    hint="MRR dividido pelo número de assinantes pagos ativos — quanto cada assinante representa de receita mensal recorrente, em média (mistura mensal e anual)."
+                  />
+                  <StatCard
+                    icon={Gem}
+                    tone="indigo"
+                    label="LTV estimado"
+                    value={stats.estimatedLTV == null ? "— (precisa de churn > 0)" : money(stats.estimatedLTV)}
+                    hint="Estimativa clássica de assinatura: ticket médio dividido pelo churn do período (em decimal). Quanto maior o churn, menor o LTV estimado — é só uma projeção, não um valor garantido."
+                  />
+                  <StatCard
+                    icon={Clock}
+                    tone="amber"
+                    label="Tempo médio até cancelar"
+                    value={
+                      stats.avgDaysToCancel == null ? "— (sem cancelamentos ainda)" : `${Math.round(stats.avgDaysToCancel)} dias`
+                    }
+                    hint="Média, em todo o histórico (não só o período selecionado), do tempo entre a ativação da licença e o cancelamento."
+                  />
+                  <StatCard
+                    icon={MailWarning}
+                    tone="rose"
+                    label="Nunca confirmaram e-mail"
+                    value={stats.unconfirmedSignups}
+                    hint="Contas cadastradas que nunca confirmaram o e-mail — ficam travadas sem conseguir usar o app. Estado atual, não depende do período selecionado. Clique pra ver a lista."
+                    onClick={() => openGroupModal("unconfirmed")}
+                  />
                 </div>
+
+                <TrendChart series={trend} loading={trendLoading} />
 
                 <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
                   <div className="px-5 py-3.5 border-b border-stone-100">

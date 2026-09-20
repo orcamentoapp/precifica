@@ -47,6 +47,8 @@ router.get("/dashboard-stats", async (req, res) => {
       atRiskRes,
       newUsersInPeriodRes,
       recentSignupsRes,
+      avgDaysToCancelRes,
+      unconfirmedSignupsRes,
     ] = await Promise.all([
       pool.query("SELECT COUNT(*)::int AS n FROM users WHERE role = 'user'"),
       // Só conta como "assinante pago" quem realmente paga por cartão via
@@ -54,24 +56,41 @@ router.get("/dashboard-stats", async (req, res) => {
       // gerada manualmente pelo admin (sem assinatura Stripe por trás) não é
       // receita de verdade, não deve inflar essa métrica nem o MRR abaixo.
       pool.query(
-        "SELECT COUNT(*)::int AS n FROM licenses WHERE status = 'active' AND type IN ('monthly','annual') AND user_id IS NOT NULL AND stripe_subscription_id IS NOT NULL"
+        `SELECT COUNT(*)::int AS n FROM licenses l
+         WHERE l.status = 'active' AND l.type IN ('monthly','annual') AND l.user_id IS NOT NULL
+           AND l.stripe_subscription_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`
       ),
       pool.query(
-        "SELECT COUNT(*)::int AS n FROM licenses WHERE status = 'active' AND type = 'trial' AND user_id IS NOT NULL"
+        `SELECT COUNT(*)::int AS n FROM licenses l
+         WHERE l.status = 'active' AND l.type = 'trial' AND l.user_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`
       ),
       pool.query(
-        `SELECT type, COUNT(*)::int AS n FROM licenses
-         WHERE status = 'active' AND type IN ('monthly','annual') AND user_id IS NOT NULL AND stripe_subscription_id IS NOT NULL
+        `SELECT type, COUNT(*)::int AS n FROM licenses l
+         WHERE l.status = 'active' AND l.type IN ('monthly','annual') AND l.user_id IS NOT NULL
+           AND l.stripe_subscription_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)
          GROUP BY type`
       ),
       pool.query(
         `SELECT
-           COUNT(*) FILTER (WHERE trial_started_at IS NOT NULL)::int AS total_trials,
-           COUNT(*) FILTER (WHERE trial_started_at IS NOT NULL AND type IN ('monthly','annual'))::int AS converted
-         FROM licenses`
+           COUNT(*) FILTER (WHERE l.trial_started_at IS NOT NULL)::int AS total_trials,
+           COUNT(*) FILTER (WHERE l.trial_started_at IS NOT NULL AND l.type IN ('monthly','annual'))::int AS converted
+         FROM licenses l
+         WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`
       ),
-      pool.query("SELECT COUNT(*)::int AS n FROM licenses WHERE cancelled_at >= $1", [periodStart]),
-      pool.query("SELECT COUNT(*)::int AS n FROM licenses WHERE cancel_at_period_end = true AND status = 'active'"),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM licenses l
+         WHERE l.cancelled_at >= $1
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`,
+        [periodStart]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM licenses l
+         WHERE l.cancel_at_period_end = true AND l.status = 'active'
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`
+      ),
       pool.query("SELECT COUNT(*)::int AS n FROM users WHERE role = 'user' AND created_at >= $1", [periodStart]),
       pool.query(
         `SELECT u.id, u.email, u.created_at,
@@ -81,6 +100,20 @@ router.get("/dashboard-stats", async (req, res) => {
          ORDER BY u.created_at DESC
          LIMIT 8`
       ),
+      // Tempo médio (em dias) entre a ativação da licença e o cancelamento —
+      // "estado atual" (todo o histórico, não só o período selecionado), pra
+      // não ficar um número instável indo e voltando conforme o filtro de
+      // dias. Usa created_at como fallback quando não tem activated_at (ex:
+      // licença nunca chegou a ser confirmada antes de cancelar).
+      pool.query(
+        `SELECT AVG(EXTRACT(EPOCH FROM (l.cancelled_at - COALESCE(l.activated_at, l.created_at))) / 86400)::float AS avg_days
+         FROM licenses l
+         WHERE l.cancelled_at IS NOT NULL
+           AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`
+      ),
+      // Contas cadastradas que nunca confirmaram o e-mail — ficam travadas
+      // sem conseguir usar o app (não é período, é "estado atual").
+      pool.query("SELECT COUNT(*)::int AS n FROM users WHERE role = 'user' AND email_verified = false"),
     ]);
 
     const planCounts = { monthly: 0, annual: 0 };
@@ -91,6 +124,29 @@ router.get("/dashboard-stats", async (req, res) => {
 
     const { total_trials, converted } = conversionRes.rows[0];
     const conversionRate = total_trials > 0 ? (converted / total_trials) * 100 : null;
+
+    // Churn (%): dos assinantes pagos que existiam nesse "universo" (ativos
+    // agora + quem cancelou no período), quantos cancelaram — aproximação
+    // padrão quando não se guarda um retrato histórico de assinantes no
+    // início do período. null quando não há base nenhuma pra calcular (zero
+    // ativos e zero cancelamentos no período).
+    const activePaidSubscribers = activePaidRes.rows[0].n;
+    const cancelledInPeriod = cancelledInPeriodRes.rows[0].n;
+    const churnBase = activePaidSubscribers + cancelledInPeriod;
+    const churnRate = churnBase > 0 ? (cancelledInPeriod / churnBase) * 100 : null;
+
+    // Ticket médio (ARPU, misturando mensal e anual): MRR dividido pelo
+    // número de assinantes pagos ativos — quanto cada assinante representa
+    // de receita mensal recorrente, em média.
+    const avgTicket = activePaidSubscribers > 0 ? mrr / activePaidSubscribers : null;
+
+    // LTV estimado = ticket médio / churn mensal (decimal) — fórmula clássica
+    // de assinatura. Só dá pra estimar com churn > 0 (com churn zero, LTV
+    // tenderia a infinito — não é um número útil de mostrar).
+    const estimatedLTV = avgTicket != null && churnRate ? avgTicket / (churnRate / 100) : null;
+
+    const avgDaysToCancel = avgDaysToCancelRes.rows[0].avg_days;
+    const unconfirmedSignups = unconfirmedSignupsRes.rows[0].n;
 
     // Receita de verdade recebida no período (não estimada) — busca direto
     // na API do Stripe (soma de amount_paid das faturas pagas no período).
@@ -126,15 +182,20 @@ router.get("/dashboard-stats", async (req, res) => {
     res.json({
       days,
       totalUsers: totalUsersRes.rows[0].n,
-      activePaidSubscribers: activePaidRes.rows[0].n,
+      activePaidSubscribers,
       activeTrials: activeTrialRes.rows[0].n,
       mrr,
       revenueInPeriod,
       conversionRate,
-      cancelledInPeriod: cancelledInPeriodRes.rows[0].n,
+      cancelledInPeriod,
       atRiskSubscriptions: atRiskRes.rows[0].n,
       newUsersInPeriod: newUsersInPeriodRes.rows[0].n,
       recentSignups: recentSignupsRes.rows,
+      churnRate,
+      avgTicket,
+      estimatedLTV,
+      avgDaysToCancel,
+      unconfirmedSignups,
     });
   } catch (err) {
     console.error("Erro ao calcular métricas do painel admin:", err);
@@ -186,6 +247,14 @@ router.get("/dashboard-stats/group", async (req, res) => {
             ORDER BY l.expires_at ASC NULLS LAST`,
       params: [],
     },
+    unconfirmed: {
+      label: "Cadastros sem e-mail confirmado",
+      sql: `SELECT u.id, u.email, u.name, u.clinic_name, u.created_at
+            FROM users u
+            WHERE u.role = 'user' AND u.email_verified = false
+            ORDER BY u.created_at DESC`,
+      params: [],
+    },
   };
 
   try {
@@ -227,6 +296,42 @@ router.get("/dashboard-stats/group", async (req, res) => {
   } catch (err) {
     console.error("Erro ao listar usuários do grupo da Visão Geral:", err);
     res.status(500).json({ error: "Erro ao listar usuários desse grupo" });
+  }
+});
+
+// Série diária de novos cadastros vs cancelamentos no período selecionado —
+// alimenta o gráfico de tendência da Visão Geral. Preenche todo dia do
+// período com generate_series (mesmo os sem nenhum evento viram 0, em vez de
+// sumir do gráfico), sempre calculado na hora a partir dos dados reais atuais
+// (sem nenhuma tabela de histórico/snapshot).
+router.get("/dashboard-stats/trend", async (req, res) => {
+  const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+  const periodStart = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT gs.day::date AS day,
+              COALESCE(su.n, 0)::int AS new_users,
+              COALESCE(sc.n, 0)::int AS cancelled
+       FROM generate_series($1::date, CURRENT_DATE, '1 day') AS gs(day)
+       LEFT JOIN (
+         SELECT date_trunc('day', created_at)::date AS day, COUNT(*)::int AS n
+         FROM users WHERE role = 'user' AND created_at >= $1
+         GROUP BY 1
+       ) su ON su.day = gs.day
+       LEFT JOIN (
+         SELECT date_trunc('day', l.cancelled_at)::date AS day, COUNT(*)::int AS n
+         FROM licenses l
+         WHERE l.cancelled_at >= $1 AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)
+         GROUP BY 1
+       ) sc ON sc.day = gs.day
+       ORDER BY gs.day`,
+      [periodStart]
+    );
+    res.json({ days, series: rows });
+  } catch (err) {
+    console.error("Erro ao calcular tendência da Visão Geral:", err);
+    res.status(500).json({ error: "Erro ao calcular tendência" });
   }
 });
 
