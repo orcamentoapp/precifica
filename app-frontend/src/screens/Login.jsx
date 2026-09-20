@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { apiRequest, setToken } from "../api";
+import { apiRequest, setToken, saveAccount, removeSavedAccount, REMEMBERED_EMAIL_KEY } from "../api";
 import { screenStyle, cardStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle, labelStyle, showHideBtnStyle } from "../authStyles";
 import AuthLogo from "../AuthLogo";
-
-const REMEMBERED_EMAIL_KEY = "precifica_remembered_email";
 
 export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onGoRegister, onGoForgot, onGoBuy, onGoTrial, onNeedsVerification }) {
   const [email, setEmail] = useState(() => {
@@ -65,6 +63,13 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
         else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
       } catch (e) {}
       setToken(data.token);
+      // "Trocar de conta" (menu de conta, dentro do app) só oferece contas
+      // em que a pessoa marcou "Lembrar" nesse mesmo login — desmarcado, o
+      // computador é tratado como não-confiável pra deixar uma sessão
+      // pronta pra troca (ex: computador compartilhado), então nem entra na
+      // lista (e sai dela, se um login anterior tinha deixado salva).
+      if (rememberMe) saveAccount(data.user.email, data.token);
+      else removeSavedAccount(data.user.email);
       onLoggedIn(data.user, data.license);
     } catch (err) {
       if (err.data && err.data.needsVerification) {
@@ -226,8 +231,9 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
                 style={{ width: 14, height: 14, cursor: "pointer" }}
+                title="Preenche o e-mail sozinho da próxima vez e permite trocar rápido pra essa conta depois, sem digitar a senha de novo."
               />
-              Lembrar e-mail
+              Lembrar e-mail e permitir troca rápida
             </label>
             <button type="button" onClick={onGoForgot} style={linkStyle}>
               Esqueceu a senha?

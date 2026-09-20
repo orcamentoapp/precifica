@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal, HelpCircle, BookOpen, PlayCircle, ArrowLeft } from "lucide-react";
-import { apiRequest, clearToken } from "./api";
+import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal, HelpCircle, BookOpen, PlayCircle, ArrowLeft, ArrowLeftRight } from "lucide-react";
+import { apiRequest, clearToken, getSavedAccounts, switchToAccount, removeSavedAccount } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
 
@@ -8544,10 +8544,33 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, 
   const alreadyInstalled = isRunningInstalled();
   const onIOS = isIOS();
 
+  // Outras contas já logadas nesse navegador (ex: a conta de teste do
+  // Marcelo e a conta de verdade da Dra. Stephanie), pra trocar com um
+  // clique sem digitar e-mail/senha de novo. Recarrega a lista toda vez que
+  // o menu abre, pra pegar contas salvas em outra aba/sessão nesse meio tempo.
+  const [savedAccounts, setSavedAccounts] = useState([]);
+  const otherAccounts = savedAccounts.filter((a) => a.email !== account?.user?.email);
+
   async function handleInstallClick() {
     const accepted = await promptInstall();
     if (accepted) setInstalled(true);
   }
+
+  function handleSwitchAccount(email) {
+    if (switchToAccount(email)) {
+      window.location.reload();
+    }
+  }
+
+  function handleForgetAccount(email, e) {
+    e.stopPropagation();
+    removeSavedAccount(email);
+    setSavedAccounts(getSavedAccounts());
+  }
+
+  useEffect(() => {
+    if (open) setSavedAccounts(getSavedAccounts());
+  }, [open]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -8620,6 +8643,36 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, 
                       : `${account.license.daysLeft} ${account.license.daysLeft === 1 ? "dia restante" : "dias restantes"} na licença`}
                   </div>
                 )}
+            </div>
+          )}
+
+          {otherAccounts.length > 0 && (
+            <div className="border-t border-stone-100 py-1.5">
+              <div className="px-4 pt-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                Trocar de conta
+              </div>
+              <div className="px-4 pb-1.5 text-[11px] text-stone-400 leading-snug">
+                Só aparecem aqui contas com "Lembrar" marcado no login.
+              </div>
+              {otherAccounts.map((a) => (
+                <button
+                  key={a.email}
+                  onClick={() => handleSwitchAccount(a.email)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-2 text-sm hover:bg-stone-50 transition group"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <ArrowLeftRight className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                    <span className="truncate">{a.email}</span>
+                  </span>
+                  <span
+                    onClick={(e) => handleForgetAccount(a.email, e)}
+                    title="Esquecer essa conta"
+                    className="shrink-0 text-stone-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </span>
+                </button>
+              ))}
             </div>
           )}
 

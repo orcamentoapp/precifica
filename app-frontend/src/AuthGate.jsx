@@ -197,6 +197,10 @@ export default function AuthGate({ children }) {
     }
     try {
       const data = await apiRequest("/api/auth/me");
+      // Não mexe na lista de "trocar de conta" aqui — só entra nela quem
+      // marcou "Lembrar" no momento do login (ver Login.jsx). Uma sessão que
+      // já estava aberta antes dessa função existir só aparece na lista
+      // depois de relogar uma vez com a caixinha marcada.
       decideScreenFromSession(data.user, data.license);
     } catch (err) {
       clearToken();

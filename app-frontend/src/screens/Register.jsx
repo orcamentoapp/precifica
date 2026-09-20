@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { apiRequest } from "../api";
-import { screenStyle, cardStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle, labelStyle } from "../authStyles";
+import { screenStyle, cardStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle, labelStyle, showHideBtnStyle } from "../authStyles";
 import LicenseCodeInput from "../LicenseCodeInput";
 import AuthLogo from "../AuthLogo";
 
@@ -10,6 +10,8 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
   const [confirmEmail, setConfirmEmail] = useState(lockedEmail || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [resendingKey, setResendingKey] = useState(false);
@@ -158,24 +160,34 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
           )}
 
           <label style={{ ...labelStyle, marginTop: 12 }}>Senha</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={inputStyle}
-            minLength={6}
-            required
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ ...inputStyle, paddingRight: 64 }}
+              minLength={6}
+              required
+            />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} style={showHideBtnStyle}>
+              {showPassword ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
 
           <label style={{ ...labelStyle, marginTop: 12 }}>Confirmar senha</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={inputStyle}
-            minLength={6}
-            required
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showConfirmPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              style={{ ...inputStyle, paddingRight: 64 }}
+              minLength={6}
+              required
+            />
+            <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} style={showHideBtnStyle}>
+              {showConfirmPassword ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
 
           <button type="submit" disabled={submitting} style={buttonStyle}>
             {submitting ? "Criando conta..." : "Criar conta"}

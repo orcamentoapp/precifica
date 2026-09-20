@@ -5,7 +5,112 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — cabeçalho do painel admin no mesmo padrão do app do cliente
+## ✅ Feito nesta sessão — "Mostrar senha" em todos os campos de senha + "Trocar de conta" agora exige "Lembrar" nas duas contas
+
+Dois pedidos do Marcelo:
+
+**1. Botão "Mostrar senha" em todo campo de senha do app** — já existia só
+na tela de Login. Revisei o app inteiro (busquei todo `type="password"` em
+`app-frontend/src/`) e achei mais 2 telas sem isso: adicionei o mesmo
+padrão (botão "Mostrar"/"Ocultar" dentro do campo, `showHideBtnStyle` já
+existente em `authStyles.js`) em:
+- `screens/Register.jsx` (Ativar licença) — campos "Senha" e "Confirmar
+  senha".
+- `screens/ResetPassword.jsx` (Redefinir senha) — campos "Nova senha" e
+  "Confirmar nova senha".
+
+Não sobrou nenhum campo de senha sem isso — conferi que só existem esses 4
+(2 no Login, que já tinha, + os 4 novos acima). Não existe tela de "trocar
+senha" dentro do app logado nem no admin, então não tinha mais nenhum
+lugar pra revisar.
+
+**2. "Trocar de conta" (da sessão anterior) agora só oferece contas que
+marcaram "Lembrar" no login** — ideia do próprio Marcelo, fazia sentido:
+antes, QUALQUER login (mesmo sem marcar a caixinha) deixava o token
+daquela sessão salvo no navegador pra troca rápida, o que não é ideal num
+computador compartilhado, por exemplo. Agora:
+- A caixinha que já existia no login (antes "Lembrar e-mail") virou
+  **"Lembrar e-mail e permitir troca rápida"** — passou a controlar as
+  duas coisas juntas (antes só controlava o preenchimento automático do
+  campo de e-mail).
+- Só entra na lista de "Trocar de conta" quem loga com essa caixinha
+  marcada. Desmarcar num login futuro da MESMA conta também tira ela da
+  lista (respeita a intenção de "não deixar essa sessão pronta pra troca
+  nesse aparelho").
+- Tirei o "auto-salvamento" que eu tinha colocado na sessão anterior (que
+  adicionava uma conta já logada à lista sozinho, sem precisar relogar) —
+  não tinha como saber se "Lembrar" tinha sido marcado numa sessão que já
+  estava aberta antes dessa mudança, então agora só entra na lista quem
+  passar pelo login de novo com a caixinha marcada.
+- O menu "Trocar de conta" ganhou uma linha explicando isso ("Só aparecem
+  aqui contas com 'Lembrar' marcado no login"), pra não parecer que uma
+  conta sumiu sem explicação.
+
+**Arquivos**: `app-frontend/src/api.js` (a chave `REMEMBERED_EMAIL_KEY`
+saiu do `Login.jsx` e virou export daqui, único lugar de verdade agora),
+`app-frontend/src/screens/Login.jsx`, `app-frontend/src/AuthGate.jsx`
+(reverti o auto-salvamento), `app-frontend/src/App.jsx` (linha explicativa
+no menu), `app-frontend/src/screens/Register.jsx` e
+`app-frontend/src/screens/ResetPassword.jsx` (mostrar senha).
+
+**Testado**: `npm run build` do frontend limpo, sem import sobrando.
+**Não testei clicando de verdade** — vale conferir: os botões
+"Mostrar"/"Ocultar" nas 2 telas novas (Ativar licença e Redefinir senha),
+e o fluxo de troca de conta — logar SEM marcar a caixinha e confirmar que
+a conta não aparece no menu "Trocar de conta", depois logar COM a
+caixinha marcada e confirmar que aparece.
+
+## Log anterior — botão "Trocar de conta" (alternar entre contas já logadas, sem digitar senha de novo)
+
+Pedido do Marcelo: poder alternar rapidamente entre 2 contas logadas (ex:
+a conta de teste dele e a conta de verdade da Dra. Stephanie) sem precisar
+sair e fazer login de novo toda vez.
+
+**Como funciona** (tudo no app do cliente, não mexe no admin):
+- Toda vez que um login é feito com sucesso, o token dessa sessão fica
+  salvo numa lista local no navegador (`localStorage`, chave separada da
+  sessão ativa) — junto com o e-mail, pra identificar a conta depois. Uma
+  conta que já estava logada ANTES dessa mudança existir também entra
+  pra lista sozinha, na próxima vez que o app confirma a sessão dela (não
+  precisa relogar pra aparecer no menu).
+- No **menu de conta** (ícone no canto superior direito, o mesmo de
+  "Modo escuro"/"Sair"), aparece uma seção **"Trocar de conta"** — só
+  quando existe pelo menos MAIS UMA conta salva além da que está ativa
+  agora (se só tem uma conta salva, a seção nem aparece). Cada conta
+  listada tem um "x" que aparece no hover pra esquecer aquela conta
+  (tira da lista, sem deslogar ninguém).
+- Clicar numa conta da lista troca o token ativo pra ela e recarrega a
+  página — a sessão nova é validada normalmente do zero (mesmo fluxo de
+  quem acabou de logar), então funciona certinho tanto pra 2 contas
+  comuns quanto se uma delas for a conta do admin.
+- **"Sair"** continua só limpando a sessão ATIVA — não mexe na lista de
+  contas salvas, então dá pra sair e voltar depois sem perder a
+  possibilidade de trocar rápido.
+- Os tokens salvos são os mesmos JWT de sessão de sempre (validade de 30
+  dias, sem mudança nenhuma no backend) — se um token salvo já tiver
+  expirado na hora de trocar, o app simplesmente cai na tela de login
+  normal (como qualquer sessão expirada), sem quebrar nada; a pessoa só
+  precisa logar de novo nessa conta uma vez pra ela voltar a ficar
+  disponível na lista.
+
+**Arquivos**: `app-frontend/src/api.js` (novas funções
+`getSavedAccounts`/`saveAccount`/`removeSavedAccount`/`switchToAccount`,
+tudo em cima do `localStorage`, sem nenhuma chamada nova à API),
+`app-frontend/src/screens/Login.jsx` (salva a conta ao logar),
+`app-frontend/src/AuthGate.jsx` (salva a conta ao confirmar uma sessão já
+existente) e `app-frontend/src/App.jsx` (a seção "Trocar de conta" dentro
+do `OptionsMenu`).
+
+**Testado**: rodei a lógica de salvar/trocar/remover/re-logar (upsert)
+direto em Node com um `localStorage` fake, conferindo os retornos um por
+um (inclusive tentar trocar pra uma conta que não existe mais) — bateu
+tudo certo. `npm run build` do frontend limpo. **Não testei clicando de
+verdade no navegador com 2 contas reais** — vale o Marcelo logar com a
+conta de teste, depois sair e logar com a da Dra. Stephanie (ou
+vice-versa), conferir se a outra aparece no menu pra trocar com um clique,
+e se voltar funciona nos dois sentidos.
+
+## Log anterior — cabeçalho do painel admin no mesmo padrão do app do cliente
 
 Pedido do Marcelo: o topo do painel admin (`app-frontend/src/AdminDashboard.jsx`)
 passar a seguir o mesmo padrão visual do cabeçalho do app do cliente — só
