@@ -84,6 +84,15 @@ const DEFAULT_SETTINGS = {
   taxProvisionPercent: 15,
   taxRegime: "liberal", // "liberal" (pessoa física, Carnê-Leão) | "cnpj" (Simples Nacional / Lucro Presumido)
   anexoSimples: "iii", // "iii" | "v" — só usado quando taxRegime é "cnpj" e o regime é Simples Nacional, pra sugerir a alíquota efetiva automaticamente
+  cnpj: "", // só usado/mostrado quando orgLabel é "Clínica" — CNPJ da clínica (não confundir com o CRO de cada profissional)
+  // Cada consultório/clínica pode ter mais de um profissional atendendo
+  // (ex: uma clínica com 2 dentistas) — cada orçamento salvo diz qual
+  // profissional o fez, e é o nome/especialidade/CRO desse profissional
+  // (não mais um único nome fixo pra conta inteira) que aparece no
+  // orçamento exportado. Sempre existe pelo menos 1 profissional na lista
+  // (a UI não deixa remover o último).
+  professionals: [{ id: "default", name: "", specialty: "", registration: "" }],
+  lastUsedProfessionalId: "default", // profissional pré-selecionado num orçamento novo — sempre o último usado
   darkMode: false,
   procedureCategories: [], // categorias criadas manualmente (podem existir vazias, sem nenhum procedimento ainda)
   procedureColumnWidths: {}, // largura (px) de cada coluna da tabela de Procedimentos, ajustada pelo usuário — mescla com DEFAULT_PROCEDURE_COLUMN_WIDTHS pras que ele ainda não mexeu
@@ -127,6 +136,34 @@ function getActivePreset(settings) {
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+// Acha o profissional selecionado num orçamento (por id) dentro da lista
+// de `settings.professionals` — cai pro primeiro da lista se o id não foi
+// informado ou não existe mais (ex: profissional removido depois), e
+// retorna null só se a lista estiver vazia (não deveria acontecer, a UI
+// sempre mantém pelo menos 1).
+function resolveActiveProfessional(settings, professionalId) {
+  const list = settings.professionals || [];
+  if (list.length === 0) return null;
+  return list.find((p) => p.id === professionalId) || list[0];
+}
+
+// Devolve uma cópia de `settings` com clinicName/specialty/professionalRegistration
+// substituídos pelos dados do profissional selecionado — usado só na hora de
+// montar o orçamento exportado (HTML/canvas/texto), sem mexer em mais nada
+// de `settings` (taxas, presets etc. continuam intactos). Os campos antigos
+// (`clinicName`/`specialty`/`professionalRegistration`) ficam como reserva,
+// usados só se o profissional não tiver esse dado preenchido.
+function withActiveProfessional(settings, professionalId) {
+  const prof = resolveActiveProfessional(settings, professionalId);
+  if (!prof) return settings;
+  return {
+    ...settings,
+    clinicName: prof.name || settings.clinicName,
+    specialty: prof.specialty || settings.specialty,
+    professionalRegistration: prof.registration || settings.professionalRegistration,
+  };
 }
 
 function readFileAsDataUrl(file) {
@@ -430,6 +467,7 @@ function buildBudgetTemplateBodyHTML({
   const firstName = (patientName || "").trim().split(" ")[0] || "";
   const address = settings.address ? `${escapeHtml(settings.address)}` : "";
   const cro = settings.professionalRegistration ? escapeHtml(settings.professionalRegistration) : "";
+  const cnpj = orgKind === "Clínica" && settings.cnpj ? escapeHtml(settings.cnpj) : "";
 
   return `
   <div class="bt-page">
@@ -441,6 +479,7 @@ function buildBudgetTemplateBodyHTML({
           <div class="bt-clinic-name">${escapeHtml(settings.clinicName || "Nome")}</div>
           ${settings.specialty ? `<div class="bt-clinic-specialty">${escapeHtml(settings.specialty)}</div>` : ""}
           ${cro ? `<div class="bt-clinic-cro">${cro}</div>` : ""}
+          ${cnpj ? `<div class="bt-clinic-cro">CNPJ ${cnpj}</div>` : ""}
         </div>
       </div>
     </div>
@@ -525,7 +564,7 @@ function buildBudgetTemplateBodyHTML({
       </div>
       <div class="bt-footer-item" style="justify-content: flex-end; text-align: right; flex-direction: column; align-items: flex-end;">
         <div class="bt-footer-name">${escapeHtml(settings.clinicName || "Nome")}</div>
-        <div class="bt-footer-sub">${cro ? cro + " · " : ""}${escapeHtml(orgKind)}</div>
+        <div class="bt-footer-sub">${cro ? cro + " · " : ""}${cnpj ? "CNPJ " + cnpj + " · " : ""}${escapeHtml(orgKind)}</div>
       </div>
     </div>
   </div>`;
@@ -3885,6 +3924,22 @@ function formatPhoneBR(value) {
   return `(${ddd}) ${part1}${part2 ? "-" + part2 : ""}`;
 }
 
+function formatCNPJ(value) {
+  const digits = (value || "").replace(/\D/g, "").slice(0, 14);
+  if (digits.length === 0) return "";
+  const p1 = digits.slice(0, 2);
+  const p2 = digits.slice(2, 5);
+  const p3 = digits.slice(5, 8);
+  const p4 = digits.slice(8, 12);
+  const p5 = digits.slice(12, 14);
+  let out = p1;
+  if (p2) out += `.${p2}`;
+  if (p3) out += `.${p3}`;
+  if (p4) out += `/${p4}`;
+  if (p5) out += `-${p5}`;
+  return out;
+}
+
 function formatValidityText(months) {
   const m = Number(months) || 3;
   return `Orçamento válido por ${m} ${m === 1 ? "mês" : "meses"}`;
@@ -6418,6 +6473,8 @@ function SimulationPanel({
   setPatientPhone,
   patientEmail,
   setPatientEmail,
+  professionalId,
+  setProfessionalId,
   downPayment,
   setDownPayment,
   splitMode,
@@ -6436,6 +6493,14 @@ function SimulationPanel({
   const saveMenuRef = useRef(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef(null);
+
+  // Profissional selecionado pra ESSE orçamento — usado no nome/especialidade/CRO
+  // que aparece no orçamento exportado (ver `withActiveProfessional`) e salvo
+  // junto no histórico. Cai pro primeiro da lista se nada foi selecionado
+  // ainda (não deveria acontecer, o componente pai já pré-seleciona).
+  const professionalsList = settings.professionals || [];
+  const activeProfessional = resolveActiveProfessional(settings, professionalId);
+  const exportSettings = withActiveProfessional(settings, professionalId);
 
   useEffect(() => {
     if (!saveMenuOpen) return;
@@ -6786,6 +6851,11 @@ function SimulationPanel({
       patientName: (patientName || "").trim(),
       patientPhone: (patientPhone || "").trim(),
       patientEmail: (patientEmail || "").trim(),
+      professionalId: activeProfessional ? activeProfessional.id : "",
+      // Nome do profissional gravado como "fotografia" do momento em que o
+      // orçamento foi salvo — assim o histórico continua mostrando o nome
+      // certo mesmo que esse profissional seja renomeado ou removido depois.
+      professionalName: activeProfessional ? activeProfessional.name || "" : "",
       procedures: budgetProcs.map((p) =>
         p.custom
           ? { custom: true, name: p.name || "Item avulso", cost: p.cost, valorBase: p.valorBase, category: "Avulso" }
@@ -6846,7 +6916,7 @@ function SimulationPanel({
     const paymentLines = buildPaymentLines();
 
     return renderBudgetTemplateToCanvas({
-      settings,
+      settings: exportSettings,
       patientName,
       procedures,
       total,
@@ -7240,7 +7310,7 @@ function SimulationPanel({
   function buildShareText() {
     const lines = [];
     const greeting = patientName ? `Olá, ${patientName}!` : "Olá!";
-    lines.push(`${greeting} Segue o orçamento${settings.clinicName ? ` de ${settings.clinicName}` : ""}:`);
+    lines.push(`${greeting} Segue o orçamento${exportSettings.clinicName ? ` de ${exportSettings.clinicName}` : ""}:`);
     lines.push("");
     lines.push(
       new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -7259,19 +7329,20 @@ function SimulationPanel({
       paymentLines.forEach((line) => lines.push(`- ${line}`));
       lines.push(`Total: ${money(splitMode ? splitChargedTotal : row && row.adjustedPrice != null ? row.adjustedPrice : subtotal)}`);
     }
-    const orgLabel = settings.orgLabel || "Consultório";
-    const footerCro = settings.professionalRegistration || "";
-    const footerNameLine = settings.clinicName
-      ? `${orgLabel} - ${settings.clinicName}${footerCro ? "  ·  " + footerCro : ""}`
+    const orgLabel = exportSettings.orgLabel || "Consultório";
+    const footerCro = exportSettings.professionalRegistration || "";
+    const footerCnpj = orgLabel === "Clínica" && exportSettings.cnpj ? `CNPJ ${exportSettings.cnpj}` : "";
+    const footerNameLine = exportSettings.clinicName
+      ? `${orgLabel} - ${exportSettings.clinicName}${footerCro ? "  ·  " + footerCro : ""}${footerCnpj ? "  ·  " + footerCnpj : ""}`
       : "";
-    const footerPhoneLine = settings.phone ? `Telefone - ${settings.phone}` : "";
-    const footerAddressLine = settings.address ? `Endereço - ${settings.address}` : "";
+    const footerPhoneLine = exportSettings.phone ? `Telefone - ${exportSettings.phone}` : "";
+    const footerAddressLine = exportSettings.address ? `Endereço - ${exportSettings.address}` : "";
     lines.push("");
     if (footerNameLine) lines.push(footerNameLine);
     if (footerPhoneLine) lines.push(footerPhoneLine);
     if (footerAddressLine) lines.push(footerAddressLine);
     lines.push("");
-    lines.push(formatValidityText(settings.quoteValidityMonths));
+    lines.push(formatValidityText(exportSettings.quoteValidityMonths));
     return lines.join("\n");
   }
 
@@ -7466,6 +7537,26 @@ function SimulationPanel({
             )}
           </div>
         </div>
+        {professionalsList.length > 1 && (
+          <div className="mb-3">
+            <label className="text-xs text-stone-500 block mb-1.5">Profissional</label>
+            <select
+              value={professionalId || ""}
+              onChange={(e) => setProfessionalId(e.target.value)}
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
+            >
+              {professionalsList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name || "Sem nome"}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+              Quem fez esse atendimento — o nome, especialidade e CRO aparecem no orçamento exportado. Fica salvo
+              como padrão pro próximo orçamento.
+            </p>
+          </div>
+        )}
         <div className="mb-3">
           <label className="text-xs text-stone-500 block mb-1.5">Nome do paciente</label>
           <input
@@ -8780,15 +8871,23 @@ function OptionsMenu({ settings, onChange, onLogoUpload, onOpenProfileSettings, 
 // livre. Some as três partes automaticamente no formato "CRO-SP 123456"
 // (mesmo formato de string que já era salvo em settings.professionalRegistration,
 // então nada mais no app precisou mudar).
-function ProfessionalRegistrationField({ value, onChange }) {
+// `fixedType`, quando informado (ex: "CRO"), tira o seletor de Tipo da tela
+// e usa sempre esse valor — o Precifica é focado em odontologia, então o
+// cadastro de profissional já vem travado em CRO, sem opção de CRM.
+function ProfessionalRegistrationField({ value, onChange, fixedType, label }) {
   const parsed = (() => {
     const m = /^(CRO|CRM)-([A-Z]{2})\s+(\d{4,6})$/.exec((value || "").trim().toUpperCase());
-    return m ? { type: m[1], uf: m[2], number: m[3] } : { type: "", uf: "", number: "" };
+    return m ? { type: m[1], uf: m[2], number: m[3] } : { type: fixedType || "", uf: "", number: "" };
   })();
 
   const [type, setType] = useState(parsed.type);
   const [uf, setUf] = useState(parsed.uf);
   const [number, setNumber] = useState(parsed.number);
+
+  useEffect(() => {
+    if (fixedType) setType(fixedType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedType]);
 
   // Só recompõe e salva a string final quando os três campos estão completos
   // e válidos — evita gravar um registro pela metade enquanto o usuário
@@ -8801,19 +8900,23 @@ function ProfessionalRegistrationField({ value, onChange }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, uf, number]);
 
+  const effectiveType = fixedType || type;
+
   return (
     <div>
-      <div className="text-xs text-stone-500 mb-1">CRO / CRM</div>
+      <div className="text-xs text-stone-500 mb-1">{label || (fixedType ? fixedType : "CRO / CRM")}</div>
       <div className="flex gap-2">
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="text-sm border border-stone-200 rounded-lg pl-2.5 pr-1.5 py-2 outline-none focus:border-teal-400 bg-white shrink-0"
-        >
-          <option value="">Tipo</option>
-          <option value="CRO">CRO</option>
-          <option value="CRM">CRM</option>
-        </select>
+        {!fixedType && (
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="text-sm border border-stone-200 rounded-lg pl-2.5 pr-1.5 py-2 outline-none focus:border-teal-400 bg-white shrink-0"
+          >
+            <option value="">Tipo</option>
+            <option value="CRO">CRO</option>
+            <option value="CRM">CRM</option>
+          </select>
+        )}
         <select
           value={uf}
           onChange={(e) => setUf(e.target.value)}
@@ -8836,12 +8939,99 @@ function ProfessionalRegistrationField({ value, onChange }) {
         />
       </div>
       <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
-        Tipo, estado do conselho e número (4 a 6 dígitos) — vira automaticamente{" "}
+        Estado do conselho e número (4 a 6 dígitos) — vira automaticamente{" "}
         <strong>
-          {type || "CRO"}-{uf || "SP"} {number || "123456"}
+          {effectiveType || "CRO"}-{uf || "SP"} {number || "123456"}
         </strong>{" "}
         nos orçamentos exportados.
       </p>
+    </div>
+  );
+}
+
+// Cadastro de profissionais — substitui o antigo "Nome / Especialidade / CRO"
+// fixo (um só, pra conta inteira) por uma lista: um consultório pode ter só
+// 1 dentista, uma clínica pode ter vários. Cada orçamento salvo grava qual
+// profissional o fez, e é o nome/especialidade/CRO DESSE profissional que
+// aparece no orçamento exportado (ver `withActiveProfessional`). Sempre
+// mantém pelo menos 1 profissional na lista — não deixa remover o último
+// (senão não sobraria ninguém pra selecionar num orçamento novo).
+function ProfessionalsEditor({ professionals, onChange }) {
+  const list = professionals && professionals.length > 0 ? professionals : [{ id: "default", name: "", specialty: "", registration: "" }];
+
+  function updateOne(id, patch) {
+    onChange(list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  function addOne() {
+    onChange([...list, { id: uid(), name: "", specialty: "", registration: "" }]);
+  }
+
+  function removeOne(id) {
+    if (list.length <= 1) return;
+    onChange(list.filter((p) => p.id !== id));
+  }
+
+  return (
+    <div data-tour="settings-clinic-name">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs text-stone-500">Profissionais</div>
+        <button
+          type="button"
+          onClick={addOne}
+          className="text-xs font-medium text-teal-700 hover:text-teal-900 inline-flex items-center gap-1"
+        >
+          <Plus className="w-3.5 h-3.5" /> Adicionar profissional
+        </button>
+      </div>
+      <p className="text-xs text-stone-400 mb-3 leading-relaxed">
+        Cadastre cada profissional que atende — na hora de montar um orçamento, dá pra escolher qual profissional fez
+        aquele atendimento, e o nome, especialidade e CRO dele aparecem no orçamento exportado.
+      </p>
+      <div className="space-y-3">
+        {list.map((prof, idx) => (
+          <div key={prof.id} className="border border-stone-200 rounded-xl p-3 space-y-3 bg-stone-50/50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-stone-500">Profissional {idx + 1}</span>
+              {list.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeOne(prof.id)}
+                  title="Remover profissional"
+                  className="text-stone-300 hover:text-rose-600 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div>
+              <div className="text-xs text-stone-500 mb-1">Nome</div>
+              <input
+                type="text"
+                value={prof.name}
+                onChange={(e) => updateOne(prof.id, { name: e.target.value })}
+                placeholder="Nome do profissional"
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
+              />
+            </div>
+            <div>
+              <div className="text-xs text-stone-500 mb-1">Especialidade</div>
+              <input
+                type="text"
+                value={prof.specialty}
+                onChange={(e) => updateOne(prof.id, { specialty: e.target.value })}
+                placeholder="Ex: Ortodontia, Odontologia Geral..."
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
+              />
+            </div>
+            <ProfessionalRegistrationField
+              value={prof.registration}
+              onChange={(v) => updateOne(prof.id, { registration: v })}
+              fixedType="CRO"
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -9059,6 +9249,26 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
     <>
     <SettingsCard id="sec-perfil" icon={<User className="w-4 h-4 text-teal-700" />} title="Perfil">
       <div className="space-y-4">
+        <div>
+          <div className="text-xs text-stone-500 mb-1">Tipo</div>
+          <div className="flex gap-2">
+            {["Consultório", "Clínica"].map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onChange({ ...settings, orgLabel: opt })}
+                className={`flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                  (settings.orgLabel || "Consultório") === opt
+                    ? "border-teal-400 bg-teal-50 text-teal-800"
+                    : "border-stone-200 text-stone-500 hover:bg-stone-50"
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <div className="relative w-16 h-16 shrink-0 rounded-full border border-stone-200 overflow-hidden bg-stone-100 flex items-center justify-center">
             {settings.logoDataUrl ? (
@@ -9085,24 +9295,59 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
           </div>
         </div>
 
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Tipo</div>
-          <div className="flex gap-2">
-            {["Consultório", "Clínica"].map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => onChange({ ...settings, orgLabel: opt })}
-                className={`flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                  (settings.orgLabel || "Consultório") === opt
-                    ? "border-teal-400 bg-teal-50 text-teal-800"
-                    : "border-stone-200 text-stone-500 hover:bg-stone-50"
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
+        {(settings.orgLabel || "Consultório") === "Clínica" && (
+          <div>
+            <div className="text-xs text-stone-500 mb-1">CNPJ</div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={settings.cnpj}
+              onChange={(e) => onChange({ ...settings, cnpj: formatCNPJ(e.target.value) })}
+              placeholder="00.000.000/0000-00"
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+            />
+            <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece no cabeçalho e rodapé do orçamento exportado.</p>
           </div>
+        )}
+
+        <ProfessionalsEditor
+          professionals={settings.professionals}
+          onChange={(next) => onChange({ ...settings, professionals: next })}
+        />
+
+        <div>
+          <div className="text-xs text-stone-500 mb-1">Endereço</div>
+          <input
+            type="text"
+            value={settings.address}
+            onChange={(e) => onChange({ ...settings, address: e.target.value })}
+            placeholder="Rua, número, bairro, cidade"
+            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+          />
+        </div>
+
+        <div>
+          <div className="text-xs text-stone-500 mb-1">Telefone</div>
+          <input
+            type="text"
+            inputMode="tel"
+            value={settings.phone}
+            onChange={(e) => onChange({ ...settings, phone: formatPhoneBR(e.target.value) })}
+            placeholder="(00) 00000-0000"
+            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+          />
+        </div>
+
+        <div>
+          <div className="text-xs text-stone-500 mb-1">Instagram</div>
+          <input
+            type="text"
+            value={settings.instagramHandle}
+            onChange={(e) => onChange({ ...settings, instagramHandle: e.target.value.replace(/^@/, "") })}
+            placeholder="usuario_instagram"
+            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+          />
+          <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece no rodapé do orçamento exportado.</p>
         </div>
 
         <div>
@@ -9151,75 +9396,11 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
 
         <button
           type="button"
-          onClick={() => previewBudgetTemplate(settings)}
+          onClick={() => previewBudgetTemplate(withActiveProfessional(settings, settings.lastUsedProfessionalId))}
           className="w-full text-sm font-medium text-teal-700 border border-teal-200 rounded-lg py-2.5 hover:bg-teal-50 transition"
         >
           Visualizar modelo de orçamento
         </button>
-
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Nome</div>
-          <input
-            type="text"
-            value={settings.clinicName}
-            onChange={(e) => onChange({ ...settings, clinicName: e.target.value })}
-            placeholder="Nome do consultório/clínica ou da(o) profissional"
-            data-tour="settings-clinic-name"
-            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-          />
-        </div>
-
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Especialidade</div>
-          <input
-            type="text"
-            value={settings.specialty}
-            onChange={(e) => onChange({ ...settings, specialty: e.target.value })}
-            placeholder="Ex: Ortodontia, Odontologia Geral..."
-            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-          />
-          <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece embaixo do nome no orçamento exportado.</p>
-        </div>
-
-        <ProfessionalRegistrationField
-          value={settings.professionalRegistration}
-          onChange={(v) => onChange({ ...settings, professionalRegistration: v })}
-        />
-
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Endereço</div>
-          <input
-            type="text"
-            value={settings.address}
-            onChange={(e) => onChange({ ...settings, address: e.target.value })}
-            placeholder="Rua, número, bairro, cidade"
-            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-          />
-        </div>
-
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Telefone</div>
-          <input
-            type="text"
-            inputMode="tel"
-            value={settings.phone}
-            onChange={(e) => onChange({ ...settings, phone: formatPhoneBR(e.target.value) })}
-            placeholder="(00) 00000-0000"
-            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-          />
-        </div>
-
-        <div>
-          <div className="text-xs text-stone-500 mb-1">Instagram</div>
-          <input
-            type="text"
-            value={settings.instagramHandle}
-            onChange={(e) => onChange({ ...settings, instagramHandle: e.target.value.replace(/^@/, "") })}
-            placeholder="usuario_instagram"
-            className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
-          />
-          <p className="text-xs text-stone-400 mt-1 leading-relaxed">Aparece no rodapé do orçamento exportado.</p>
-        </div>
 
         <div>
           <div className="text-xs text-stone-500 mb-1">Validade do orçamento</div>
@@ -10528,7 +10709,7 @@ function PatientsPage({ patients, budgetHistory, onAdd, onUpdate, onDelete, onRe
   );
 }
 
-function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus }) {
+function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus, showProfessional }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -10637,6 +10818,7 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus 
               <tr className="text-left text-xs uppercase tracking-wide text-stone-400 border-b border-stone-100">
                 <th className="px-5 py-2 font-medium">Data</th>
                 <th className="px-3 py-2 font-medium">Nome</th>
+                {showProfessional && <th className="px-3 py-2 font-medium">Profissional</th>}
                 <th className="px-3 py-2 font-medium">Procedimento</th>
                 <th className="px-3 py-2 font-medium">Forma de pagamento</th>
                 <th className="px-3 py-2 font-medium">Status</th>
@@ -10662,6 +10844,9 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus 
                     <td className="px-3 py-3 font-medium text-stone-800 whitespace-nowrap">
                       {h.patientName || "Sem nome"}
                     </td>
+                    {showProfessional && (
+                      <td className="px-3 py-3 text-stone-600 whitespace-nowrap">{h.professionalName || "—"}</td>
+                    )}
                     <td className="px-3 py-3 text-stone-600 max-w-xs truncate" title={procNames}>
                       {procNames || "—"}
                     </td>
@@ -11367,8 +11552,8 @@ const TOUR_SECTIONS = [
       {
         tab: "profile-settings",
         target: '[data-tour="settings-clinic-name"]',
-        title: "Nome da clínica",
-        body: "Preenche aqui o nome que aparece no topo do app e no orçamento que o paciente recebe.",
+        title: "Profissionais",
+        body: "Cadastre aqui o(s) profissional(is) que atendem — nome, especialidade e CRO. Esses dados aparecem no topo do app e no orçamento que o paciente recebe.",
       },
       {
         tab: "profile-settings",
@@ -11726,6 +11911,7 @@ export default function App() {
   const [budgetInstallments, setBudgetInstallments] = useState(1);
   const [budgetClientLevel, setBudgetClientLevel] = useState(0);
   const [budgetPatientName, setBudgetPatientName] = useState("");
+  const [budgetProfessionalId, setBudgetProfessionalId] = useState("");
   const [budgetPatientPhone, setBudgetPatientPhone] = useState("");
   const [budgetPatientEmail, setBudgetPatientEmail] = useState("");
   const [budgetDownPayment, setBudgetDownPayment] = useState(0);
@@ -11794,6 +11980,28 @@ export default function App() {
           } else {
             merged.boletoInstallmentFees = stored.boletoInstallmentFees;
           }
+
+          // Migração pra suporte a múltiplos profissionais: quem já usava o
+          // Precifica antes disso existir tinha um único Nome/Especialidade/CRO
+          // pra conta inteira (settings.clinicName etc.) — vira o primeiro
+          // profissional da lista nova, preservando o que já tinha cadastrado.
+          const hasProfessionals = Array.isArray(stored.professionals) && stored.professionals.length > 0;
+          if (!hasProfessionals) {
+            merged.professionals = [
+              {
+                id: uid(),
+                name: stored.clinicName || "",
+                specialty: stored.specialty || "",
+                registration: stored.professionalRegistration || "",
+              },
+            ];
+          } else {
+            merged.professionals = stored.professionals;
+          }
+          if (!merged.lastUsedProfessionalId || !merged.professionals.some((p) => p.id === merged.lastUsedProfessionalId)) {
+            merged.lastUsedProfessionalId = merged.professionals[0].id;
+          }
+
           setSettings(merged);
         }
       } catch (e) {}
@@ -11894,6 +12102,36 @@ export default function App() {
       await window.storage.set("settings", JSON.stringify(next), false);
     } catch (e) {}
   }, []);
+
+  // Pré-seleciona, num orçamento novo, o último profissional usado (salvo
+  // em settings.lastUsedProfessionalId) — ou o primeiro da lista, se ainda
+  // não tem nenhum "último usado" válido. Só entra em ação depois que as
+  // configurações terminaram de carregar, e só se a seleção atual não é
+  // mais válida (ex: acabou de trocar de conta, ou o profissional
+  // selecionado foi removido da lista).
+  useEffect(() => {
+    if (!loaded) return;
+    const list = settings.professionals || [];
+    if (list.length === 0) return;
+    if (budgetProfessionalId && list.some((p) => p.id === budgetProfessionalId)) return;
+    const fallback =
+      settings.lastUsedProfessionalId && list.some((p) => p.id === settings.lastUsedProfessionalId)
+        ? settings.lastUsedProfessionalId
+        : list[0].id;
+    setBudgetProfessionalId(fallback);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, settings.professionals]);
+
+  // Sempre que a pessoa troca de profissional na tela de orçamento, esse
+  // vira o "último usado" — é ele que vem pré-selecionado da próxima vez
+  // (ver o useEffect acima e o pedido original: "deixando sempre o último
+  // usado como padrão").
+  function handleSetBudgetProfessional(id) {
+    setBudgetProfessionalId(id);
+    if (id && id !== settings.lastUsedProfessionalId) {
+      persistSettings({ ...settings, lastUsedProfessionalId: id });
+    }
+  }
 
   async function handleLogoUpload(e) {
     const file = e.target.files && e.target.files[0];
@@ -12092,6 +12330,9 @@ export default function App() {
     setBudgetPatientName(entry.patientName || "");
     setBudgetPatientPhone(entry.patientPhone || "");
     setBudgetPatientEmail(entry.patientEmail || "");
+    if (entry.professionalId && (settings.professionals || []).some((p) => p.id === entry.professionalId)) {
+      setBudgetProfessionalId(entry.professionalId);
+    }
     setBudgetDownPayment(entry.downPayment || 0);
     setBudgetSplitMode(Array.isArray(entry.paymentSplit) && entry.paymentSplit.length > 0);
     setBudgetSplitParts(
@@ -12715,7 +12956,7 @@ export default function App() {
                   {settings.orgLabel || "Consultório"}
                 </div>
                 <div className="text-base font-semibold text-stone-700 truncate max-w-[220px]">
-                  {settings.clinicName || "Nome"}
+                  {resolveActiveProfessional(settings, settings.lastUsedProfessionalId)?.name || settings.clinicName || "Nome"}
                 </div>
               </div>
               <OptionsMenu
@@ -12751,6 +12992,7 @@ export default function App() {
             onDelete={handleDeleteBudgetHistoryEntry}
             onClearAll={handleClearBudgetHistory}
             onUpdateStatus={handleUpdateBudgetStatus}
+            showProfessional={(settings.professionals || []).length > 1}
           />
         ) : tab === "patients" ? (
           <PatientsPage
@@ -12829,6 +13071,8 @@ export default function App() {
             setPatientPhone={setBudgetPatientPhone}
             patientEmail={budgetPatientEmail}
             setPatientEmail={setBudgetPatientEmail}
+            professionalId={budgetProfessionalId}
+            setProfessionalId={handleSetBudgetProfessional}
             downPayment={budgetDownPayment}
             setDownPayment={setBudgetDownPayment}
             splitMode={budgetSplitMode}

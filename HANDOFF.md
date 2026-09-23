@@ -5,7 +5,77 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Sugestão automática de alíquota de imposto (Simples Nacional / Carnê-Leão)
+## ✅ Feito nesta sessão — Múltiplos profissionais, CNPJ da clínica, CRO fixo, reorganização do Perfil
+
+Pedido grande do Marcelo, em 5 partes:
+
+**1. Reorganização da tela Perfil** — nova ordem: Tipo (Consultório/Clínica)
+→ Foto → CNPJ (só aparece se Tipo = Clínica) → Profissionais (novo, ver
+abaixo) → Endereço → Telefone → Instagram → Logo do consultório/clínica +
+Cor do orçamento + botão "Visualizar modelo de orçamento" (esse bloco foi
+pro final, antes de "Validade do orçamento" — antes ficava logo no topo).
+
+**2. Campo CNPJ** — só aparece quando o Tipo é "Clínica" (some se for
+"Consultório"). Tem máscara automática (00.000.000/0000-00) e aparece no
+cabeçalho e no rodapé do orçamento exportado (PDF/imagem/texto do
+WhatsApp), junto com o CRO.
+
+**3. CRO fixo, sem mais CRM** — o seletor "Tipo" (CRO/CRM) no registro
+profissional sumiu; agora é sempre CRO, sem opção de escolher (o sistema é
+focado só em odontologia). Só sobrou UF + número.
+
+**4. Múltiplos profissionais** — o antigo trio "Nome / Especialidade / CRO"
+(um só, fixo pra conta inteira) virou uma **lista de profissionais**, cada
+um com seu próprio nome, especialidade e CRO. Tem botão "Adicionar
+profissional" e cada card tem um X pra remover (não deixa remover o
+último — sempre sobra pelo menos 1). Contas que já usavam o Precifica
+antes disso foram migradas automaticamente: o que já tinha em
+Nome/Especialidade/CRO virou o primeiro profissional da lista, sem perder
+nada.
+
+**5. Seletor de profissional no orçamento + histórico** — quando existe
+mais de 1 profissional cadastrado, aparece um campo **"Profissional"** na
+tela de novo orçamento (some se só tem 1 — não teria o que escolher), logo
+acima do nome do paciente. É o nome/especialidade/CRO **desse**
+profissional selecionado que vai pro orçamento exportado (PDF, imagem,
+texto do WhatsApp) — não mais um valor fixo da conta inteira. O último
+profissional usado fica salvo como padrão pro próximo orçamento (pedido
+específico do Marcelo: "deixando sempre o último usado como padrão").
+Também: o nome do profissional é salvo junto de cada orçamento no
+histórico — o campo "Profissional" só aparece na tabela do histórico
+também quando há mais de 1 cadastrado, igual à tela de orçamento. Reabrir
+um orçamento salvo (histórico → clicar na linha) restaura o profissional
+que fez aquele orçamento, se ele ainda existir na lista.
+
+**O nome que aparece no topo do app** (canto superior direito, ao lado de
+"Consultório"/"Clínica") passou a mostrar o nome do primeiro profissional
+cadastrado (ou do último usado), em vez de um campo "Nome" solto que não
+existe mais.
+
+**Arquivos**: `app-frontend/src/App.jsx` — `DEFAULT_SETTINGS` ganhou
+`cnpj`, `professionals` (array) e `lastUsedProfessionalId`; funções novas
+`resolveActiveProfessional`, `withActiveProfessional`, `formatCNPJ`;
+componente novo `ProfessionalsEditor`; `ProfessionalRegistrationField`
+ganhou a prop `fixedType` (usada com `"CRO"`, tira o seletor Tipo);
+`ProfileSettingsPage` reescrita na nova ordem; `SimulationPanel` ganhou o
+seletor de profissional e passou a montar o orçamento (export e texto do
+WhatsApp) com `withActiveProfessional`; `HistoryPanel` ganhou a coluna
+condicional "Profissional"; migração automática de contas antigas no
+carregamento das configurações (`useEffect` que busca `settings` salvo).
+
+**Testado**: `npm run build` limpo. Testei a lógica de migração e de
+resolução do profissional ativo isoladamente com um script Node (4
+cenários: conta antiga sem lista de profissionais, conta já migrada com 2
+profissionais, `lastUsedProfessionalId` apontando pra um profissional que
+não existe mais — cai pro primeiro da lista —, e conta nova do zero) —
+todos bateram o esperado. **Não testei clicando de verdade** — vale
+conferir: abrir Configurações → Perfil e ver a nova ordem, cadastrar 2
+profissionais e ver o seletor aparecer na tela de orçamento, gerar um
+orçamento com cada um e conferir que o nome/CRO certos aparecem no
+PDF/imagem exportados, e reabrir um orçamento do histórico pra ver se o
+profissional certo volta selecionado.
+
+## ✅ Feito em sessão anterior — Sugestão automática de alíquota de imposto (Simples Nacional / Carnê-Leão)
 
 Pedido do Marcelo: o campo de "provisão de imposto" em Configurações
 sempre foi uma % fixa que a pessoa digita na mão (chutando ou copiando da
