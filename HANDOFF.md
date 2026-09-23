@@ -5,7 +5,62 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Botão "+ Novo Orçamento", Esc na Apresentação, ajustes finos na tela de orçamento
+## ✅ Feito nesta sessão — Correção do Esc na Apresentação, histórico com ordenação/menu de contexto, scrollbar clara no modo claro
+
+Mais uma rodada de ajustes finos, em cima do que foi entregue antes:
+
+**1. Esc dentro da Apresentação** — o pedido anterior ("Esc fecha a
+Apresentação") tinha um conflito: já existia um atalho global de Esc que
+sempre voltava pro Dashboard (pedido de uma sessão bem anterior), e os
+dois disparavam juntos. Agora: Esc dentro da Apresentação SÓ fecha ela
+(volta pro orçamento normal); Esc fora da Apresentação continua indo pro
+Dashboard, como sempre foi. A Apresentação marca uma classe no `<body>`
+enquanto está aberta, e o atalho global de Esc checa essa classe antes de
+trocar de aba.
+
+**2. Histórico de orçamentos**:
+- Removido o botão "Limpar histórico" do topo.
+- Botão direito num orçamento agora abre um menu de contexto com "Excluir
+  orçamento" — clicar nele pede confirmação (Cancelar/Excluir) antes de
+  excluir de verdade. O X que já existia na linha (excluir com duplo
+  clique) continua funcionando do mesmo jeito, esse é um caminho a mais.
+- A tela do Histórico deixou de ter uma largura máxima menor que o resto
+  do app — antes isso forçava uma barra de rolagem horizontal na tabela
+  mesmo com espaço sobrando na tela; agora usa a largura toda disponível,
+  igual a aba Procedimentos já fazia.
+- Coluna "Procedimento" ficou mais estreita (o nome completo continua
+  disponível passando o mouse em cima, como já era).
+- Todas as colunas do histórico agora são clicáveis pra ordenar (Data,
+  Nome, Profissional, Procedimento, Forma de pagamento, Status, Valor) —
+  clicar de novo na mesma coluna inverte a ordem (crescente/decrescente),
+  com uma setinha mostrando qual coluna e direção estão ativas.
+
+**3. Scrollbar clara no modo claro** — quem usa o sistema operacional no
+modo escuro estava vendo a scrollbar (e outros controles nativos do
+navegador) escura mesmo com o app no modo claro, porque a página nunca
+declarava explicitamente que o modo claro também é suportado — só o modo
+escuro (".dark") declarava a sua cor. Agora o modo claro declara a
+própria cor também, então a scrollbar segue o modo escuro/claro do APP
+(o que está em Configurações), não mais o do sistema operacional. Mesmo
+visual nativo da scrollbar, só muda a paleta.
+
+**Arquivos**: `app-frontend/src/App.jsx` (atalho global de Esc,
+`SimulationPanel` marca `patient-mode-active` no body, `HistoryPanel`
+reescrito com ordenação e menu de contexto, `SortableTh` novo, largura
+máxima da aba Histórico), `app-frontend/src/index.css` (`color-scheme:
+light` no `html`, ao lado do `.dark { color-scheme: dark }` que já
+existia).
+
+**Testado**: `npm run build` limpo. Testei a lógica de ordenação
+isoladamente com um script Node (ordenar por data, nome e valor, crescente
+e decrescente) — todos bateram a ordem esperada. **Não testei clicando de
+verdade** — vale conferir: Esc dentro e fora da Apresentação, o menu de
+contexto (botão direito) no histórico com a confirmação, clicar nos
+títulos das colunas do histórico, e a cor da scrollbar com o sistema
+operacional no modo escuro e o app no modo claro (o oposto também: sistema
+claro + app escuro).
+
+## ✅ Feito em sessão anterior — Botão "+ Novo Orçamento", Esc na Apresentação, ajustes finos na tela de orçamento
 
 Pedidos rápidos do Marcelo em cima da tela de "Orçamento":
 

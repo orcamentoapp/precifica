@@ -4,6 +4,16 @@
 
 html {
   scroll-behavior: smooth;
+  /* Sem isso, em quem usa o sistema operacional no modo escuro o navegador
+     desenhava a scrollbar (e outros controles nativos) escura mesmo com o
+     app inteiro no modo claro — porque a página nunca dizia explicitamente
+     que suporta/prefere o claro, só o ".dark" (mais abaixo) dizia o
+     contrário. Declarando os dois aqui, a scrollbar passa a seguir o modo
+     escuro do APP (a classe ".dark" no <html>, controlada em Configurações),
+     não o do sistema operacional. Mesmo design nativo do navegador, só
+     muda a paleta de cor.
+  */
+  color-scheme: light;
 }
 
 body {

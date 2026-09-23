@@ -6539,6 +6539,15 @@ function SimulationPanel({
     return () => window.removeEventListener("keydown", handleEsc);
   }, [patientMode]);
 
+  // Marca no <body> que a Apresentação está aberta — é assim que o atalho
+  // global de Esc (que normalmente volta pro Dashboard, ver App()) sabe pra
+  // deixar o Esc só fechar a Apresentação nesse momento, em vez de também
+  // trocar de aba.
+  useEffect(() => {
+    document.body.classList.toggle("patient-mode-active", patientMode);
+    return () => document.body.classList.remove("patient-mode-active");
+  }, [patientMode]);
+
   // Profissional selecionado pra ESSE orçamento — usado no nome/especialidade/CRO
   // que aparece no orçamento exportado (ver `withActiveProfessional`) e salvo
   // junto no histórico. Cai pro primeiro da lista se nada foi selecionado
@@ -10784,18 +10793,54 @@ function PatientsPage({ patients, budgetHistory, onAdd, onUpdate, onDelete, onRe
   );
 }
 
-function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus, showProfessional }) {
+// Rótulo + valor comparável de cada coluna ordenável do histórico — usado
+// tanto pra decidir a ordem quanto pra saber se compara como texto ou como
+// número/data.
+const HISTORY_SORT_ACCESSORS = {
+  savedAt: { get: (h) => new Date(h.savedAt).getTime() || 0, type: "number" },
+  patientName: { get: (h) => normalizeText(h.patientName || ""), type: "text" },
+  professionalName: { get: (h) => normalizeText(h.professionalName || ""), type: "text" },
+  procedures: { get: (h) => normalizeText((h.procedures || []).map((p) => p.name).join(", ")), type: "text" },
+  methodLabel: { get: (h) => normalizeText(h.methodLabel || ""), type: "text" },
+  status: { get: (h) => normalizeText(getBudgetStatusOption(h.status).label), type: "text" },
+  price: { get: (h) => h.price || 0, type: "number" },
+};
+
+// Cabeçalho de coluna clicável — ordena pela coluna, e clicar de novo na
+// mesma inverte a direção (mesmo padrão de planilha). A setinha só aparece
+// na coluna ativa.
+function SortableTh({ label, sortKey, currentKey, currentDir, onClick, align, className }) {
+  const active = currentKey === sortKey;
+  return (
+    <th
+      onClick={() => onClick(sortKey)}
+      className={`${className || "px-3"} py-2 font-medium cursor-pointer select-none hover:text-stone-600 transition ${
+        align === "right" ? "text-right" : ""
+      }`}
+    >
+      <span className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
+        {label}
+        {active && (
+          <span className="text-teal-600">{currentDir === "asc" ? "▲" : "▼"}</span>
+        )}
+      </span>
+    </th>
+  );
+}
+
+function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfessional }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [confirmClearAll, setConfirmClearAll] = useState(false);
   const deleteTimerRef = useRef(null);
-  const clearTimerRef = useRef(null);
+  const [sortKey, setSortKey] = useState("savedAt");
+  const [sortDir, setSortDir] = useState("desc");
+  const [contextMenu, setContextMenu] = useState(null); // { id, x, y, confirming } | null
+  const contextMenuRef = useRef(null);
 
   useEffect(() => {
     return () => {
       if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     };
   }, []);
 
@@ -10811,17 +10856,33 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
     }
   }
 
-  function handleClearAllClick() {
-    if (confirmClearAll) {
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-      setConfirmClearAll(false);
-      onClearAll();
+  function toggleSort(key) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-      setConfirmClearAll(true);
-      clearTimerRef.current = setTimeout(() => setConfirmClearAll(false), 3000);
+      setSortKey(key);
+      setSortDir("asc");
     }
   }
+
+  // Menu de contexto (botão direito num orçamento) — fecha sozinho ao
+  // clicar fora, rolar a tela, ou apertar Esc.
+  useEffect(() => {
+    if (!contextMenu) return;
+    function handleOutside(e) {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) setContextMenu(null);
+    }
+    function handleEsc(e) {
+      if (e.key === "Escape") setContextMenu(null);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("keydown", handleEsc);
+    window.addEventListener("scroll", () => setContextMenu(null), true);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [contextMenu]);
 
   const filtered = (history || []).filter((h) => {
     if (statusFilter !== "todos" && (h.status || "aberto") !== statusFilter) return false;
@@ -10830,6 +10891,14 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
     const nameMatch = normalizeText(h.patientName || "").includes(q);
     const procMatch = (h.procedures || []).some((p) => normalizeText(p.name || "").includes(q));
     return nameMatch || procMatch;
+  });
+
+  const accessor = HISTORY_SORT_ACCESSORS[sortKey] || HISTORY_SORT_ACCESSORS.savedAt;
+  const sorted = [...filtered].sort((a, b) => {
+    const va = accessor.get(a);
+    const vb = accessor.get(b);
+    const cmp = accessor.type === "number" ? va - vb : va.localeCompare(vb, "pt-BR");
+    return sortDir === "asc" ? cmp : -cmp;
   });
 
   if (!history || history.length === 0) {
@@ -10844,17 +10913,7 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-sm font-semibold text-stone-700">Histórico de orçamentos</h2>
-        <button
-          onClick={handleClearAllClick}
-          className={`text-xs font-medium transition ${
-            confirmClearAll ? "text-rose-600 font-semibold" : "text-stone-400 hover:text-rose-600"
-          }`}
-        >
-          {confirmClearAll ? "Clique de novo pra confirmar" : "Limpar histórico"}
-        </button>
-      </div>
+      <h2 className="text-sm font-semibold text-stone-700">Histórico de orçamentos</h2>
       <input
         type="text"
         value={search}
@@ -10891,18 +10950,20 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-stone-400 border-b border-stone-100">
-                <th className="px-5 py-2 font-medium">Data</th>
-                <th className="px-3 py-2 font-medium">Nome</th>
-                {showProfessional && <th className="px-3 py-2 font-medium">Profissional</th>}
-                <th className="px-3 py-2 font-medium">Procedimento</th>
-                <th className="px-3 py-2 font-medium">Forma de pagamento</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-5 py-2 font-medium text-right">Valor</th>
+                <SortableTh label="Data" sortKey="savedAt" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="pl-5 pr-3" />
+                <SortableTh label="Nome" sortKey="patientName" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                {showProfessional && (
+                  <SortableTh label="Profissional" sortKey="professionalName" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                )}
+                <SortableTh label="Procedimento" sortKey="procedures" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                <SortableTh label="Forma de pagamento" sortKey="methodLabel" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                <SortableTh label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                <SortableTh label="Valor" sortKey="price" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} align="right" className="pl-3 pr-5" />
                 <th className="px-3 py-2 font-medium w-8"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50">
-              {filtered.map((h) => {
+              {sorted.map((h) => {
                 const dateLabel = new Date(h.savedAt).toLocaleString("pt-BR", {
                   day: "2-digit",
                   month: "2-digit",
@@ -10914,7 +10975,20 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
                 const statusOpt = getBudgetStatusOption(h.status);
                 const StatusIcon = statusOpt.icon;
                 return (
-                  <tr key={h.id} onClick={() => onReopen(h)} className="hover:bg-stone-50 cursor-pointer group">
+                  <tr
+                    key={h.id}
+                    onClick={() => onReopen(h)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      // Trava a posição dentro da tela, pra o menu não nascer
+                      // cortado quando o clique é perto da borda direita ou
+                      // de baixo (largura/altura aproximadas do menu).
+                      const x = Math.min(e.clientX, window.innerWidth - 200);
+                      const y = Math.min(e.clientY, window.innerHeight - 100);
+                      setContextMenu({ id: h.id, x, y, confirming: false });
+                    }}
+                    className="hover:bg-stone-50 cursor-pointer group"
+                  >
                     <td className="px-5 py-3 text-xs text-stone-400 whitespace-nowrap">{dateLabel}</td>
                     <td className="px-3 py-3 font-medium text-stone-800 whitespace-nowrap">
                       {h.patientName || "Sem nome"}
@@ -10922,7 +10996,7 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
                     {showProfessional && (
                       <td className="px-3 py-3 text-stone-600 whitespace-nowrap">{h.professionalName || "—"}</td>
                     )}
-                    <td className="px-3 py-3 text-stone-600 max-w-xs truncate" title={procNames}>
+                    <td className="px-3 py-3 text-stone-600 max-w-[140px] truncate" title={procNames}>
                       {procNames || "—"}
                     </td>
                     <td className="px-3 py-3 text-stone-600 whitespace-nowrap">
@@ -10979,6 +11053,43 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus,
       </div>
       {filtered.length === 0 && (
         <p className="text-sm text-stone-400 text-center py-8">Nenhum orçamento encontrado pra essa busca.</p>
+      )}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden w-48"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          {contextMenu.confirming ? (
+            <div className="p-3">
+              <p className="text-xs text-stone-600 mb-2.5 leading-relaxed">Excluir esse orçamento do histórico?</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setContextMenu(null)}
+                  className="flex-1 text-xs font-medium text-stone-500 border border-stone-200 rounded-lg py-1.5 hover:bg-stone-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    onDelete(contextMenu.id);
+                    setContextMenu(null);
+                  }}
+                  className="flex-1 text-xs font-semibold text-white bg-rose-600 rounded-lg py-1.5 hover:bg-rose-700 transition"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setContextMenu((m) => ({ ...m, confirming: true }))}
+              className="w-full text-left px-3 py-2.5 text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+            >
+              <X className="w-3.5 h-3.5" /> Excluir orçamento
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -11966,6 +12077,12 @@ export default function App() {
       if (isTyping) return;
 
       if (e.key === "Escape") {
+        // Enquanto a Apresentação (tela cheia pro paciente, dentro de
+        // "+ Novo Orçamento") está aberta, o Esc é dela — fecha a
+        // Apresentação e volta pro orçamento (ver o próprio SimulationPanel).
+        // Só quando NÃO está na Apresentação é que o Esc daqui volta pro
+        // Dashboard.
+        if (document.body.classList.contains("patient-mode-active")) return;
         navigateTab("dashboard");
         return;
       }
@@ -13049,7 +13166,7 @@ export default function App() {
 
       <main
         className={`mx-auto px-5 py-6 pb-[calc(1.5rem+64px+env(safe-area-inset-bottom,0px))] md:pb-6 ${
-          tab === "procedures" ? "max-w-none" : "max-w-6xl"
+          tab === "procedures" || tab === "history" ? "max-w-none" : "max-w-6xl"
         }`}
       >
         {reopenWarning && (
@@ -13065,7 +13182,6 @@ export default function App() {
             history={budgetHistory}
             onReopen={handleReopenBudget}
             onDelete={handleDeleteBudgetHistoryEntry}
-            onClearAll={handleClearBudgetHistory}
             onUpdateStatus={handleUpdateBudgetStatus}
             showProfessional={(settings.professionals || []).length > 1}
           />
