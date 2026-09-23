@@ -5,7 +5,73 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — "Mostrar senha" em todos os campos de senha + "Trocar de conta" agora exige "Lembrar" nas duas contas
+## ✅ Feito nesta sessão — Novos painéis de análise de custo no Dashboard
+
+Pedido do Marcelo: mandou print de um dashboard de outra ferramenta (de
+uma mentoria) e perguntou se dava pra implementar algo parecido no
+Precifica. O painel de referência tinha 5 blocos: Top 10 maior preço
+final, Top 10 maior custo total + impostos, composição de custo por
+procedimento (barra empilhada: H.C. Próprio / Materiais / Terceiros /
+Cartão / Impostos), Top 10 maior custo com terceiros, e preço final ×
+custo total.
+
+**O problema pra replicar direto**: no Precifica, "Cartão" (taxa da
+maquininha) e "Impostos" não são um custo fixo do procedimento — dependem
+da forma de pagamento escolhida em cada orçamento (podem ter várias formas
+configuradas, cada uma com taxa diferente). Perguntei ao Marcelo como
+tratar isso e ele escolheu o **cenário "à vista"**: taxa de cartão = R$0
+(pagamento à vista não tem taxa) e Impostos = a % de provisão de imposto
+configurada em Configurações, aplicada sobre o preço final. Por isso, nos
+novos painéis, "Cartão" sempre aparece como R$0 — é assim de propósito
+(reflete o cenário à vista), não é bug. Se um dia quiser ver isso
+considerando uma forma de pagamento específica (com taxa de cartão de
+verdade), dá pra evoluir isso depois escolhendo a forma de pagamento como
+filtro.
+
+**Onde entrou**: dentro da aba **Dashboard** (app do cliente, não é o
+admin), embaixo do que já existia (evolução mensal, status, procedimentos
+mais orçados). Uma nova seção "Análise de custo dos procedimentos", usando
+o catálogo de **Procedimentos** cadastrados (não os orçamentos salvos) —
+por isso não depende do filtro de período (30/90/365 dias) que fica no
+topo da aba, que é só sobre orçamentos.
+
+Os 5 blocos novos:
+1. **Top 10 — maior preço final**: procedimentos ordenados pelo preço
+   (Valor) cadastrado, maior primeiro.
+2. **Top 10 — maior custo total + impostos**: custo total (materiais +
+   terceiros + mão de obra) somado ao imposto estimado, maior primeiro.
+3. **Composição de custo por procedimento**: barra empilhada horizontal
+   pros 10 procedimentos de maior preço, dividindo o preço final entre
+   mão de obra, materiais, terceiros, cartão (sempre R$0, ver acima) e
+   impostos — cores validadas pro contraste/daltonismo (mesma paleta já
+   usada no resto do app).
+4. **Top 10 — maior custo com terceiros**: só procedimentos que têm custo
+   de terceiros/laboratório cadastrado (o "Custo adicional"); se nenhum
+   procedimento tiver isso, mostra uma mensagem em vez de lista vazia.
+5. **Preço final × custo total**: duas barrinhas lado a lado por
+   procedimento (preço final em verde-água, custo total em vermelho) com
+   a margem em % rotulada — mesmos 10 procedimentos do bloco 1.
+
+A seção inteira só aparece se existir pelo menos 1 procedimento
+cadastrado (senão não tem o que mostrar).
+
+**Arquivos**: `app-frontend/src/App.jsx` — funções novas
+`buildProcedureCostBreakdown`, `StackedCompositionList`, `PriceVsCostList`
+(a `TopBarList` já existia, reaproveitei), paleta `COST_BREAKDOWN_COLORS`
+/`PRICE_VS_COST_COLORS`, e o corpo de `DashboardSection` recebeu os
+cálculos + os 5 blocos de JSX novos. `DashboardSection` passou a receber
+`procedures`, `settings` e `materialsCatalog` (o call site já tinha sido
+atualizado).
+
+**Testado**: `npm run build` do frontend limpo. Conferi manualmente os
+nomes dos campos que `calcProcedure` retorna (`totalCost`, `directCost`,
+`additionalCost`, `laborCost`, `listPrice`, `taxPct`) batem com o que as
+novas funções usam. **Não testei clicando de verdade** (abrir a aba
+Dashboard com procedimentos cadastrados de verdade e olhar os 5 blocos) —
+vale conferir, principalmente a barra empilhada (bloco 3) e se os valores
+batem com o que aparece na tela de Procedimentos pra alguns itens.
+
+## ✅ Feito em sessão anterior — "Mostrar senha" em todos os campos de senha + "Trocar de conta" agora exige "Lembrar" nas duas contas
 
 Dois pedidos do Marcelo:
 

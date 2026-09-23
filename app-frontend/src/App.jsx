@@ -9884,7 +9884,175 @@ const DASHBOARD_STATUS_META = {
   reprovado: { label: "Reprovado", color: "#e34948" },
 };
 
-function DashboardSection({ budgetHistory }) {
+// Paleta fixa (validada pra contraste/daltonismo, claro e escuro) pra
+// composição de custo por procedimento — 5 categorias que sempre aparecem
+// nessa ordem lado a lado (barra empilhada), então a ordem fixa importa
+// pra separação entre pares vizinhos continuar valendo.
+// Paleta fixa (validada pra contraste/daltonismo) pra composição de custo
+// por procedimento — 5 categorias que sempre aparecem nessa ordem lado a
+// lado (barra empilhada), igual ao painel de referência (H.C. Prop /
+// Materiais / Terceiros / Cartão / Impostos). "Cartão" é sempre R$0 aqui:
+// o Precifica calcula taxa de cartão por forma de pagamento escolhida no
+// orçamento, não como um custo fixo do procedimento, então esse painel usa
+// o cenário "à vista" (sem taxa de cartão) pra poder mostrar os 5 rótulos
+// do jeito que a referência mostra — ver observação no HANDOFF.
+const COST_BREAKDOWN_COLORS = {
+  labor: { light: "#2a78d6", dark: "#3987e5", label: "Mão de obra (H.C. Próprio)" },
+  materials: { light: "#eb6834", dark: "#d95926", label: "Materiais" },
+  terceiros: { light: "#1baf7a", dark: "#199e70", label: "Terceiros" },
+  cartao: { light: "#4a3aa7", dark: "#5c4bc4", label: "Cartão (à vista = R$0)" },
+  tax: { light: "#eda100", dark: "#c98500", label: "Impostos" },
+};
+const PRICE_VS_COST_COLORS = {
+  price: { light: "#0d9488", dark: "#14b8a6", label: "Preço final" },
+  cost: { light: "#f43f5e", dark: "#fb7185", label: "Custo total" },
+};
+
+// Monta, pra cada procedimento cadastrado, o preço final (listPrice) e a
+// composição de custo que soma até ele: mão de obra (tempo em cadeira),
+// materiais, terceiros/laboratório (o "Custo adicional"), cartão (0, no
+// cenário à vista) e o imposto estimado (% de Configurações aplicado sobre
+// o preço final — não depende de qual forma de pagamento for escolhida no
+// orçamento, por isso dá pra mostrar aqui sem precisar de uma forma
+// específica).
+function buildProcedureCostBreakdown(procedures, settings, materialsCatalog) {
+  return (procedures || []).map((p) => {
+    const calc = calcProcedure(p, settings, materialsCatalog);
+    const estimatedTax = (calc.listPrice * calc.taxPct) / 100;
+    return {
+      id: p.id,
+      name: p.name || "Sem nome",
+      listPrice: calc.listPrice,
+      totalCost: calc.totalCost,
+      costPlusTax: calc.totalCost + estimatedTax,
+      labor: calc.laborCost,
+      materials: calc.directCost,
+      terceiros: calc.additionalCost,
+      cartao: 0,
+      tax: estimatedTax,
+    };
+  });
+}
+
+// Lista "Top 10" em formato de barra horizontal — mesmo padrão visual já
+// usado em "Procedimentos mais orçados" (rótulo + valor em cima, barrinha
+// embaixo), só que ordenado e com o valor em R$ em vez de contagem.
+function TopBarList({ items, valueKey, barColor }) {
+  const maxValue = items.length ? items[0][valueKey] : 1;
+  return (
+    <div className="flex flex-col gap-2.5">
+      {items.map((item) => {
+        const pct = maxValue > 0 ? Math.round((item[valueKey] / maxValue) * 100) : 0;
+        return (
+          <div key={item.id}>
+            <div className="flex justify-between text-xs mb-1 gap-2">
+              <span className="text-stone-700 truncate">{item.name}</span>
+              <span className="text-stone-400 shrink-0">{money(item[valueKey])}</span>
+            </div>
+            <div className="bg-stone-100 rounded h-1.5 overflow-hidden">
+              <div className="h-full rounded" style={{ width: pct + "%", background: barColor }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Barra empilhada de composição de custo (mão de obra / materiais /
+// terceiros / cartão / impostos) mais a "sobra" (margem) até o preço final
+// — cada segmento proporcional ao preço final do procedimento, igual ao
+// gráfico de referência.
+function StackedCompositionList({ items }) {
+  const keys = ["labor", "materials", "terceiros", "cartao", "tax"];
+  return (
+    <div className="flex flex-col gap-3">
+      {items.map((item) => {
+        const base = item.listPrice > 0 ? item.listPrice : 1;
+        return (
+          <div key={item.id}>
+            <div className="flex justify-between text-xs mb-1 gap-2">
+              <span className="text-stone-700 truncate">{item.name}</span>
+              <span className="text-stone-400 shrink-0">{money(item.listPrice)}</span>
+            </div>
+            <div className="flex w-full h-3 rounded overflow-hidden bg-stone-100">
+              {keys.map((k) => {
+                const pct = (item[k] / base) * 100;
+                if (pct <= 0) return null;
+                return (
+                  <div
+                    key={k}
+                    title={`${COST_BREAKDOWN_COLORS[k].label}: ${money(item[k])}`}
+                    style={{ width: pct + "%", background: COST_BREAKDOWN_COLORS[k].light }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1 text-xs">
+        {keys.map((k) => (
+          <span key={k} className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: COST_BREAKDOWN_COLORS[k].light }} />
+            <span className="text-stone-500">{COST_BREAKDOWN_COLORS[k].label}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Preço final × custo total, lado a lado por procedimento, com a margem
+// (%) do procedimento rotulada — mesma ideia do painel de referência.
+function PriceVsCostList({ items }) {
+  const maxValue = items.reduce((m, it) => Math.max(m, it.listPrice, it.totalCost), 1);
+  return (
+    <div className="flex flex-col gap-3">
+      {items.map((item) => {
+        const marginPct = item.listPrice > 0 ? Math.round(((item.listPrice - item.totalCost) / item.listPrice) * 100) : 0;
+        const pricePct = Math.round((item.listPrice / maxValue) * 100);
+        const costPct = Math.round((item.totalCost / maxValue) * 100);
+        return (
+          <div key={item.id}>
+            <div className="flex justify-between text-xs mb-1 gap-2">
+              <span className="text-stone-700 truncate">{item.name}</span>
+              <span className={`shrink-0 font-medium ${marginPct >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                margem {marginPct}%
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <div className="bg-stone-100 rounded h-2 flex-1 overflow-hidden">
+                  <div className="h-full rounded" style={{ width: pricePct + "%", background: PRICE_VS_COST_COLORS.price.light }} />
+                </div>
+                <span className="text-[11px] text-stone-400 w-16 text-right shrink-0">{money(item.listPrice)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="bg-stone-100 rounded h-2 flex-1 overflow-hidden">
+                  <div className="h-full rounded" style={{ width: costPct + "%", background: PRICE_VS_COST_COLORS.cost.light }} />
+                </div>
+                <span className="text-[11px] text-stone-400 w-16 text-right shrink-0">{money(item.totalCost)}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1 text-xs">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: PRICE_VS_COST_COLORS.price.light }} />
+          <span className="text-stone-500">{PRICE_VS_COST_COLORS.price.label}</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: PRICE_VS_COST_COLORS.cost.light }} />
+          <span className="text-stone-500">{PRICE_VS_COST_COLORS.cost.label}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DashboardSection({ budgetHistory, procedures, settings, materialsCatalog }) {
   const [days, setDays] = useState(90);
   const evolucaoCanvasRef = useRef(null);
   const evolucaoChartRef = useRef(null);
@@ -9932,6 +10100,18 @@ function DashboardSection({ budgetHistory }) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
   const maxProcCount = topProcs.length ? topProcs[0][1] : 1;
+
+  // Análise de custo por procedimento cadastrado (independe do período
+  // selecionado acima, que é sobre orçamentos salvos — aqui é sobre o
+  // catálogo de Procedimentos em si).
+  const costBreakdown = buildProcedureCostBreakdown(procedures, settings, materialsCatalog);
+  const topByPrice = [...costBreakdown].sort((a, b) => b.listPrice - a.listPrice).slice(0, 10);
+  const topByCostTax = [...costBreakdown].sort((a, b) => b.costPlusTax - a.costPlusTax).slice(0, 10);
+  const topByTerceiros = costBreakdown
+    .filter((c) => c.terceiros > 0)
+    .sort((a, b) => b.terceiros - a.terceiros)
+    .slice(0, 10);
+  const compositionTop = [...costBreakdown].sort((a, b) => b.listPrice - a.listPrice).slice(0, 10);
 
   useEffect(() => {
     if (!evolucaoCanvasRef.current) return;
@@ -10088,6 +10268,44 @@ function DashboardSection({ budgetHistory }) {
                 })}
               </div>
             </div>
+          )}
+
+          {costBreakdown.length > 0 && (
+            <>
+              <h3 className="font-semibold text-stone-800 text-base pt-2">Análise de custo dos procedimentos</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                  <div className="text-sm font-medium text-stone-700 mb-3">Top 10 — maior preço final</div>
+                  <TopBarList items={topByPrice} valueKey="listPrice" barColor={PRICE_VS_COST_COLORS.price.light} />
+                </div>
+                <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                  <div className="text-sm font-medium text-stone-700 mb-3">Top 10 — maior custo total + impostos</div>
+                  <TopBarList items={topByCostTax} valueKey="costPlusTax" barColor={PRICE_VS_COST_COLORS.cost.light} />
+                </div>
+              </div>
+
+              <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                <div className="text-sm font-medium text-stone-700 mb-1">Composição de custo por procedimento</div>
+                <div className="text-xs text-stone-400 mb-3">Os 10 procedimentos de maior preço final, com o preço dividido entre mão de obra, materiais, terceiros, cartão e impostos.</div>
+                <StackedCompositionList items={compositionTop} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                  <div className="text-sm font-medium text-stone-700 mb-3">Top 10 — maior custo com terceiros</div>
+                  {topByTerceiros.length > 0 ? (
+                    <TopBarList items={topByTerceiros} valueKey="terceiros" barColor={COST_BREAKDOWN_COLORS.terceiros.light} />
+                  ) : (
+                    <p className="text-xs text-stone-400">Nenhum procedimento com custo de terceiros/laboratório cadastrado.</p>
+                  )}
+                </div>
+                <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                  <div className="text-sm font-medium text-stone-700 mb-3">Preço final × custo total</div>
+                  <PriceVsCostList items={topByPrice} />
+                </div>
+              </div>
+            </>
           )}
     </div>
   );
@@ -12413,7 +12631,12 @@ export default function App() {
             onBack={() => navigateTab("procedures")}
           />
         ) : tab === "dashboard" ? (
-          <DashboardSection budgetHistory={budgetHistory} />
+          <DashboardSection
+            budgetHistory={budgetHistory}
+            procedures={procedures}
+            settings={settings}
+            materialsCatalog={materialsCatalog}
+          />
         ) : tab === "simulation" ? (
           <SimulationPanel
             procedures={procedures}
