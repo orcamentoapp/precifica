@@ -32,6 +32,19 @@ com poucos orçamentos salvos vs. muitos (nomes/valores variados) e numa
 tela mais estreita (celular/tablet) pra confirmar que a rolagem horizontal
 aparece só quando realmente falta espaço.
 
+**Ajuste rápido no mesmo dia**: depois de ver o resultado, você reportou
+dois detalhes — o card tinha ficado grudado na esquerda em vez de
+centralizado, e a barra de busca ("Buscar por paciente ou procedimento...")
+continuava esticada na largura total, destoando da largura do card
+abaixo dela. Corrigido: a barra de busca e o card do histórico agora
+ficam dentro do mesmo invólucro, que é centralizado na tela (`mx-auto`) e
+tem a largura definida pelo conteúdo da tabela — a barra de busca
+acompanha exatamente essa largura, nunca mais que ela. Os botões de
+filtro por status (Todos/Em aberto/Aprovado/Pago/Reprovado), que ficam
+acima, continuam alinhados à esquerda como antes (não foi pedido mexer
+neles). Build rodou limpo de novo; mesma ressalva de não ter conferido
+clicando de verdade.
+
 ## ✅ Feito em sessão anterior — Correção do Esc na Apresentação, histórico com ordenação/menu de contexto, scrollbar clara no modo claro
 
 Mais uma rodada de ajustes finos, em cima do que foi entregue antes:

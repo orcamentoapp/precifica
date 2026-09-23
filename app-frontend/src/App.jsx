@@ -10914,13 +10914,6 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
   return (
     <div className="space-y-4">
       <h2 className="text-sm font-semibold text-stone-700">Histórico de orçamentos</h2>
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar por paciente ou procedimento..."
-        className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
-      />
       <div className="flex items-center gap-1.5 flex-wrap">
         <button
           onClick={() => setStatusFilter("todos")}
@@ -10945,13 +10938,21 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
           );
         })}
       </div>
-      {/* w-fit: o card só é largo o quanto as colunas realmente precisam —
-          sem isso, ele herdava a largura total da tela (main é max-w-none
-          nessa aba) e cada coluna esticava pra preencher o espaço sobrando,
-          criando vãos vazios entre Data/Nome, Profissional, Status/Valor
-          etc. max-w-full + overflow-x-auto seguram o caso de, mesmo assim,
-          o conteúdo não caber (telas bem estreitas). */}
-      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden w-fit max-w-full">
+      {/* Busca + card do histórico ficam juntos num invólucro "w-fit mx-auto":
+          a largura de verdade é definida pelo conteúdo da tabela (único filho
+          com largura própria aqui dentro), o card e o campo de busca (que é
+          w-full) só acompanham essa largura — e o conjunto fica centralizado
+          na tela em vez de grudado na esquerda. max-w-full + overflow-x-auto
+          seguram o caso do conteúdo não caber (telas bem estreitas). */}
+      <div className="mx-auto w-fit max-w-full space-y-3">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por paciente ou procedimento..."
+          className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
+        />
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="text-sm">
             <thead>
@@ -11055,6 +11056,7 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
               })}
             </tbody>
           </table>
+        </div>
         </div>
       </div>
       {filtered.length === 0 && (
