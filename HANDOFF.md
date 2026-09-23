@@ -5,7 +5,34 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Correção do Esc na Apresentação, histórico com ordenação/menu de contexto, scrollbar clara no modo claro
+## ✅ Feito nesta sessão — Card do Histórico com largura ajustada ao conteúdo
+
+Você tinha mandado um print com retângulos vermelhos mostrando vãos vazios
+dentro da tabela do Histórico (entre Data/Nome, perto de Profissional,
+entre Status/Valor) — sobrando desde que a tela passou a ocupar a largura
+toda (mudança da rodada anterior). O motivo: a tabela tinha `w-full`
+(sempre 100% da largura do card) e o card em si sempre esticava pra
+largura total da tela, então toda coluna "sobrava" espaço proporcional
+mesmo com pouco conteúdo.
+
+Corrigido: o card do Histórico agora só é tão largo quanto o conteúdo das
+colunas realmente precisa (`w-fit` no lugar de esticar full-width), igual
+o pedido pra tela de Procedimentos. Se o conteúdo não couber (tela bem
+estreita, celular), continua tendo uma barra de rolagem horizontal só
+dentro do card — isso é esperado e não é o mesmo problema de antes (que
+era vão vazio, não falta de espaço). Nenhum texto foi cortado por causa
+dessa mudança: a coluna "Procedimento" continua com o mesmo limite e
+"..." + dica ao passar o mouse de antes, pra listas de procedimentos
+muito longas — isso já existia e não é afetado por essa correção.
+
+**Testado**: rodei o build de produção (`npm run build`), passou limpo.
+Não abri o app clicando de verdade pra comparar visualmente antes/depois
+(sem esse cliente); vale conferir se ficou como esperado, especialmente
+com poucos orçamentos salvos vs. muitos (nomes/valores variados) e numa
+tela mais estreita (celular/tablet) pra confirmar que a rolagem horizontal
+aparece só quando realmente falta espaço.
+
+## ✅ Feito em sessão anterior — Correção do Esc na Apresentação, histórico com ordenação/menu de contexto, scrollbar clara no modo claro
 
 Mais uma rodada de ajustes finos, em cima do que foi entregue antes:
 

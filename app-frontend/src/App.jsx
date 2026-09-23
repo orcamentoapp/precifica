@@ -10945,9 +10945,15 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
           );
         })}
       </div>
-      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+      {/* w-fit: o card só é largo o quanto as colunas realmente precisam —
+          sem isso, ele herdava a largura total da tela (main é max-w-none
+          nessa aba) e cada coluna esticava pra preencher o espaço sobrando,
+          criando vãos vazios entre Data/Nome, Profissional, Status/Valor
+          etc. max-w-full + overflow-x-auto seguram o caso de, mesmo assim,
+          o conteúdo não caber (telas bem estreitas). */}
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden w-fit max-w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-stone-400 border-b border-stone-100">
                 <SortableTh label="Data" sortKey="savedAt" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="pl-5 pr-3" />
