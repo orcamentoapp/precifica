@@ -5,24 +5,43 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Histórico: busca, filtros e card alinhados juntos
+## ✅ Feito nesta sessão — Histórico: título, filtros, busca e card, todos alinhados juntos
 
-Correção em cima da rodada anterior (card do Histórico com largura
-ajustada ao conteúdo, `w-fit` + centralizado): tinha ficado só o card e
-a busca dentro desse invólucro centralizado, com os botões de filtro por
-status (Todos/Em aberto/...) de fora, ainda largura total — por isso
-pareciam desalinhados um do outro. **Não** desfiz o `w-fit`/centralização
-(isso era o que você tinha pedido e queria manter) — só passei a busca
-**e** os filtros pra dentro do mesmo invólucro do card, então agora os
-três (busca, filtros, card) sempre têm exatamente a mesma largura e a
-mesma borda esquerda/direita, iguais entre si e centralizados juntos na
-tela — mesmo espírito de como a busca fica "grudada" no card em
-Procedimentos, só que aqui a largura de referência é a da tabela do
-Histórico (que pode ser menor que a tela toda), não a tela inteira.
+Depois de duas rodadas indo e voltando nessa mesma tela, o padrão final
+do Histórico de orçamentos (`HistoryPanel` em `App.jsx`) ficou assim —
+**LEIA ISSO antes de mexer nessa tela de novo**, pra não desfazer sem
+querer:
+
+- Título "Histórico de orçamentos", filtros por status
+  (Todos/Em aberto/Aprovado/Pago/Reprovado), barra de busca e o card da
+  tabela ficam **todos dentro do mesmo `<div>` invólucro**
+  (`mx-auto w-fit max-w-full space-y-3`). A largura desse invólucro é
+  definida pelo filho mais largo (a tabela, dentro do card) — os outros
+  não têm largura própria, então automaticamente acompanham essa mesma
+  largura e mesma borda esquerda/direita. É assim que título, filtros,
+  busca e card ficam alinhados entre si e centralizados juntos na tela,
+  sem precisar calcular nada manualmente.
+- Ordem de cima pra baixo: título → filtros → busca → card. (A busca
+  fica colada logo acima do card, mesmo espírito visual da tela de
+  Procedimentos.)
+- Dentro do card, a `<table>` em si NÃO tem `w-full` — cada coluna fica
+  do tamanho do próprio conteúdo (isso é o que evita os vãos vazios
+  entre colunas que existiam antes); se sobrar espaço, ele fica em
+  branco à direita da última coluna, dentro do card.
 
 Build do frontend rodou limpo. Não testei clicando de verdade — vale
-conferir que a barra de busca, os filtros e o card ficam com a mesma
-largura e alinhados entre si.
+conferir visualmente que título, filtros, busca e card ficam com a
+mesma largura, na mesma borda esquerda, e que a tabela continua sem
+cortar nenhum texto.
+
+**Nota pra manter consistência entre telas** (pedido explícito do
+Marcelo): esse é o padrão de layout dessa tela agora. Se for aplicar
+algo parecido em outra tela de lista/tabela do sistema (Pacientes, por
+exemplo, se um dia tiver filtro+busca+card), replicar esse MESMO padrão
+(invólucro único `w-fit mx-auto` com tudo dentro, na mesma ordem
+título→filtros→busca→card) em vez de inventar uma solução diferente
+pra cada tela — é exatamente esse tipo de inconsistência entre sessões
+que estava incomodando.
 
 ## ✅ Feito em sessão anterior — "Último acesso" e "Online agora" no painel admin
 

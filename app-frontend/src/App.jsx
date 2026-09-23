@@ -10913,23 +10913,18 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold text-stone-700">Histórico de orçamentos</h2>
-      {/* Busca, filtros e o card ficam juntos num único invólucro "w-fit
-          mx-auto": a largura de verdade é definida pelo conteúdo da tabela
-          (é o filho mais largo aqui dentro); busca e filtros, sem largura
-          própria definida, acompanham exatamente essa largura — os três
-          nascem com a mesma borda esquerda/direita e o conjunto inteiro fica
-          centralizado na tela, em vez de cada um ocupar uma largura
-          diferente. max-w-full + overflow-x-auto seguram o caso do conteúdo
-          não caber (telas bem estreitas). */}
+      {/* Título, filtros, busca e o card ficam TODOS dentro do mesmo
+          invólucro "w-fit mx-auto": a largura de verdade é definida pelo
+          conteúdo da tabela (é o filho mais largo aqui dentro); os outros,
+          sem largura própria definida, acompanham exatamente essa largura —
+          por isso o título fica alinhado com a borda esquerda do card (não
+          com a borda esquerda da página), e o conjunto inteiro (título,
+          filtros, busca, card) fica centralizado junto na tela. Ordem pedida:
+          filtros ACIMA da busca, busca colada no card (mesmo padrão da tela
+          de Procedimentos). max-w-full + overflow-x-auto seguram o caso do
+          conteúdo não caber (telas bem estreitas). */}
       <div className="mx-auto w-fit max-w-full space-y-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por paciente ou procedimento..."
-          className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
-        />
+        <h2 className="text-sm font-semibold text-stone-700">Histórico de orçamentos</h2>
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={() => setStatusFilter("todos")}
@@ -10954,6 +10949,13 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
             );
           })}
         </div>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por paciente ou procedimento..."
+          className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
+        />
         <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="text-sm">
