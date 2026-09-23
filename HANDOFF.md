@@ -5,7 +5,26 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — "Último acesso" e "Online agora" no painel admin
+## ✅ Feito nesta sessão — Histórico: busca, filtros e card alinhados juntos
+
+Correção em cima da rodada anterior (card do Histórico com largura
+ajustada ao conteúdo, `w-fit` + centralizado): tinha ficado só o card e
+a busca dentro desse invólucro centralizado, com os botões de filtro por
+status (Todos/Em aberto/...) de fora, ainda largura total — por isso
+pareciam desalinhados um do outro. **Não** desfiz o `w-fit`/centralização
+(isso era o que você tinha pedido e queria manter) — só passei a busca
+**e** os filtros pra dentro do mesmo invólucro do card, então agora os
+três (busca, filtros, card) sempre têm exatamente a mesma largura e a
+mesma borda esquerda/direita, iguais entre si e centralizados juntos na
+tela — mesmo espírito de como a busca fica "grudada" no card em
+Procedimentos, só que aqui a largura de referência é a da tabela do
+Histórico (que pode ser menor que a tela toda), não a tela inteira.
+
+Build do frontend rodou limpo. Não testei clicando de verdade — vale
+conferir que a barra de busca, os filtros e o card ficam com a mesma
+largura e alinhados entre si.
+
+## ✅ Feito em sessão anterior — "Último acesso" e "Online agora" no painel admin
 
 Pedido: na lista de Usuários do painel admin, mostrar quando cada pessoa
 fez o último login e, se der, se ela está online agora.

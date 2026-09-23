@@ -10914,36 +10914,14 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
   return (
     <div className="space-y-4">
       <h2 className="text-sm font-semibold text-stone-700">Histórico de orçamentos</h2>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <button
-          onClick={() => setStatusFilter("todos")}
-          className={`text-xs font-medium px-3 py-1.5 rounded-full border transition ${
-            statusFilter === "todos" ? "border-teal-400 bg-teal-50 text-teal-800" : "border-stone-200 text-stone-500 hover:bg-stone-50"
-          }`}
-        >
-          Todos
-        </button>
-        {BUDGET_STATUS_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
-          return (
-            <button
-              key={opt.key}
-              onClick={() => setStatusFilter(opt.key)}
-              className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full border transition ${
-                statusFilter === opt.key ? opt.badgeClass : "border-stone-200 text-stone-500 hover:bg-stone-50"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" /> {opt.label}
-            </button>
-          );
-        })}
-      </div>
-      {/* Busca + card do histórico ficam juntos num invólucro "w-fit mx-auto":
-          a largura de verdade é definida pelo conteúdo da tabela (único filho
-          com largura própria aqui dentro), o card e o campo de busca (que é
-          w-full) só acompanham essa largura — e o conjunto fica centralizado
-          na tela em vez de grudado na esquerda. max-w-full + overflow-x-auto
-          seguram o caso do conteúdo não caber (telas bem estreitas). */}
+      {/* Busca, filtros e o card ficam juntos num único invólucro "w-fit
+          mx-auto": a largura de verdade é definida pelo conteúdo da tabela
+          (é o filho mais largo aqui dentro); busca e filtros, sem largura
+          própria definida, acompanham exatamente essa largura — os três
+          nascem com a mesma borda esquerda/direita e o conjunto inteiro fica
+          centralizado na tela, em vez de cada um ocupar uma largura
+          diferente. max-w-full + overflow-x-auto seguram o caso do conteúdo
+          não caber (telas bem estreitas). */}
       <div className="mx-auto w-fit max-w-full space-y-3">
         <input
           type="text"
@@ -10952,6 +10930,30 @@ function HistoryPanel({ history, onReopen, onDelete, onUpdateStatus, showProfess
           placeholder="Buscar por paciente ou procedimento..."
           className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 bg-white"
         />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setStatusFilter("todos")}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full border transition ${
+              statusFilter === "todos" ? "border-teal-400 bg-teal-50 text-teal-800" : "border-stone-200 text-stone-500 hover:bg-stone-50"
+            }`}
+          >
+            Todos
+          </button>
+          {BUDGET_STATUS_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => setStatusFilter(opt.key)}
+                className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full border transition ${
+                  statusFilter === opt.key ? opt.badgeClass : "border-stone-200 text-stone-500 hover:bg-stone-50"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" /> {opt.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="text-sm">
