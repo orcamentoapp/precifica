@@ -331,6 +331,7 @@ export default function AuthGate({ children }) {
     return (
       <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: "#78716c" }}>Carregando...</div>}>
         <AdminDashboard
+          currentEmail={session?.user?.email}
           onLogout={() => {
             clearToken();
             goToScreen("login");

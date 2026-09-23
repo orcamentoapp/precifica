@@ -83,6 +83,7 @@ const DEFAULT_SETTINGS = {
   secondaryColor: "#71CFFE",
   taxProvisionPercent: 15,
   taxRegime: "liberal", // "liberal" (pessoa física, Carnê-Leão) | "cnpj" (Simples Nacional / Lucro Presumido)
+  anexoSimples: "iii", // "iii" | "v" — só usado quando taxRegime é "cnpj" e o regime é Simples Nacional, pra sugerir a alíquota efetiva automaticamente
   darkMode: false,
   procedureCategories: [], // categorias criadas manualmente (podem existir vazias, sem nenhum procedimento ainda)
   procedureColumnWidths: {}, // largura (px) de cada coluna da tabela de Procedimentos, ajustada pelo usuário — mescla com DEFAULT_PROCEDURE_COLUMN_WIDTHS pras que ele ainda não mexeu
@@ -9884,23 +9885,17 @@ const DASHBOARD_STATUS_META = {
   reprovado: { label: "Reprovado", color: "#e34948" },
 };
 
-// Paleta fixa (validada pra contraste/daltonismo, claro e escuro) pra
-// composição de custo por procedimento — 5 categorias que sempre aparecem
-// nessa ordem lado a lado (barra empilhada), então a ordem fixa importa
-// pra separação entre pares vizinhos continuar valendo.
 // Paleta fixa (validada pra contraste/daltonismo) pra composição de custo
-// por procedimento — 5 categorias que sempre aparecem nessa ordem lado a
-// lado (barra empilhada), igual ao painel de referência (H.C. Prop /
-// Materiais / Terceiros / Cartão / Impostos). "Cartão" é sempre R$0 aqui:
-// o Precifica calcula taxa de cartão por forma de pagamento escolhida no
-// orçamento, não como um custo fixo do procedimento, então esse painel usa
-// o cenário "à vista" (sem taxa de cartão) pra poder mostrar os 5 rótulos
-// do jeito que a referência mostra — ver observação no HANDOFF.
+// por procedimento — categorias que sempre aparecem nessa ordem lado a
+// lado (barra empilhada). O painel de referência que inspirou isso também
+// tinha uma categoria "Cartão", mas como no Precifica a taxa de cartão
+// depende da forma de pagamento escolhida em cada orçamento (não é um
+// custo fixo do procedimento), ela ficaria sempre zerada aqui — tirada de
+// propósito por não agregar nada.
 const COST_BREAKDOWN_COLORS = {
   labor: { light: "#2a78d6", dark: "#3987e5", label: "Mão de obra (H.C. Próprio)" },
   materials: { light: "#eb6834", dark: "#d95926", label: "Materiais" },
   terceiros: { light: "#1baf7a", dark: "#199e70", label: "Terceiros" },
-  cartao: { light: "#4a3aa7", dark: "#5c4bc4", label: "Cartão (à vista = R$0)" },
   tax: { light: "#eda100", dark: "#c98500", label: "Impostos" },
 };
 const PRICE_VS_COST_COLORS = {
@@ -9910,11 +9905,10 @@ const PRICE_VS_COST_COLORS = {
 
 // Monta, pra cada procedimento cadastrado, o preço final (listPrice) e a
 // composição de custo que soma até ele: mão de obra (tempo em cadeira),
-// materiais, terceiros/laboratório (o "Custo adicional"), cartão (0, no
-// cenário à vista) e o imposto estimado (% de Configurações aplicado sobre
-// o preço final — não depende de qual forma de pagamento for escolhida no
-// orçamento, por isso dá pra mostrar aqui sem precisar de uma forma
-// específica).
+// materiais, terceiros/laboratório (o "Custo adicional") e o imposto
+// estimado (% de Configurações aplicado sobre o preço final — não depende
+// de qual forma de pagamento for escolhida no orçamento, por isso dá pra
+// mostrar aqui sem precisar de uma forma específica).
 function buildProcedureCostBreakdown(procedures, settings, materialsCatalog) {
   return (procedures || []).map((p) => {
     const calc = calcProcedure(p, settings, materialsCatalog);
@@ -9928,7 +9922,6 @@ function buildProcedureCostBreakdown(procedures, settings, materialsCatalog) {
       labor: calc.laborCost,
       materials: calc.directCost,
       terceiros: calc.additionalCost,
-      cartao: 0,
       tax: estimatedTax,
     };
   });
@@ -9964,7 +9957,7 @@ function TopBarList({ items, valueKey, barColor }) {
 // — cada segmento proporcional ao preço final do procedimento, igual ao
 // gráfico de referência.
 function StackedCompositionList({ items }) {
-  const keys = ["labor", "materials", "terceiros", "cartao", "tax"];
+  const keys = ["labor", "materials", "terceiros", "tax"];
   return (
     <div className="flex flex-col gap-3">
       {items.map((item) => {
@@ -10287,7 +10280,7 @@ function DashboardSection({ budgetHistory, procedures, settings, materialsCatalo
 
               <div className="bg-white border border-stone-200 rounded-2xl p-4">
                 <div className="text-sm font-medium text-stone-700 mb-1">Composição de custo por procedimento</div>
-                <div className="text-xs text-stone-400 mb-3">Os 10 procedimentos de maior preço final, com o preço dividido entre mão de obra, materiais, terceiros, cartão e impostos.</div>
+                <div className="text-xs text-stone-400 mb-3">Os 10 procedimentos de maior preço final, com o preço dividido entre mão de obra, materiais, terceiros e impostos.</div>
                 <StackedCompositionList items={compositionTop} />
               </div>
 
@@ -10731,7 +10724,82 @@ function HistoryPanel({ history, onReopen, onDelete, onClearAll, onUpdateStatus 
   );
 }
 
-function SettingsPanel({ settings, onChange }) {
+// Tabelas oficiais usadas pra SUGERIR automaticamente a provisão de
+// imposto de cada assinante, a partir do próprio faturamento pago que já
+// fica registrado no Precifica — sempre editável depois, nunca travado.
+// São valores definidos em lei (Simples Nacional / IRPF), então podem
+// mudar; valem a pena revisar de tempos em tempos.
+
+// Simples Nacional — Anexo III (serviços com Fator R, folha de pagamento
+// / receita, maior ou igual a 28%) e Anexo V (Fator R menor que 28%),
+// tabela vigente desde 2018 (LC 155/2016). Cada faixa: receita bruta
+// acumulada nos últimos 12 meses (RBT12) até `limit`, alíquota nominal
+// `rate` e parcela a deduzir `deduction` — fórmula oficial da alíquota
+// efetiva: (RBT12 × rate − deduction) / RBT12.
+const SIMPLES_ANEXO_III = [
+  { limit: 180000, rate: 0.06, deduction: 0 },
+  { limit: 360000, rate: 0.112, deduction: 9360 },
+  { limit: 720000, rate: 0.135, deduction: 17640 },
+  { limit: 1800000, rate: 0.16, deduction: 35640 },
+  { limit: 3600000, rate: 0.21, deduction: 125640 },
+  { limit: 4800000, rate: 0.33, deduction: 648000 },
+];
+const SIMPLES_ANEXO_V = [
+  { limit: 180000, rate: 0.155, deduction: 0 },
+  { limit: 360000, rate: 0.18, deduction: 4500 },
+  { limit: 720000, rate: 0.195, deduction: 9900 },
+  { limit: 1800000, rate: 0.205, deduction: 17100 },
+  { limit: 3600000, rate: 0.23, deduction: 62100 },
+  { limit: 4800000, rate: 0.305, deduction: 540000 },
+];
+
+// IRPF — tabela progressiva mensal usada no Carnê-Leão, valores vigentes
+// desde mai/2024 (mesmo princípio: sujeita a mudar por lei).
+const IRPF_MONTHLY_TABLE = [
+  { limit: 2259.2, rate: 0, deduction: 0 },
+  { limit: 2826.65, rate: 0.075, deduction: 169.44 },
+  { limit: 3751.05, rate: 0.15, deduction: 381.44 },
+  { limit: 4664.68, rate: 0.225, deduction: 662.77 },
+  { limit: Infinity, rate: 0.275, deduction: 896.0 },
+];
+
+// Soma o faturamento pago (orçamentos com status "pago") dos últimos 12
+// meses a partir do histórico salvo — usado como RBT12 (CNPJ) e como base
+// da receita média mensal (CPF). Sem histórico suficiente, retorna 0 (o
+// chamador trata isso como "ainda não dá pra sugerir").
+function calcPaidRevenueLast12Months(budgetHistory) {
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+  return (budgetHistory || [])
+    .filter((e) => e.status === "pago" && e.savedAt && new Date(e.savedAt) >= cutoff)
+    .reduce((s, e) => s + (e.price || 0), 0);
+}
+
+// Alíquota efetiva do Simples Nacional pra um RBT12 e Anexo (III ou V).
+// Retorna null se não há receita suficiente pra estimar, ou se o RBT12
+// já passou do teto do Simples (R$ 4,8 milhões — nesse caso a estimativa
+// automática não se aplica mais, precisa de orientação contábil).
+function calcSimplesEffectiveRate(rbt12, anexo) {
+  const table = anexo === "v" ? SIMPLES_ANEXO_V : SIMPLES_ANEXO_III;
+  if (!(rbt12 > 0)) return null;
+  if (rbt12 > table[table.length - 1].limit) return null;
+  const faixa = table.find((f) => rbt12 <= f.limit);
+  const effective = ((rbt12 * faixa.rate - faixa.deduction) / rbt12) * 100;
+  return Math.max(0, effective);
+}
+
+// Alíquota efetiva do IR pelo Carnê-Leão, aplicando a tabela progressiva
+// mensal sobre a receita média mensal (bruta — não desconta despesas do
+// Livro-Caixa, que o Precifica não tem como saber, então tende a ser uma
+// estimativa um pouco conservadora/por cima).
+function calcCarneLeaoEffectiveRate(avgMonthlyRevenue) {
+  if (!(avgMonthlyRevenue > 0)) return null;
+  const faixa = IRPF_MONTHLY_TABLE.find((f) => avgMonthlyRevenue <= f.limit);
+  const tax = Math.max(0, avgMonthlyRevenue * faixa.rate - faixa.deduction);
+  return Math.max(0, (tax / avgMonthlyRevenue) * 100);
+}
+
+function SettingsPanel({ settings, onChange, budgetHistory }) {
   const [local, setLocal] = useState(settings);
 
   useEffect(() => setLocal(settings), [settings]);
@@ -10743,6 +10811,15 @@ function SettingsPanel({ settings, onChange }) {
   }
 
   const activePreset = getActivePreset(local);
+
+  // Sugestão automática de provisão de imposto, calculada a partir do
+  // faturamento pago dos últimos 12 meses já registrado no Precifica —
+  // ver funções acima. Sempre uma sugestão: o campo continua editável e
+  // nada aqui sobrescreve o valor sozinho sem a pessoa clicar em "Usar".
+  const rbt12 = calcPaidRevenueLast12Months(budgetHistory);
+  const avgMonthlyRevenue = rbt12 / 12;
+  const suggestedCnpjRate = calcSimplesEffectiveRate(rbt12, local.anexoSimples || "iii");
+  const suggestedLiberalRate = calcCarneLeaoEffectiveRate(avgMonthlyRevenue);
 
   function updatePreset(patch) {
     set({ cardPresets: local.cardPresets.map((p) => (p.id === activePreset.id ? { ...p, ...patch } : p)) });
@@ -10921,39 +10998,135 @@ function SettingsPanel({ settings, onChange }) {
 
           {local.taxRegime === "cnpj" ? (
             <>
+              <p className="text-xs text-stone-500 mb-2">
+                A alíquota real do Simples Nacional não é fixa — ela é recalculada pela sua receita bruta acumulada
+                nos últimos 12 meses (RBT12). O Precifica pode <strong>sugerir</strong> a alíquota efetiva sozinho,
+                usando o faturamento que já ficou marcado como "pago" nos seus orçamentos aqui dentro.
+              </p>
+
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => set({ anexoSimples: "iii" })}
+                  className={`flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                    (local.anexoSimples || "iii") === "iii"
+                      ? "border-teal-400 bg-teal-50 text-teal-800"
+                      : "border-stone-200 text-stone-500 hover:bg-stone-50"
+                  }`}
+                  title="Fator R (folha de pagamento / receita) maior ou igual a 28% — mais comum em clínicas com equipe própria"
+                >
+                  Anexo III
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set({ anexoSimples: "v" })}
+                  className={`flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                    local.anexoSimples === "v"
+                      ? "border-teal-400 bg-teal-50 text-teal-800"
+                      : "border-stone-200 text-stone-500 hover:bg-stone-50"
+                  }`}
+                  title="Fator R (folha de pagamento / receita) menor que 28%"
+                >
+                  Anexo V
+                </button>
+              </div>
+              <p className="text-xs text-stone-400 mb-3 leading-relaxed">
+                O Anexo depende do <strong>Fator R</strong> (folha de pagamento, incluindo pró-labore, dividida pela
+                receita bruta dos últimos 12 meses): 28% ou mais cai no Anexo III (alíquotas menores), abaixo disso
+                cai no Anexo V. Se não souber qual é o seu, seu contador confirma — ou você já vê o resultado na sua
+                guia de pagamento (DAS) mensal.
+              </p>
+
+              <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2.5 mb-3">
+                {suggestedCnpjRate !== null ? (
+                  <>
+                    <p className="text-xs text-teal-800 leading-relaxed">
+                      Com base no que foi pago nos últimos 12 meses (
+                      <strong>{money(rbt12)}</strong>), a alíquota efetiva estimada do Simples Nacional (
+                      {(local.anexoSimples || "iii") === "v" ? "Anexo V" : "Anexo III"}) é{" "}
+                      <strong>{suggestedCnpjRate.toFixed(2).replace(".", ",")}%</strong>.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => set({ taxProvisionPercent: Number(suggestedCnpjRate.toFixed(2)) })}
+                      className="mt-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg px-3 py-1.5 transition"
+                    >
+                      Usar esse valor
+                    </button>
+                  </>
+                ) : rbt12 > 4800000 ? (
+                  <p className="text-xs text-teal-800 leading-relaxed">
+                    Seu faturamento pago nos últimos 12 meses (<strong>{money(rbt12)}</strong>) já passou do teto do
+                    Simples Nacional — a estimativa automática não se aplica mais aqui, procure orientação do seu
+                    contador.
+                  </p>
+                ) : (
+                  <p className="text-xs text-teal-800 leading-relaxed">
+                    Ainda não há orçamentos marcados como "pago" o suficiente pra calcular uma sugestão — assim que
+                    tiver histórico de pagamentos, a estimativa aparece aqui sozinha. Até lá, preencha manualmente.
+                  </p>
+                )}
+              </div>
+
               <FeeField
-                label="Alíquota efetiva (Simples Nacional / Lucro Presumido)"
+                label="Alíquota efetiva usada na precificação"
                 value={local.taxProvisionPercent}
                 onChange={(v) => set({ taxProvisionPercent: v })}
               />
               <p className="text-xs text-stone-400 mt-2 leading-relaxed">
-                Se você é <strong>Simples Nacional</strong>, esse percentual já vem pronto todo mês na sua guia de
-                pagamento (DAS) — procure o campo "Alíquota efetiva total". Se for{" "}
-                <strong>Lucro Presumido</strong>, peça esse percentual pro seu contador (soma de IRPJ + CSLL + PIS +
-                COFINS + ISS sobre a receita). Evite calcular a alíquota do Simples Nacional "na mão" (ela depende da
-                receita dos últimos 12 meses e da folha de pagamento) — o valor da guia já vem certo.
+                Se for <strong>Lucro Presumido</strong> em vez de Simples Nacional, a sugestão acima não se aplica —
+                peça esse percentual pro seu contador (soma de IRPJ + CSLL + PIS + COFINS + ISS sobre a receita) e
+                preencha manualmente.
               </p>
               <p className="text-xs text-stone-400 mt-2 leading-relaxed">
-                <strong>Mesmo assim é uma aproximação pra precificação futura</strong>: no Simples Nacional a
-                alíquota efetiva é recalculada todo mês conforme sua receita dos últimos 12 meses sobe ou desce — o
-                número da guia de hoje pode não ser mais o de daqui a alguns meses. Volte aqui de vez em quando e
-                atualize com a alíquota mais recente.
+                <strong>Mesmo com a sugestão automática, isso é uma aproximação</strong> pra efeito de precificação
+                futura — sua receita dos próximos 12 meses pode ser diferente da dos últimos 12, o que muda a
+                alíquota real. Volte aqui de vez em quando pra atualizar.
               </p>
             </>
           ) : (
             <>
+              <p className="text-xs text-stone-500 mb-3">
+                O IR pelo Carnê-Leão usa uma tabela progressiva mensal — não existe alíquota fixa por atendimento. O
+                Precifica pode <strong>sugerir</strong> uma alíquota efetiva a partir da sua receita média mensal
+                (faturamento pago nos últimos 12 meses, dividido por 12).
+              </p>
+
+              <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2.5 mb-3">
+                {suggestedLiberalRate !== null ? (
+                  <>
+                    <p className="text-xs text-teal-800 leading-relaxed">
+                      Com base numa receita média de <strong>{money(avgMonthlyRevenue)}</strong>/mês (últimos 12
+                      meses), a alíquota efetiva estimada pela tabela do IR é{" "}
+                      <strong>{suggestedLiberalRate.toFixed(2).replace(".", ",")}%</strong>.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => set({ taxProvisionPercent: Number(suggestedLiberalRate.toFixed(2)) })}
+                      className="mt-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg px-3 py-1.5 transition"
+                    >
+                      Usar esse valor
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-xs text-teal-800 leading-relaxed">
+                    Ainda não há orçamentos marcados como "pago" o suficiente pra calcular uma sugestão — assim que
+                    tiver histórico de pagamentos, a estimativa aparece aqui sozinha. Até lá, preencha manualmente.
+                  </p>
+                )}
+              </div>
+
               <FeeField
                 label="Provisão estimada de IR (Carnê-Leão)"
                 value={local.taxProvisionPercent}
                 onChange={(v) => set({ taxProvisionPercent: v })}
               />
               <p className="text-xs text-stone-400 mt-2 leading-relaxed">
-                Como profissional liberal, o IR pelo Carnê-Leão é calculado numa <strong>tabela progressiva</strong>{" "}
-                sobre a receita menos despesas do Livro-Caixa do ano inteiro — não existe uma alíquota fixa por
-                atendimento, e a alíquota real depende de quanto você ganha no total (somando todas as fontes de
-                renda) e das suas deduções. Por isso esse campo é só uma reserva estimada pra efeito de
-                precificação: quanto maior sua renda total no ano, maior tende a ser sua faixa real — ajuste esse
-                percentual de tempos em tempos conforme sua situação.
+                Essa sugestão usa a receita <strong>bruta</strong> — não desconta despesas do Livro-Caixa (aluguel,
+                material, funcionários etc.), que reduzem a base real e a alíquota final, e o Precifica não tem como
+                saber esse valor. Por isso ela tende a ficar um pouco por cima do imposto real, além de não
+                considerar outras fontes de renda que você tenha. Use como ponto de partida e ajuste conforme sua
+                declaração real.
               </p>
             </>
           )}
@@ -12606,7 +12779,7 @@ export default function App() {
                 onClinicLogoUpload={handleClinicLogoUpload}
                 clinicLogoError={clinicLogoError}
               />
-              <SettingsPanel settings={settings} onChange={persistSettings} />
+              <SettingsPanel settings={settings} onChange={persistSettings} budgetHistory={budgetHistory} />
             </div>
           </div>
         ) : tab === "calculadora" ? (

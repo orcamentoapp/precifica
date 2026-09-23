@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { apiRequest, clearToken } from "./api";
+import { apiRequest, clearToken, getSavedAccounts, switchToAccount, removeSavedAccount } from "./api";
 import {
   Users,
   Activity,
@@ -20,6 +20,7 @@ import {
   User,
   ChevronDown,
   LogOut,
+  ArrowLeftRight,
 } from "lucide-react";
 
 function StatusBadge({ children, tone }) {
@@ -553,9 +554,32 @@ function AdminTabNav({ tab, setTab, darkMode }) {
 // mas só com o que faz sentido pro admin: alternar modo escuro e sair (sem
 // upload de logo, configurações de clínica, central de ajuda etc — isso é
 // tudo específico do app do consultório).
-function AdminAccountMenu({ theme, onToggleTheme, onLogout }) {
+function AdminAccountMenu({ theme, onToggleTheme, onLogout, currentEmail }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+
+  // Mesma lógica de "Trocar de conta" do app do cliente (ver OptionsMenu em
+  // App.jsx) — só aparecem aqui contas que logaram com "Lembrar e-mail e
+  // permitir troca rápida" marcado, o que vale tanto pra contas de
+  // cliente quanto de admin (é a mesma tela de Login pras duas).
+  const [savedAccounts, setSavedAccounts] = useState([]);
+  const otherAccounts = savedAccounts.filter((a) => a.email !== currentEmail);
+
+  function handleSwitchAccount(email) {
+    if (switchToAccount(email)) {
+      window.location.reload();
+    }
+  }
+
+  function handleForgetAccount(email, e) {
+    e.stopPropagation();
+    removeSavedAccount(email);
+    setSavedAccounts(getSavedAccounts());
+  }
+
+  useEffect(() => {
+    if (open) setSavedAccounts(getSavedAccounts());
+  }, [open]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -584,7 +608,38 @@ function AdminAccountMenu({ theme, onToggleTheme, onLogout }) {
         <div className="fixed left-3 right-3 top-20 md:absolute md:left-auto md:right-0 md:top-auto md:mt-2 md:w-64 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden z-50 text-stone-800">
           <div className="px-4 py-3 border-b border-stone-100">
             <div className="text-sm font-semibold text-stone-800">Painel administrativo</div>
+            {currentEmail && <div className="text-xs text-stone-400 truncate mt-0.5">{currentEmail}</div>}
           </div>
+
+          {otherAccounts.length > 0 && (
+            <div className="border-t border-stone-100 py-1.5">
+              <div className="px-4 pt-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                Trocar de conta
+              </div>
+              <div className="px-4 pb-1.5 text-[11px] text-stone-400 leading-snug">
+                Só aparecem aqui contas com "Lembrar" marcado no login.
+              </div>
+              {otherAccounts.map((a) => (
+                <button
+                  key={a.email}
+                  onClick={() => handleSwitchAccount(a.email)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-2 text-sm hover:bg-stone-50 transition group"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <ArrowLeftRight className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                    <span className="truncate">{a.email}</span>
+                  </span>
+                  <span
+                    onClick={(e) => handleForgetAccount(a.email, e)}
+                    title="Esquecer essa conta"
+                    className="shrink-0 text-stone-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-stone-100">
             <span className="text-sm">Modo escuro</span>
@@ -618,7 +673,7 @@ function AdminAccountMenu({ theme, onToggleTheme, onLogout }) {
   );
 }
 
-export default function AdminDashboard({ onLogout }) {
+export default function AdminDashboard({ onLogout, currentEmail }) {
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("admin_theme") || "dark";
@@ -862,7 +917,7 @@ export default function AdminDashboard({ onLogout }) {
             <AdminTabNav tab={tab} setTab={setTab} darkMode={theme === "dark"} />
 
             <div className="flex items-center gap-2 justify-end min-w-0">
-              <AdminAccountMenu theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} />
+              <AdminAccountMenu theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} currentEmail={currentEmail} />
               <ChevronDown className="w-4 h-4 text-stone-400 shrink-0 hidden md:block" />
             </div>
           </div>

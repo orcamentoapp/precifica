@@ -5,7 +5,102 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Novos painéis de análise de custo no Dashboard
+## ✅ Feito nesta sessão — Sugestão automática de alíquota de imposto (Simples Nacional / Carnê-Leão)
+
+Pedido do Marcelo: o campo de "provisão de imposto" em Configurações
+sempre foi uma % fixa que a pessoa digita na mão (chutando ou copiando da
+guia). Como o Precifica é vendido pra várias clínicas/profissionais, cada
+um com um regime tributário diferente, ele queria uma forma de deixar
+esse número mais próximo da realidade, de um jeito automático mas ainda
+editável.
+
+**Como funciona agora**: os dois regimes que já existiam (Profissional
+liberal/CPF e CNPJ) ganharam uma sugestão calculada a partir do
+faturamento que o próprio Precifica já registra (orçamentos marcados como
+"pago" nos últimos 12 meses) — usando as tabelas oficiais de cada regime:
+
+- **CNPJ (Simples Nacional)**: a alíquota efetiva real segue a fórmula
+  oficial `(RBT12 × alíquota da faixa − parcela a deduzir) / RBT12`, onde
+  RBT12 é a receita bruta acumulada dos últimos 12 meses. O Precifica
+  calcula o RBT12 sozinho (soma do que foi pago no período) e aplica a
+  tabela do **Anexo III ou Anexo V** (a pessoa escolhe qual — adicionei
+  uma explicação rápida sobre o Fator R, que é o que decide isso). Se o
+  faturamento já passou do teto do Simples (R$ 4,8 milhões/ano), a
+  sugestão avisa que não se aplica mais e recomenda o contador.
+- **CPF (Carnê-Leão)**: aplica a tabela progressiva mensal do IR sobre a
+  receita média mensal (faturamento pago / 12). Deixei bem claro que essa
+  conta usa a receita **bruta** (não desconta despesas do Livro-Caixa,
+  que o sistema não tem como saber), então tende a ficar um pouco acima
+  do imposto real — é um ponto de partida, não o valor exato.
+- Em ambos os casos: a sugestão aparece num quadro explicando a conta,
+  com um botão **"Usar esse valor"** — só preenche o campo se a pessoa
+  clicar, nunca sobrescreve sozinho. Sem histórico de pagamentos ainda
+  (clínica nova, por exemplo), aparece um aviso e o campo continua
+  editável manualmente como sempre foi.
+- Lucro Presumido e outros regimes continuam sem sugestão automática —
+  a orientação de perguntar ao contador continua lá.
+
+**Importante pra quem for mexer nisso depois**: as tabelas (`SIMPLES_ANEXO_III`,
+`SIMPLES_ANEXO_V`, `IRPF_MONTHLY_TABLE`, todas no topo de `App.jsx`, perto
+de `SettingsPanel`) são valores de lei — Simples Nacional vigente desde
+2018 (LC 155/2016), tabela do IR vigente desde mai/2024. Isso pode mudar
+por lei; vale revisar esses números de tempos em tempos.
+
+**Arquivos**: `app-frontend/src/App.jsx` — tabelas e funções
+`calcPaidRevenueLast12Months`, `calcSimplesEffectiveRate`,
+`calcCarneLeaoEffectiveRate` (novas), `SettingsPanel` passou a receber
+`budgetHistory` (pro cálculo do faturamento) e a seção "Imposto" foi
+reescrita com o quadro de sugestão + botão "Usar esse valor" pros dois
+regimes, `anexoSimples` novo em `DEFAULT_SETTINGS`.
+
+**Testado**: `npm run build` limpo. Testei as fórmulas isoladas com um
+script Node comparando contra contas feitas na mão (ex: RBT12 R$200.000 no
+Anexo III → 6,52% efetivo; receita média R$10.000/mês no Carnê-Leão →
+18,54% efetivo; RBT12 acima do teto → retorna null e mostra o aviso) —
+todos bateram exatamente. **Não testei clicando de verdade** — vale
+conferir: abrir Configurações → Imposto com uma conta que já tem
+orçamentos pagos no histórico, ver se a sugestão aparece e se o botão
+"Usar esse valor" preenche o campo certo, e testar também uma conta sem
+histórico (deve mostrar o aviso de "ainda não há dados").
+
+## ✅ Feito em sessão anterior — Removida a categoria "Cartão" do painel de custo + "Trocar de conta" no admin
+
+Dois ajustes pedidos pelo Marcelo em cima da entrega anterior (painéis de
+análise de custo no Dashboard):
+
+**1. Tirada a categoria "Cartão" da composição de custo empilhada** — como
+ela sempre aparecia zerada (cenário à vista, sem taxa), o Marcelo pediu
+pra tirar por não ter utilidade. A barra empilhada agora só mostra 4
+categorias: Mão de obra, Materiais, Terceiros e Impostos.
+
+**2. Botão "Trocar de conta" também no painel de admin** — já existia só
+no app do cliente (ver "Log anterior" mais abaixo). Repliquei a mesma
+lógica no menu do admin (o ícone de perfil no canto superior direito):
+mesma regra de só listar contas que logaram com "Lembrar e-mail e permitir
+troca rápida" marcado, mesmo comportamento de trocar com um clique
+(recarrega a página) ou "esquecer" uma conta da lista. Como é a mesma
+lista salva no navegador (`precifica_accounts`) usada pelo app do
+cliente, uma conta salva em qualquer uma das duas telas de login aparece
+nas duas — então dá pra alternar entre uma conta de cliente e a conta de
+admin, por exemplo. Pra isso funcionar precisei saber o e-mail de quem tá
+logado no admin (pra não listar a própria conta como opção de troca): o
+`AuthGate.jsx` agora passa `currentEmail={session?.user?.email}` pro
+`AdminDashboard`.
+
+**Arquivos**: `app-frontend/src/App.jsx` (removida a categoria "cartao" de
+`COST_BREAKDOWN_COLORS`, `buildProcedureCostBreakdown` e
+`StackedCompositionList`), `app-frontend/src/AdminDashboard.jsx`
+(`AdminAccountMenu` ganhou a seção "Trocar de conta", igual ao
+`OptionsMenu` do cliente), `app-frontend/src/AuthGate.jsx` (passa
+`currentEmail` pro admin).
+
+**Testado**: `npm run build` do frontend limpo. **Não testei clicando de
+verdade** — vale conferir: abrir o Dashboard e ver que a barra empilhada
+não tem mais o segmento roxo de "Cartão", e testar a troca de conta
+logando como admin com "Lembrar" marcado em 2 contas diferentes (uma
+delas podendo ser uma conta de cliente comum).
+
+## ✅ Feito em sessão anterior — Novos painéis de análise de custo no Dashboard
 
 Pedido do Marcelo: mandou print de um dashboard de outra ferramenta (de
 uma mentoria) e perguntou se dava pra implementar algo parecido no
