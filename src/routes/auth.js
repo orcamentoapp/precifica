@@ -343,6 +343,12 @@ router.post("/login", async (req, res) => {
     const token = signUserToken(user);
     const licenseStatus = user.role === "admin" ? null : await getLicenseStatusForUser(pool, user.id);
 
+    // Marca o momento desse login pro painel admin ("Último acesso"). Não
+    // trava a resposta se isso falhar por algum motivo — login já aconteceu.
+    pool
+      .query("UPDATE users SET last_login_at = now(), last_seen_at = now() WHERE id = $1", [user.id])
+      .catch((err) => console.error("Erro ao atualizar last_login_at (login seguiu normalmente):", err));
+
     res.json({ token, user: publicUser(user), license: licenseStatus });
   } catch (err) {
     console.error(err);

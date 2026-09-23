@@ -5,7 +5,61 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Card do Histórico com largura ajustada ao conteúdo
+## ✅ Feito nesta sessão — "Último acesso" e "Online agora" no painel admin
+
+Pedido: na lista de Usuários do painel admin, mostrar quando cada pessoa
+fez o último login e, se der, se ela está online agora.
+
+**Banco de dados** (`src/migrate.js`): duas colunas novas em `users` —
+`last_login_at` (marcada só quando a pessoa entra de verdade com
+e-mail/senha) e `last_seen_at` (marcada a cada requisição autenticada
+que ela faz enquanto usa o app, não só no login). Migração idempotente
+de sempre, roda sozinha no próximo deploy.
+
+**Backend**:
+- `POST /api/auth/login` (`src/routes/auth.js`): grava `last_login_at` e
+  `last_seen_at` no momento do login (não trava a resposta se isso
+  falhar por algum motivo — o login em si já aconteceu).
+- `src/middleware/auth.js` (`requireAuth`, usado em basicamente toda
+  rota autenticada do app): atualiza `last_seen_at` a cada requisição —
+  é isso que dá o "Online agora" de verdade (a pessoa não precisa estar
+  numa tela específica, só ter feito qualquer coisa no app há pouco
+  tempo: salvar um orçamento, abrir Procedimentos, etc.). Pra não virar
+  um UPDATE no banco a cada requisição (o app faz várias o tempo todo),
+  isso é "throttled": só grava de novo se já tiver passado pelo menos 1
+  minuto desde a última gravação daquele usuário — guardado em memória
+  do próprio servidor, sem precisar de nenhuma tabela ou serviço extra.
+- `GET /api/admin/users` (`src/routes/admin.js`): agora também traz
+  `last_login_at`, `last_seen_at` e `online` (booleano calculado no
+  próprio SQL — `true` quando `last_seen_at` está dentro dos últimos 3
+  minutos).
+
+**Frontend** (`app-frontend/src/AdminDashboard.jsx`):
+- Nova coluna "Último acesso" na tabela de Usuários: mostra "Online
+  agora" (em destaque) pra quem está online, ou "há X min/h/dias" +
+  data/hora completa embaixo pra quem não está, ou "Nunca entrou" pra
+  quem ainda não fez login nenhuma vez (conta criada pelo admin mas
+  ainda não confirmada/usada, por exemplo).
+- Uma bolinha verde ao lado do e-mail, na primeira coluna, também marca
+  quem está online agora — pra dar pra notar de relance sem precisar
+  ler a coluna inteira.
+
+**Importante pra entender o número**: "Online agora" reflete atividade
+recente na API (qualquer chamada autenticada), não uma conexão em tempo
+real tipo WebSocket — então pode levar até ~1 minuto pra "desligar" a
+bolinha depois que a pessoa fecha a aba, e a precisão depende do app
+estar de fato fazendo alguma chamada de tempos em tempos enquanto a
+pessoa usa (o que já acontece normalmente: autosave, trocar de aba,
+etc.). Não é um relógio "está com o app aberto neste segundo exato".
+
+**Testado**: rodei o build do frontend e `node --check` nos arquivos do
+backend que mudaram, ambos limpos. Não testei a ponta a ponta com um
+login de verdade contra o banco (preciso do banco rodando pra isso) —
+vale conferir depois do deploy que a coluna "Último acesso" aparece
+certinha e que o indicador "Online agora" liga e desliga como esperado
+usando a conta de teste.
+
+## ✅ Feito em sessão anterior — Card do Histórico com largura ajustada ao conteúdo
 
 Você tinha mandado um print com retângulos vermelhos mostrando vãos vazios
 dentro da tabela do Histórico (entre Data/Nome, perto de Profissional,

@@ -45,6 +45,35 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleDateString("pt-BR") : "—";
 }
 
+function formatDateTime(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Texto curto tipo "há 2 min" / "há 3h" / "há 5 dias" — usado no "Último
+// acesso" da lista de usuários, pra dar noção de recência sem precisar
+// fazer conta de cabeça em cima de uma data/hora completa.
+function timeAgo(value) {
+  if (!value) return null;
+  const diffMs = Date.now() - new Date(value).getTime();
+  if (diffMs < 0) return "agora";
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `há ${days} dia${days === 1 ? "" : "s"}`;
+  const months = Math.floor(days / 30);
+  return `há ${months} mês${months === 1 ? "" : "es"}`;
+}
+
 function money(value) {
   return `R$ ${(Number(value) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -1162,6 +1191,7 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                     <th className="px-3 py-2 font-medium">Origem</th>
                     <th className="px-3 py-2 font-medium">Nome / Clínica</th>
                     <th className="px-3 py-2 font-medium">Cliente desde</th>
+                    <th className="px-3 py-2 font-medium">Último acesso</th>
                     <th className="px-3 py-2 font-medium">Licença</th>
                     <th className="px-3 py-2 font-medium">Próxima cobrança</th>
                     <th className="px-3 py-2 font-medium">Validade</th>
@@ -1171,7 +1201,7 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                 <tbody className="divide-y divide-stone-50">
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-5 py-10 text-center text-stone-400">
+                      <td colSpan={9} className="px-5 py-10 text-center text-stone-400">
                         Nenhum usuário ativo no momento.
                       </td>
                     </tr>
@@ -1179,7 +1209,15 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                   {users.map((user) => (
                     <tr key={user.id}>
                       <td className="px-5 py-3">
-                        <div className="font-medium text-stone-800">{user.email}</div>
+                        <div className="font-medium text-stone-800 inline-flex items-center gap-1.5">
+                          {user.online && (
+                            <span
+                              className="w-2 h-2 rounded-full bg-teal-500 shrink-0"
+                              title="Online agora"
+                            />
+                          )}
+                          {user.email}
+                        </div>
                         {!user.email_verified && (
                           <div className="text-xs text-amber-600 mt-0.5">E-mail não confirmado</div>
                         )}
@@ -1203,6 +1241,20 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                         {user.settings_clinic_name || user.clinic_name || user.name || "—"}
                       </td>
                       <td className="px-3 py-3 text-stone-500 text-xs">{formatDate(user.created_at)}</td>
+                      <td className="px-3 py-3 text-stone-500 text-xs">
+                        {user.online ? (
+                          <span className="text-teal-600 font-medium">Online agora</span>
+                        ) : user.last_login_at || user.last_seen_at ? (
+                          <>
+                            {timeAgo(user.last_seen_at || user.last_login_at)}
+                            <div className="text-[11px] text-stone-400">
+                              {formatDateTime(user.last_login_at || user.last_seen_at)}
+                            </div>
+                          </>
+                        ) : (
+                          "Nunca entrou"
+                        )}
+                      </td>
                       <td className="px-3 py-3">
                         {user.license_code && (
                           <button

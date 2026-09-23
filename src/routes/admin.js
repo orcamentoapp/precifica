@@ -346,6 +346,8 @@ router.get("/users", async (req, res) => {
     const { rows } = await pool.query(`
       SELECT
         u.id, u.email, u.name, u.clinic_name, u.status, u.email_verified, u.created_at,
+        u.last_login_at, u.last_seen_at,
+        (u.last_seen_at IS NOT NULL AND u.last_seen_at >= now() - interval '3 minutes') AS online,
         l.id AS license_id,
         l.code AS license_code,
         l.status AS license_status,

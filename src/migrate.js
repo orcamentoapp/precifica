@@ -122,6 +122,13 @@ async function migrate() {
     );
   `);
 
+  // Último login (só quando a pessoa de fato entra com e-mail/senha) e
+  // último "visto" (atualizado a cada requisição autenticada que ela faz
+  // enquanto usa o app — ver middleware/auth.js) — usados no painel admin
+  // pra mostrar "Último acesso" e o indicador "Online agora".
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;`);
+
   console.log("Tabelas prontas.");
 
   const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL;
