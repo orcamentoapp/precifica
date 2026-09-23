@@ -6453,6 +6453,38 @@ function useAnimatedNumber(target, duration = 700) {
   return [display, pulseKey];
 }
 
+// Card flutuante que aparece por cima da tela e "voa" em direção ao canto
+// superior direito (onde fica a aba Histórico) — feedback visual de que o
+// orçamento que estava na tela acabou de ser salvo lá, usado pelo botão
+// "+ Novo Orçamento". Só decorativo (pointer-events-none) e se remove
+// sozinho, via `onDone`, depois da animação.
+function FlyingSavedCard({ name, value, onDone }) {
+  const [flying, setFlying] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setFlying(true));
+    const timer = setTimeout(onDone, 750);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div
+      className="fixed z-[70] left-1/2 top-28 bg-white border border-stone-200 rounded-xl shadow-lg px-4 py-2.5 pointer-events-none transition-all duration-700 ease-in"
+      style={{
+        transform: flying ? "translate(calc(-50% + 42vw), -70vh) scale(0.45)" : "translate(-50%, 0) scale(1)",
+        opacity: flying ? 0 : 1,
+      }}
+    >
+      <div className="text-[10px] uppercase tracking-wide text-teal-600 font-semibold">Salvo no histórico</div>
+      <div className="text-sm font-semibold text-stone-700 max-w-[180px] truncate">{name}</div>
+      <div className="text-xs text-stone-400">{money(value)}</div>
+    </div>
+  );
+}
 
 
 function SimulationPanel({
@@ -6493,6 +6525,19 @@ function SimulationPanel({
   const saveMenuRef = useRef(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef(null);
+  const [flyingCard, setFlyingCard] = useState(null);
+
+  // Esc fecha a Apresentação e volta pra tela normal de Novo Orçamento —
+  // só ativo enquanto a Apresentação está aberta, pra não capturar o Esc
+  // em outras situações (ex: fechando um menu solto).
+  useEffect(() => {
+    if (!patientMode) return;
+    function handleEsc(e) {
+      if (e.key === "Escape") setPatientMode(false);
+    }
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [patientMode]);
 
   // Profissional selecionado pra ESSE orçamento — usado no nome/especialidade/CRO
   // que aparece no orçamento exportado (ver `withActiveProfessional`) e salvo
@@ -6794,6 +6839,27 @@ function SimulationPanel({
     setSplitMode(false);
     setSplitParts([]);
     setCurrentEntryId(null);
+  }
+
+  const hasBudgetContent = items.length > 0 || category || clientLevel > 0 || patientName || patientPhone || patientEmail;
+
+  // Botão verde "+ Novo Orçamento": se o orçamento atual tem algo
+  // preenchido E já dá pra salvar (forma de pagamento escolhida — mesma
+  // regra do botão "Salvar"), salva ele no histórico sozinho antes de
+  // limpar a tela, com uma animação rápida do card "indo" pro histórico.
+  // Sem forma de pagamento definida não tem como salvar um orçamento
+  // válido (mesma trava que o botão "Salvar" já tinha) — nesse caso só
+  // limpa, sem animação, já que não haveria o que mostrar indo pro
+  // histórico.
+  function handleNewBudget() {
+    if (!hasBudgetContent) return;
+    if (paymentReady && budgetProcs.length > 0) {
+      const total = splitMode ? splitChargedTotal : row && row.adjustedPrice != null ? row.adjustedPrice : subtotal;
+      setFlyingCard({ name: patientName || "Sem nome", value: total });
+      setTimeout(() => setFlyingCard(null), 750);
+      handleSaveBudget(currentEntryId ? "update" : "new");
+    }
+    handleClear();
   }
 
   // Monta o texto combinado da forma de pagamento quando dividida — ex:
@@ -7381,7 +7447,28 @@ function SimulationPanel({
       className={patientMode ? "fixed inset-0 z-50 bg-stone-50 overflow-y-auto" : undefined}
       style={patientMode ? { paddingTop: "env(safe-area-inset-top, 0px)" } : undefined}
     >
+      {flyingCard && <FlyingSavedCard name={flyingCard.name} value={flyingCard.value} onDone={() => setFlyingCard(null)} />}
       <div className={patientMode ? "max-w-3xl mx-auto p-5 sm:p-8 space-y-5" : "space-y-5"}>
+      {!patientMode && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleNewBudget}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 transition shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" /> Novo Orçamento
+          </button>
+          {hasBudgetContent && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-stone-200 text-stone-500 hover:bg-stone-50 hover:text-rose-600 transition shrink-0"
+            >
+              <X className="w-3.5 h-3.5" /> Limpar
+            </button>
+          )}
+        </div>
+      )}
       <div className="bg-white border border-stone-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
           <div className="text-sm font-semibold text-stone-700">Orçamento</div>
@@ -7527,14 +7614,6 @@ function SimulationPanel({
                 Apresentação
               </button>
             )}
-            {(items.length > 0 || category || clientLevel > 0 || patientName || patientPhone || patientEmail) && (
-              <button
-                onClick={handleClear}
-                className="text-xs font-medium text-stone-400 hover:text-rose-600 transition"
-              >
-                Limpar
-              </button>
-            )}
           </div>
         </div>
         {professionalsList.length > 1 && (
@@ -7551,10 +7630,6 @@ function SimulationPanel({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-stone-400 mt-1 leading-relaxed">
-              Quem fez esse atendimento — o nome, especialidade e CRO aparecem no orçamento exportado. Fica salvo
-              como padrão pro próximo orçamento.
-            </p>
           </div>
         )}
         <div className="mb-3">
@@ -8393,7 +8468,7 @@ function TabNav({ tab, setTab, darkMode }) {
 
   const tabs = [
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { key: "simulation", label: "+ Novo Orçamento", icon: Calculator },
+    { key: "simulation", label: "Orçamento", icon: Calculator },
     { key: "patients", label: "Pacientes", icon: Users },
     { key: "procedures", label: "Procedimentos", icon: ClipboardList },
     { key: "history", label: "Histórico", icon: Clock },

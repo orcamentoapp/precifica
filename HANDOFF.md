@@ -5,7 +5,45 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Múltiplos profissionais, CNPJ da clínica, CRO fixo, reorganização do Perfil
+## ✅ Feito nesta sessão — Botão "+ Novo Orçamento", Esc na Apresentação, ajustes finos na tela de orçamento
+
+Pedidos rápidos do Marcelo em cima da tela de "Orçamento":
+
+1. **Esc fecha a Apresentação** — na tela de apresentação pro paciente
+   (botão "Apresentação"), apertar Esc agora fecha e volta pro orçamento
+   normal, igual clicar no X.
+2. **Botão verde "+ Novo Orçamento"** — apareceu acima do card "Orçamento".
+   Ao clicar: se o orçamento atual tem algo preenchido E já está pronto
+   pra salvar (forma de pagamento escolhida — mesma regra do botão
+   "Salvar" já existente), ele salva sozinho no histórico, mostra uma
+   animação rápida de um cartãozinho "voando" pro canto superior direito
+   (representando ele indo pro Histórico) e depois limpa a tela pra um
+   orçamento novo. Se não tinha forma de pagamento escolhida ainda (não dá
+   pra salvar), só limpa, sem animação.
+3. **Botão "X Limpar"** — do lado do botão verde, só aparece quando tem
+   algo preenchido. Mesmo comportamento de sempre (limpa sem salvar), só
+   mudou de lugar — antes era um texto simples no canto da tela, agora é
+   um botão ao lado do "+ Novo Orçamento".
+4. **Removida a explicação abaixo do campo "Profissional"** (o texto
+   "Quem fez esse atendimento...") — o campo continua igual, só sem a
+   legenda.
+5. **Menu superior**: a aba que era "+ Novo Orçamento" agora é só
+   "Orçamento".
+
+**Arquivos**: `app-frontend/src/App.jsx` — componente novo
+`FlyingSavedCard` (a animação), `SimulationPanel` ganhou
+`hasBudgetContent`, `handleNewBudget`, o listener de Esc, e o novo bloco
+de botões acima do card "Orçamento" (removido o antigo texto "Limpar" que
+ficava dentro do card); `TabNav` com o rótulo da aba atualizado.
+
+**Testado**: `npm run build` limpo. **Não testei clicando de verdade** —
+vale conferir: apertar Esc dentro da Apresentação, clicar em "+ Novo
+Orçamento" com um orçamento pronto (pagamento definido) e ver a animação +
+o orçamento aparecendo no Histórico, e clicar em "+ Novo Orçamento" com
+campos preenchidos mas sem forma de pagamento escolhida (deve só limpar,
+sem animação nem duplicar nada no histórico).
+
+## ✅ Feito em sessão anterior — Múltiplos profissionais, CNPJ da clínica, CRO fixo, reorganização do Perfil
 
 Pedido grande do Marcelo, em 5 partes:
 
