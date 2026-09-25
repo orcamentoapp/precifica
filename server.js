@@ -54,4 +54,21 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(hasFrontendBuild ? "Servindo o app em / (build encontrado)" : "Build do app não encontrado ainda.");
+  // Log de diagnóstico: mostra, TODA VEZ que o servidor sobe, qual valor de
+  // preço ele efetivamente está enxergando nas variáveis de ambiente (e se
+  // não achou nenhuma, cai no valor padrão do código). É pra conferir nos
+  // logs do Railway, depois de mudar PRECIFICA_MONTHLY_PRICE/
+  // PRECIFICA_ANNUAL_PRICE, se o deploy novo já pegou o valor certo — se
+  // aqui ainda aparecer o valor antigo, o processo não reiniciou com a
+  // variável nova (precisa fazer um redeploy de verdade, não só salvar a
+  // variável), ou o nome/ambiente da variável no Railway está diferente do
+  // esperado.
+  console.log(
+    `Preço mensal: R$ ${(Number(process.env.PRECIFICA_MONTHLY_PRICE) || 99.9).toFixed(2)}` +
+      (process.env.PRECIFICA_MONTHLY_PRICE ? "" : " (variável PRECIFICA_MONTHLY_PRICE não definida — usando padrão do código)")
+  );
+  console.log(
+    `Preço anual: R$ ${(Number(process.env.PRECIFICA_ANNUAL_PRICE) || 599.9).toFixed(2)}` +
+      (process.env.PRECIFICA_ANNUAL_PRICE ? "" : " (variável PRECIFICA_ANNUAL_PRICE não definida — usando padrão do código)")
+  );
 });

@@ -5,7 +5,58 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Só plano mensal por enquanto (anual escondido)
+## ✅ Feito nesta sessão — Log de diagnóstico do preço no boot do servidor
+
+O Marcelo reportou que, mesmo depois de mudar `PRECIFICA_MONTHLY_PRICE`
+no Railway, o Stripe continuou cobrando o valor antigo numa assinatura
+mensal nova (direto, sem ser renovação/teste). Isso é importante porque
+**descarta a hipótese mais comum** (assinatura antiga presa no preço de
+quando foi criada) — sendo uma assinatura NOVA, o valor tem que vir da
+variável de ambiente lida na hora, então só sobra uma explicação
+plausível: **o processo do servidor no Railway ainda não tinha
+reiniciado com a variável nova quando esse teste foi feito** (`src/
+utils/stripe.js` lê `process.env.PRECIFICA_MONTHLY_PRICE` a cada
+checkout, não guarda nada em cache — então se o valor errado saiu, é
+porque o processo rodando ainda tinha o valor antigo carregado, não um
+bug na lógica do preço em si).
+
+Pra confirmar isso sem ficar adivinhando, adicionei um log no boot do
+servidor (`server.js`) que imprime, toda vez que ele sobe, qual preço
+mensal/anual ele está enxergando de verdade nas variáveis de ambiente
+(e avisa explicitamente se não achou a variável e caiu no padrão do
+código). **Depois do próximo deploy, é só olhar os logs do Railway** —
+se aparecer "Preço mensal: R$ 29.90", a variável pegou certo e qualquer
+cobrança errada depois disso seria outra coisa (aí sim eu investigo
+mais fundo); se aparecer "R$ 99.90 (variável ... não definida...)", o
+Railway não está passando a variável pro processo (nome errado, no
+ambiente errado, ou salva mas sem ter feito um redeploy de verdade).
+
+Nenhuma lógica de preço foi alterada — só esse log novo. `node --check`
+no `server.js` passou limpo.
+
+## ✅ Feito em sessão anterior — Preço mensal atualizado pra R$ 29,90 (texto da tela)
+
+Continuação direta do item logo abaixo (que já explicava que o texto da
+tela não lê a variável do Railway). O Marcelo mudou
+`PRECIFICA_MONTHLY_PRICE` pra `29.90` no Railway (isso já vale pro
+valor cobrado de verdade) e pediu pra sincronizar o texto:
+
+- `app-frontend/src/screens/Buy.jsx`: `MONTHLY_PRICE` de `99.9` pra
+  `29.9` — comentei do lado que esse valor precisa sempre bater com a
+  variável do Railway, pra próxima vez não passar batido.
+- `app-frontend/src/App.jsx` (modal "Renovar assinatura"): texto fixo
+  `R$ 99,90` → `R$ 29,90`.
+- Conferi que não sobrou nenhum outro `99,90` hardcoded em lugar
+  nenhum do frontend (só o card do Anual, comentado, que continua com
+  `R$ 599,90` — não mexi porque ele está pausado e o valor anual não
+  mudou). No backend, os outros lugares que mencionam `99.9`
+  (`src/utils/checkoutLicense.js`, `src/routes/admin.js`) já são só
+  fallback (`|| 99.9`) — como a variável está definida no Railway, eles
+  já usam o `29.9` sozinhos, sem precisar mexer em nada.
+
+Build do frontend rodou limpo.
+
+## ✅ Feito em sessão anterior — Só plano mensal por enquanto (anual escondido)
 
 Pedido do Marcelo: oferecer só o plano mensal por ora. Ao perguntar
 sobre mudar o "valor" pelas variáveis do Railway, descobri e expliquei

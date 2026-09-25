@@ -9662,7 +9662,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
               }`}
             >
               <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Mensal</div>
-              <div className="text-base font-bold text-stone-800 mt-1">R$ 99,90</div>
+              <div className="text-base font-bold text-stone-800 mt-1">R$ 29,90</div>
               <div className="text-[11px] text-stone-400">por mês</div>
             </button>
             {/*

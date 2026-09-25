@@ -2,7 +2,7 @@ import { useState } from "react";
 import { screenStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle } from "../authStyles";
 import AuthLogo from "../AuthLogo";
 
-const MONTHLY_PRICE = 99.9;
+const MONTHLY_PRICE = 29.9; // Precisa bater com PRECIFICA_MONTHLY_PRICE no Railway (é só texto fixo, não lê a variável — ver HANDOFF.md)
 const ANNUAL_PRICE = 599.9;
 const ANNUAL_MONTHLY_EQUIVALENT = (ANNUAL_PRICE / 12).toFixed(2).replace(".", ",");
 
