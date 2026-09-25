@@ -1,8 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { screenStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle } from "../authStyles";
 import AuthLogo from "../AuthLogo";
 
-const MONTHLY_PRICE = 29.9; // Precisa bater com PRECIFICA_MONTHLY_PRICE no Railway (é só texto fixo, não lê a variável — ver HANDOFF.md)
+// Só usado enquanto o preço de verdade ainda não chegou do servidor (ver
+// useEffect mais abaixo) — pra tela não ficar em branco por um instante.
+// Depois de carregar, o preço mostrado é sempre o que vem de
+// GET /api/payments/pricing, que é a MESMA fonte que decide quanto o Stripe
+// cobra de verdade (painel admin → Configurações → Preços, com variável de
+// ambiente do Railway como respaldo) — nunca mais devia dessincronizar.
+const FALLBACK_MONTHLY_PRICE = 29.9;
 const ANNUAL_PRICE = 599.9;
 const ANNUAL_MONTHLY_EQUIVALENT = (ANNUAL_PRICE / 12).toFixed(2).replace(".", ",");
 
@@ -23,6 +29,29 @@ export default function Buy({ onBackToLogin }) {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [monthlyPrice, setMonthlyPrice] = useState(FALLBACK_MONTHLY_PRICE);
+
+  // Busca o preço de verdade assim que a tela abre — se o admin tiver
+  // mudado pelo painel (ou a variável do Railway), aparece certinho sem
+  // precisar publicar um novo build do site. Se a busca falhar por
+  // qualquer motivo (servidor fora do ar, etc.), fica no valor de reserva
+  // acima em vez de travar a tela.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/payments/pricing")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data && typeof data.monthlyPrice === "number") {
+          setMonthlyPrice(data.monthlyPrice);
+        }
+      })
+      .catch(() => {
+        // Mantém o valor de reserva — não é motivo pra travar a tela de compra.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit() {
     if (!plan) {
@@ -74,7 +103,7 @@ export default function Buy({ onBackToLogin }) {
             }`}
           >
             <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Mensal</div>
-            <div className="text-lg font-bold text-stone-800 mt-1">R$ {formatBRL(MONTHLY_PRICE)}</div>
+            <div className="text-lg font-bold text-stone-800 mt-1">R$ {formatBRL(monthlyPrice)}</div>
             <div className="text-xs text-stone-400">por mês</div>
           </button>
           {/*

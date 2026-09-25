@@ -9217,6 +9217,23 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
   const [renewSubmitting, setRenewSubmitting] = useState(false);
   const [renewError, setRenewError] = useState("");
   const [renewWaiting, setRenewWaiting] = useState(false);
+  // Preço mensal mostrado no modal de renovação — vem do servidor (mesma
+  // fonte que decide quanto é cobrado de verdade: painel admin →
+  // Configurações → Preços, com a variável do Railway como respaldo), não
+  // fica mais fixo no código. 29.9 aqui é só o valor de reserva enquanto a
+  // busca ainda não voltou (ou se falhar).
+  const [renewMonthlyPrice, setRenewMonthlyPrice] = useState(29.9);
+  useEffect(() => {
+    let cancelled = false;
+    apiRequest("/api/payments/pricing")
+      .then((data) => {
+        if (!cancelled && data && typeof data.monthlyPrice === "number") setRenewMonthlyPrice(data.monthlyPrice);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const license = account?.license;
   const licenseTypeLabel =
@@ -9662,7 +9679,9 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
               }`}
             >
               <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Mensal</div>
-              <div className="text-base font-bold text-stone-800 mt-1">R$ 29,90</div>
+              <div className="text-base font-bold text-stone-800 mt-1">
+                R$ {renewMonthlyPrice.toFixed(2).replace(".", ",")}
+              </div>
               <div className="text-[11px] text-stone-400">por mês</div>
             </button>
             {/*

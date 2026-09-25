@@ -129,6 +129,21 @@ async function migrate() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;`);
 
+  // Configurações globais do sistema, editáveis pelo painel admin (por
+  // enquanto só o preço mensal/anual — ver src/utils/pricingSettings.js).
+  // Chave/valor simples, um par por linha; quando uma chave não existe
+  // aqui, o código cai pra variável de ambiente e, se essa também não
+  // existir, pro valor padrão fixo — dá pra nunca ter mexido nisso e o
+  // sistema continua funcionando do jeito que já funcionava antes dessa
+  // tabela existir.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
   console.log("Tabelas prontas.");
 
   const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL;

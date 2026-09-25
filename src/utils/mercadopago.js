@@ -14,6 +14,7 @@
 // esteja corrigida — é defesa em profundidade.
 const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
+const { getPricing } = require("./pricingSettings");
 
 function getClient() {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -41,8 +42,7 @@ async function createOneTimePaymentPreference({ email, plan = "monthly", userId 
   const client = getClient();
   const preference = new Preference(client);
   const isAnnual = plan === "annual";
-  const monthlyPrice = Number(process.env.PRECIFICA_MONTHLY_PRICE) || 99.9;
-  const annualPrice = Number(process.env.PRECIFICA_ANNUAL_PRICE) || 599.9;
+  const { monthlyPrice, annualPrice } = await getPricing();
   const unitPrice = isAnnual ? annualPrice : monthlyPrice;
   const title = isAnnual ? "Precifica — Renovação anual (365 dias)" : "Precifica — Renovação mensal (30 dias)";
   const appUrl = process.env.APP_URL || "";

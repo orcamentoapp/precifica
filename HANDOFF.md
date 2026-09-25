@@ -5,7 +5,92 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Log de diagnóstico do preço no boot do servidor
+## ✅ Feito nesta sessão — Preço editável pelo painel admin (não precisa mais do Railway)
+
+Pedido do Marcelo: dar pra ajustar o preço mensal/anual direto pelo
+painel admin, sem precisar mexer em variável nenhuma do Railway (que
+além de exigir um redeploy, como vimos nos itens anteriores, também não
+sincronizava com o texto mostrado nas telas). Mudança de raiz: o preço
+agora tem uma fonte única de verdade, e tudo (Stripe, Mercado Pago,
+e-mails, MRR do admin, tela de compra, tela de renovação) lê dessa
+mesma fonte.
+
+**Banco de dados** (`src/migrate.js`): tabela nova `app_settings`
+(chave/valor simples) — guarda `monthly_price`/`annual_price` quando o
+admin salva pela tela nova. Migração idempotente de sempre.
+
+**Novo arquivo `src/utils/pricingSettings.js`** — é a fonte única de
+verdade do preço agora. `getPricing()` devolve `{ monthlyPrice,
+annualPrice }`, nessa ordem de prioridade: **banco (o que o admin
+definiu) → variável de ambiente do Railway → valor padrão fixo no
+código** (99.9/599.9, só como última rede de segurança). Tem um cache
+de 30s em memória (senão viraria uma consulta ao banco a cada tentativa
+de pagamento) que é zerado na hora sempre que o admin salva um novo
+valor (`setPricing()`), então quem salvou já vê o valor novo na volta —
+só outros processos/chamadas podem levar até 30s pra perceber.
+`setPricing()` valida que cada preço é um número maior que zero antes
+de gravar.
+
+**Lugares que passaram a usar essa fonte única** (antes cada um lia
+`process.env.PRECIFICA_MONTHLY_PRICE`/`_ANNUAL_PRICE` na sua própria
+cópia, por isso as inconsistências das rodadas anteriores):
+- `src/utils/stripe.js` — valor cobrado na assinatura de verdade.
+- `src/utils/mercadopago.js` — valor cobrado no pagamento avulso.
+- `src/utils/checkoutLicense.js` — valor mencionado no e-mail de "seu
+  teste grátis vira assinatura em X dias, por R$ Y/mês".
+- `src/routes/admin.js` — cálculo de MRR na Visão Geral, e as duas
+  rotas novas de preço (ver abaixo).
+
+**Rotas novas**:
+- `GET/POST /api/admin/pricing` (protegida, só admin) — ver/editar os
+  dois preços. O `POST` valida e devolve 400 com uma mensagem clara se
+  mandar um valor inválido (zero, negativo, texto).
+- `GET /api/payments/pricing` (pública, sem login) — só devolve o
+  preço atual, pras telas de compra/renovação (que não podem exigir
+  login pra mostrar o preço) sempre buscarem o valor de verdade em vez
+  de ter um número fixo escrito no código do frontend.
+
+**Frontend**:
+- `app-frontend/src/AdminDashboard.jsx`: aba nova "Preços" no menu do
+  admin — dois campos (Mensal/Anual em R$, aceita vírgula ou ponto),
+  botão "Salvar preços", com aviso de erro se algum valor for inválido
+  e toast de confirmação ao salvar. Deixei escrito na tela que salvar
+  não muda o valor de quem já está com assinatura em andamento, só
+  passa a valer na próxima cobrança que gerar um preço novo (renovação
+  ou assinatura nova) — pra não criar expectativa errada.
+- `app-frontend/src/screens/Buy.jsx` (tela pública de compra):
+  `MONTHLY_PRICE` fixo virou um `useEffect` que busca
+  `GET /api/payments/pricing` assim que a tela abre; enquanto não
+  volta (ou se falhar), mostra um valor de reserva no código
+  (`FALLBACK_MONTHLY_PRICE`) só pra tela não ficar em branco — depois
+  sempre mostra o valor de verdade.
+- `app-frontend/src/App.jsx` (modal "Renovar assinatura"): mesma
+  lógica — busca o preço com `apiRequest("/api/payments/pricing")` ao
+  montar a página de Configurações, mostra no cartão do plano Mensal.
+- `server.js`: o log de diagnóstico do boot (item da sessão anterior,
+  ver abaixo) agora chama `getPricing()` também, então já reflete
+  banco → variável → padrão nessa ordem, não só a variável de
+  ambiente como antes.
+
+**O que NÃO mudou**: o card do Anual continua escondido nas telas de
+compra/renovação (pedido de sessão anterior) — só o VALOR anual é
+editável desde já pela tela nova, pronto pra quando for reativado; o
+admin ainda pode gerar uma chave anual manualmente a qualquer momento
+usando esse preço.
+
+**Testado**: rodei `node --check` em todos os arquivos do backend que
+mudaram (todos limpos), testei a lógica de `getPricing()`/`setPricing()`
+isoladamente com um banco "de mentira" simulado (confirma que o valor
+do banco tem prioridade sobre variável de ambiente, que falta de linha
+no banco cai pro padrão, e que preço inválido é rejeitado). Build do
+frontend passou limpo. **Não testei ponta a ponta com um checkout de
+verdade** (precisa do Stripe/banco de produção pra isso) — antes de
+confiar 100%, vale: 1) abrir Configurações → Preços no admin e
+conferir se carrega os valores certos, 2) mudar um valor e salvar, 3)
+abrir a tela de compra (Buy.jsx) numa aba anônima e conferir se já
+mostra o valor novo.
+
+## ✅ Feito em sessão anterior — Log de diagnóstico do preço no boot do servidor
 
 O Marcelo reportou que, mesmo depois de mudar `PRECIFICA_MONTHLY_PRICE`
 no Railway, o Stripe continuou cobrando o valor antigo numa assinatura

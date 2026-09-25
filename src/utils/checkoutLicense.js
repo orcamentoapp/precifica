@@ -18,10 +18,10 @@ const Stripe = require("stripe");
 const pool = require("../db");
 const { generateLicenseCode } = require("./licenseCode");
 const { sendLicensePurchasedEmail, sendTrialStartedEmail, sendLicenseRenewedEmail } = require("./email");
+const { getPricing } = require("./pricingSettings");
 
 const LICENSE_DURATION_DAYS = Number(process.env.LICENSE_DURATION_DAYS) || 30;
 const ANNUAL_DURATION_DAYS = Number(process.env.ANNUAL_DURATION_DAYS) || 365;
-const MONTHLY_PRICE_LABEL = (Number(process.env.PRECIFICA_MONTHLY_PRICE) || 99.9).toFixed(2).replace(".", ",");
 
 function addDays(date, days) {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
@@ -128,12 +128,13 @@ async function createLicenseFromCheckoutSession(session) {
   );
 
   if (isTrial && trialExpiresAt) {
+    const { monthlyPrice } = await getPricing();
     await sendTrialStartedEmail(
       buyerEmail,
       code,
       process.env.APP_URL || "",
       trialExpiresAt.toLocaleDateString("pt-BR"),
-      MONTHLY_PRICE_LABEL
+      monthlyPrice.toFixed(2).replace(".", ",")
     );
   } else {
     await sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || "");

@@ -2,6 +2,7 @@ const express = require("express");
 const pool = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { generateLicenseCode } = require("../utils/licenseCode");
+const { getPricing, setPricing } = require("../utils/pricingSettings");
 
 const router = express.Router();
 const LICENSE_DURATION_DAYS = Number(process.env.LICENSE_DURATION_DAYS) || 30;
@@ -24,8 +25,34 @@ function durationDaysForType(type) {
 // Tudo aqui embaixo exige um usuário logado com role = 'admin'
 router.use(requireAdmin);
 
-const MONTHLY_PRICE = Number(process.env.PRECIFICA_MONTHLY_PRICE) || 99.9;
-const ANNUAL_PRICE = Number(process.env.PRECIFICA_ANNUAL_PRICE) || 599.9;
+// ---------- PREÇOS — ver/editar o valor mensal/anual (src/utils/pricingSettings.js) ----------
+// Usado pela nova seção de Configurações do painel, e também é a fonte que
+// as telas públicas de compra/renovação consultam (via rota pública em
+// src/routes/payments.js) pra sempre mostrar o mesmo valor que vai ser
+// cobrado de verdade.
+router.get("/pricing", async (req, res) => {
+  try {
+    const pricing = await getPricing();
+    res.json(pricing);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao carregar os preços" });
+  }
+});
+
+router.post("/pricing", async (req, res) => {
+  const { monthlyPrice, annualPrice } = req.body || {};
+  try {
+    const pricing = await setPricing({ monthlyPrice, annualPrice });
+    res.json(pricing);
+  } catch (err) {
+    // Erros de validação (preço inválido) do próprio setPricing() viram 400;
+    // qualquer outra coisa (banco fora do ar, etc.) é 500.
+    const isValidation = /inválido/i.test(err.message || "");
+    console.error(err);
+    res.status(isValidation ? 400 : 500).json({ error: err.message || "Erro ao salvar os preços" });
+  }
+});
 
 // ---------- VISÃO GERAL — métricas agregadas do negócio ----------
 // query: ?days=7|30|90 (padrão 30) — define o período usado nas métricas
@@ -120,7 +147,8 @@ router.get("/dashboard-stats", async (req, res) => {
     planCountsRes.rows.forEach((r) => {
       planCounts[r.type] = r.n;
     });
-    const mrr = planCounts.monthly * MONTHLY_PRICE + planCounts.annual * (ANNUAL_PRICE / 12);
+    const { monthlyPrice, annualPrice } = await getPricing();
+    const mrr = planCounts.monthly * monthlyPrice + planCounts.annual * (annualPrice / 12);
 
     const { total_trials, converted } = conversionRes.rows[0];
     const conversionRate = total_trials > 0 ? (converted / total_trials) * 100 : null;

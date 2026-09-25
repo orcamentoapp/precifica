@@ -5,6 +5,7 @@
 // cobrados de novo sozinhos, então não fazia sentido ficar no mesmo
 // provedor da assinatura recorrente.
 const Stripe = require("stripe");
+const { getPricing } = require("./pricingSettings");
 
 function getClient() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -30,8 +31,7 @@ async function createCheckoutSession({ email, name, plan = "monthly", trial = fa
   const stripe = getClient();
   const isRenewal = !!renewalUserId;
   const isAnnual = plan === "annual";
-  const monthlyPrice = Number(process.env.PRECIFICA_MONTHLY_PRICE) || 99.9;
-  const annualPrice = Number(process.env.PRECIFICA_ANNUAL_PRICE) || 599.9;
+  const { monthlyPrice, annualPrice } = await getPricing();
   const unitAmount = isAnnual ? annualPrice : monthlyPrice;
   const interval = isAnnual ? "year" : "month";
   const productName = isAnnual ? "Precifica — Assinatura anual" : "Precifica — Assinatura mensal";

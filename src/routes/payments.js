@@ -6,12 +6,28 @@ const { createCheckoutSession, cancelSubscriptionAtPeriodEnd } = require("../uti
 const { createOneTimePaymentPreference } = require("../utils/mercadopago");
 const { mercadopagoWebhookHandler } = require("./mercadopagoWebhook");
 const { createLicenseFromCheckoutSession } = require("../utils/checkoutLicense");
+const { getPricing } = require("../utils/pricingSettings");
 
 const router = express.Router();
 
 function isValidEmail(email) {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+
+// ---------- PREÇO ATUAL (rota pública, sem login) ----------
+// Usada pelas telas de compra (Buy.jsx, pra quem ainda nem tem conta) e de
+// renovação (já logado, mas é a mesma fonte pra nunca mostrar um valor
+// diferente do que vai ser cobrado de verdade). Só devolve o número — nunca
+// expõe nada sensível, então não precisa de autenticação.
+router.get("/pricing", async (req, res) => {
+  try {
+    const pricing = await getPricing();
+    res.json(pricing);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao carregar o preço" });
+  }
+});
 
 // ---------- ASSINATURA por cartão (rota pública, chamada pela página de compra) ----------
 // body: { email, plan: "monthly" | "annual", trial: boolean }

@@ -10,6 +10,7 @@ const paymentsRoutes = require("./src/routes/payments");
 const supportRoutes = require("./src/routes/support");
 const appDataRoutes = require("./src/routes/appData");
 const { stripeWebhookHandler } = require("./src/routes/stripeWebhook");
+const { getPricing } = require("./src/utils/pricingSettings");
 
 const app = express();
 
@@ -51,24 +52,19 @@ if (hasFrontendBuild) {
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(hasFrontendBuild ? "Servindo o app em / (build encontrado)" : "Build do app não encontrado ainda.");
-  // Log de diagnóstico: mostra, TODA VEZ que o servidor sobe, qual valor de
-  // preço ele efetivamente está enxergando nas variáveis de ambiente (e se
-  // não achou nenhuma, cai no valor padrão do código). É pra conferir nos
-  // logs do Railway, depois de mudar PRECIFICA_MONTHLY_PRICE/
-  // PRECIFICA_ANNUAL_PRICE, se o deploy novo já pegou o valor certo — se
-  // aqui ainda aparecer o valor antigo, o processo não reiniciou com a
-  // variável nova (precisa fazer um redeploy de verdade, não só salvar a
-  // variável), ou o nome/ambiente da variável no Railway está diferente do
-  // esperado.
-  console.log(
-    `Preço mensal: R$ ${(Number(process.env.PRECIFICA_MONTHLY_PRICE) || 99.9).toFixed(2)}` +
-      (process.env.PRECIFICA_MONTHLY_PRICE ? "" : " (variável PRECIFICA_MONTHLY_PRICE não definida — usando padrão do código)")
-  );
-  console.log(
-    `Preço anual: R$ ${(Number(process.env.PRECIFICA_ANNUAL_PRICE) || 599.9).toFixed(2)}` +
-      (process.env.PRECIFICA_ANNUAL_PRICE ? "" : " (variável PRECIFICA_ANNUAL_PRICE não definida — usando padrão do código)")
-  );
+  // Log de diagnóstico: mostra, toda vez que o servidor sobe, qual preço ele
+  // está usando de verdade (agora o preço pode vir do painel admin, que é
+  // guardado no banco — ver src/utils/pricingSettings.js — então isso já
+  // reflete banco > variável de ambiente > padrão do código, nessa ordem).
+  // Útil pra conferir nos logs do Railway se um ajuste feito pelo admin (ou
+  // uma variável de ambiente nova) realmente pegou.
+  try {
+    const { monthlyPrice, annualPrice } = await getPricing();
+    console.log(`Preço mensal: R$ ${monthlyPrice.toFixed(2)} · Preço anual: R$ ${annualPrice.toFixed(2)}`);
+  } catch (err) {
+    console.error("Não deu pra ler o preço do banco no boot (o servidor continua funcionando normalmente):", err.message);
+  }
 });

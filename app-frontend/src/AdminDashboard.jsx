@@ -498,6 +498,7 @@ const ADMIN_TABS = [
   { key: "overview", label: "Visão Geral", icon: LayoutDashboard },
   { key: "users", label: "Usuários", icon: Users },
   { key: "licenses", label: "Chaves de licença", icon: KeyRound },
+  { key: "settings", label: "Preços", icon: DollarSign },
 ];
 
 function AdminTabNav({ tab, setTab, darkMode }) {
@@ -728,6 +729,14 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
   const [statsDays, setStatsDays] = useState(30);
   const [trend, setTrend] = useState(null);
   const [trendLoading, setTrendLoading] = useState(true);
+  // Preços (Configurações) — carregados junto com o resto (loadAll), editados
+  // num form próprio com os dois campos como TEXTO (não number) enquanto a
+  // pessoa digita, pra não brigar com o cursor/vírgula decimal; só vira
+  // número na hora de validar/enviar (ver handleSavePricing).
+  const [pricing, setPricing] = useState(null); // { monthlyPrice, annualPrice } | null (ainda carregando)
+  const [pricingForm, setPricingForm] = useState({ monthlyPrice: "", annualPrice: "" });
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [pricingError, setPricingError] = useState("");
 
   function toggleTheme() {
     setTheme((t) => {
@@ -811,11 +820,58 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
     }
   }
 
+  async function loadPricing() {
+    try {
+      const data = await apiRequest("/api/admin/pricing");
+      setPricing(data);
+      setPricingForm({
+        monthlyPrice: data.monthlyPrice.toFixed(2).replace(".", ","),
+        annualPrice: data.annualPrice.toFixed(2).replace(".", ","),
+      });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function loadAll() {
     setLoading(true);
     setError("");
-    await Promise.all([loadUsers(), loadLicenses()]);
+    await Promise.all([loadUsers(), loadLicenses(), loadPricing()]);
     setLoading(false);
+  }
+
+  // Aceita tanto vírgula quanto ponto como separador decimal (o form mostra
+  // vírgula, padrão brasileiro, mas não custa aceitar os dois).
+  function parseBRLInput(text) {
+    const n = Number(String(text).trim().replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  async function handleSavePricing() {
+    const monthlyPrice = parseBRLInput(pricingForm.monthlyPrice);
+    const annualPrice = parseBRLInput(pricingForm.annualPrice);
+    if (!Number.isFinite(monthlyPrice) || monthlyPrice <= 0 || !Number.isFinite(annualPrice) || annualPrice <= 0) {
+      setPricingError("Preencha os dois preços com um valor maior que zero.");
+      return;
+    }
+    setPricingError("");
+    setPricingSaving(true);
+    try {
+      const data = await apiRequest("/api/admin/pricing", {
+        method: "POST",
+        body: JSON.stringify({ monthlyPrice, annualPrice }),
+      });
+      setPricing(data);
+      setPricingForm({
+        monthlyPrice: data.monthlyPrice.toFixed(2).replace(".", ","),
+        annualPrice: data.annualPrice.toFixed(2).replace(".", ","),
+      });
+      showToast("Preços atualizados — já valem pro próximo checkout.");
+    } catch (err) {
+      setPricingError(err.message);
+    } finally {
+      setPricingSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -1308,6 +1364,52 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        ) : tab === "settings" ? (
+          <div className="max-w-md">
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-stone-700 mb-1">Preços</h2>
+              <p className="text-xs text-stone-400 mb-4 leading-relaxed">
+                Valor mostrado pro cliente e efetivamente cobrado no Stripe/Mercado Pago em toda assinatura ou
+                renovação nova a partir de agora. Não muda o valor de quem já está com uma assinatura em andamento —
+                isso só vale a partir da próxima cobrança que usar esse preço (renovação, ou uma assinatura nova).
+              </p>
+              {pricing === null ? (
+                <div className="text-xs text-stone-400 py-6 text-center">Carregando...</div>
+              ) : (
+                <>
+                  {pricingError && <div className="text-xs text-rose-600 mb-3">{pricingError}</div>}
+                  <label className="block text-xs font-medium text-stone-500 mb-1.5">Mensal (R$)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={pricingForm.monthlyPrice}
+                    onChange={(e) => setPricingForm((f) => ({ ...f, monthlyPrice: e.target.value }))}
+                    className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 mb-3"
+                    placeholder="29,90"
+                  />
+                  <label className="block text-xs font-medium text-stone-500 mb-1.5">
+                    Anual (R$)
+                    <span className="font-normal text-stone-400"> — pausado na tela de compra por enquanto, mas continua valendo pra chaves anuais geradas na mão</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={pricingForm.annualPrice}
+                    onChange={(e) => setPricingForm((f) => ({ ...f, annualPrice: e.target.value }))}
+                    className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 mb-4"
+                    placeholder="599,90"
+                  />
+                  <button
+                    onClick={handleSavePricing}
+                    disabled={pricingSaving}
+                    className="w-full text-sm font-semibold bg-teal-700 text-white rounded-lg py-2.5 hover:bg-teal-800 transition disabled:opacity-50"
+                  >
+                    {pricingSaving ? "Salvando..." : "Salvar preços"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : (
