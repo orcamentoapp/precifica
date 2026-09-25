@@ -9572,7 +9572,10 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
                     </p>
                     <button
                       onClick={() => {
-                        setRenewPlan(null);
+                        // Só mensal disponível por enquanto (ver bloco comentado
+                        // logo abaixo, no modal, pra reativar o anual depois) —
+                        // já entra selecionado, sem precisar escolher.
+                        setRenewPlan("monthly");
                         setRenewError("");
                         setRenewModalOpen(true);
                       }}
@@ -9647,10 +9650,14 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
             Escolha o plano. Vamos abrir o pagamento numa aba nova — essa tela continua aberta do jeito que está.
           </p>
           {renewError && <div className="text-xs text-rose-600 mb-3">{renewError}</div>}
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          {/* Só o plano mensal por enquanto (pedido do Marcelo) — o anual fica
+              comentado aqui do lado, pronto pra voltar: é só descomentar o
+              <button> do Anual e trocar essa div de volta pra
+              "grid grid-cols-2 gap-2 mb-4" (era assim antes). */}
+          <div className="mb-4">
             <button
               onClick={() => setRenewPlan("monthly")}
-              className={`text-left rounded-xl border p-3 transition ${
+              className={`w-full text-left rounded-xl border p-3 transition ${
                 renewPlan === "monthly" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
               }`}
             >
@@ -9658,6 +9665,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
               <div className="text-base font-bold text-stone-800 mt-1">R$ 99,90</div>
               <div className="text-[11px] text-stone-400">por mês</div>
             </button>
+            {/*
             <button
               onClick={() => setRenewPlan("annual")}
               className={`text-left rounded-xl border p-3 transition ${
@@ -9668,6 +9676,7 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
               <div className="text-base font-bold text-stone-800 mt-1">R$ 599,90</div>
               <div className="text-[11px] text-stone-400">por ano</div>
             </button>
+            */}
           </div>
           <button
             onClick={handleStartRenewal}

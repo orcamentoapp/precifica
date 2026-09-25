@@ -15,7 +15,11 @@ function formatBRL(value) {
 // só pode ser usado uma vez e a jornada dele é mais simples (não precisa
 // escolher plano, só e-mail).
 export default function Buy({ onBackToLogin }) {
-  const [plan, setPlan] = useState(null); // null | "monthly" | "annual" — nada selecionado até o usuário clicar
+  // Só mensal disponível por enquanto (pedido do Marcelo) — já entra
+  // selecionado, sem precisar escolher (o grid de planos vira só o card do
+  // mensal, ver mais abaixo). O bloco do Anual está comentado logo ali,
+  // pronto pra voltar quando for reativado.
+  const [plan, setPlan] = useState("monthly"); // "monthly" | "annual"
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -56,12 +60,16 @@ export default function Buy({ onBackToLogin }) {
 
         {error && <div style={errorBoxStyle}>{error}</div>}
 
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "#57534e", marginBottom: 8 }}>1. Escolha o plano</div>
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "#57534e", marginBottom: 8 }}>1. Plano</div>
+        {/* Só o plano mensal por enquanto (pedido do Marcelo) — o card do
+            Anual fica comentado aqui do lado, pronto pra voltar: é só
+            descomentar o <button> dele e trocar essa div de volta pra
+            "grid grid-cols-2 gap-3 mb-5" (era assim antes). */}
+        <div className="mb-5">
           <button
             type="button"
             onClick={() => setPlan("monthly")}
-            className={`text-left rounded-xl border p-3.5 transition ${
+            className={`w-full text-left rounded-xl border p-3.5 transition ${
               plan === "monthly" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
             }`}
           >
@@ -69,6 +77,7 @@ export default function Buy({ onBackToLogin }) {
             <div className="text-lg font-bold text-stone-800 mt-1">R$ {formatBRL(MONTHLY_PRICE)}</div>
             <div className="text-xs text-stone-400">por mês</div>
           </button>
+          {/*
           <button
             type="button"
             onClick={() => setPlan("annual")}
@@ -83,6 +92,7 @@ export default function Buy({ onBackToLogin }) {
             <div className="text-lg font-bold text-stone-800 mt-1">R$ {formatBRL(ANNUAL_PRICE)}</div>
             <div className="text-xs text-stone-400">por ano · equivale a R$ {ANNUAL_MONTHLY_EQUIVALENT}/mês</div>
           </button>
+          */}
         </div>
 
         <div style={{ fontSize: 12.5, fontWeight: 600, color: "#57534e", marginBottom: 8 }}>2. Seu e-mail</div>

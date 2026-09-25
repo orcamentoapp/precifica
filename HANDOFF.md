@@ -5,7 +5,55 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Histórico: título, filtros, busca e card, todos alinhados juntos
+## ✅ Feito nesta sessão — Só plano mensal por enquanto (anual escondido)
+
+Pedido do Marcelo: oferecer só o plano mensal por ora. Ao perguntar
+sobre mudar o "valor" pelas variáveis do Railway, descobri e expliquei
+uma coisa importante: **o preço que aparece pro cliente na tela de
+compra NÃO vem da variável de ambiente** — só o valor que o Stripe
+efetivamente cobra é que lê `PRECIFICA_MONTHLY_PRICE`/
+`PRECIFICA_ANNUAL_PRICE` (`src/utils/stripe.js` e
+`src/utils/mercadopago.js`). O número mostrado nas telas
+(`Buy.jsx` e o modal de renovação em `App.jsx`) é um texto fixo no
+código (`R$ 99,90`/`R$ 599,90`), então mudar só a variável do Railway
+muda quanto é cobrado, mas NÃO muda o que a pessoa vê escrito na tela —
+isso sempre vai precisar de uma mudança de código à parte (é só avisar
+quando quiser mudar o preço "de verdade" que eu já ajusto os dois
+lugares).
+
+Sobre o pedido de hoje (só mensal): **não** dava pra resolver só
+deixando a variável do anual em branco (isso só afeta o preço cobrado
+SE alguém escolher o plano anual — o cartão "Anual" continuaria
+aparecendo normalmente pra escolher). O que fiz:
+
+- `app-frontend/src/screens/Buy.jsx` (tela pública de compra, pra quem
+  ainda não é cliente): o grid de 2 planos virou só o card do Mensal,
+  já vem selecionado sozinho (não precisa mais escolher, só preencher o
+  e-mail). O card do Anual ficou comentado bem ao lado, pronto pra
+  voltar — é só descomentar o `<button>` e trocar a div de volta pra
+  `grid grid-cols-2 gap-3 mb-5`.
+- `app-frontend/src/App.jsx` (modal "Renovar assinatura", em
+  Configurações → Gerenciar assinatura — pra quem já é cliente e
+  cancelou a renovação automática): mesma coisa, só o card do Mensal
+  aparece, Anual comentado do lado pra reativar depois.
+- **Não mexi** no painel admin (`AdminDashboard.jsx`) — lá o admin
+  ainda consegue gerar uma chave anual manualmente na mão, se precisar
+  cobrir algum caso especial (cortesia, negociação direta etc.). Se
+  quiser que isso também fique bloqueado enquanto o anual estiver
+  pausado, é só pedir.
+- O teste grátis (`TrialSignup.jsx`) já não tinha escolha de plano
+  (sempre vira mensal depois dos 7 dias) — nada mudou ali.
+
+**Como reativar o anual depois**: em cada um dos dois arquivos, tem um
+comentário `{/* ... */}` logo ao lado do card do Mensal com o botão do
+Anual inteiro guardado — é só descomentar e trocar a div do
+`className="mb-5"` (ou `"mb-4"` no modal) de volta pra
+`className="grid grid-cols-2 gap-3 mb-5"` (ou `gap-2 mb-4` no modal).
+
+Build do frontend rodou limpo. Não testei clicando de verdade (não
+precisa de banco pra essas duas telas, mas vale conferir visualmente).
+
+## ✅ Feito em sessão anterior — Histórico: título, filtros, busca e card, todos alinhados juntos
 
 Depois de duas rodadas indo e voltando nessa mesma tela, o padrão final
 do Histórico de orçamentos (`HistoryPanel` em `App.jsx`) ficou assim —
