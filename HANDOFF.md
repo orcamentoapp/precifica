@@ -8,6 +8,13 @@
 
 ## ✅ Feito nesta sessão (29/10/2026, 5ª parte) — Seção "Quem está por trás do Precifica" com os dois fundadores
 
+> **Ajuste pedido pelo Marcelo (mesma sessão):** NÃO citar "tivemos 2
+> clínicas" (eles não têm mais as duas). O texto passou a dizer "Há 3 anos
+> empreendemos juntos no ramo odontológico, à frente de clínica e de
+> laboratório". A Stephanie é "Cirurgiã-dentista e empreendedora". Foi
+> removida a frase "quem responde no WhatsApp é ele". O selo do topo diz
+> "Criado por um protético e uma dentista empreendedores da odontologia".
+
 O Marcelo mandou as fotos e o contexto: o Precifica é dele, **Marcelo
 Migueis** (protético, empreendedor), junto com a **Dra. Stephanie
 Begliomini** (cirurgiã-dentista). Os dois tiveram 2 clínicas odontológicas
