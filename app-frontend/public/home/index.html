@@ -6,6 +6,21 @@
 <title>Precifica — precifique seus procedimentos com inteligência</title>
 <meta name="description" content="Descubra o custo real de cada procedimento odontológico e monte planos de tratamento com o preço certo. Já vem com 37 procedimentos e 61 materiais prontos e funciona junto com o sistema que você já usa. Teste grátis por 7 dias.">
 <link rel="icon" href="img/favicon.png">
+<!-- Prévia ao compartilhar o link (WhatsApp, Instagram, Facebook). A imagem
+     precisa de endereço completo — se o domínio mudar, trocar aqui. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Precifica">
+<meta property="og:title" content="Precifica — saiba quanto cada procedimento te custa">
+<meta property="og:description" content="Custo real de cada procedimento odontológico e plano de tratamento com a sua marca, pronto pro WhatsApp. Teste 7 dias grátis.">
+<meta property="og:url" content="https://precifica.verterelabs.com/home/">
+<meta property="og:image" content="https://precifica.verterelabs.com/home/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary_large_image">
+<!-- Pixel do Meta / Google Analytics: só carregam se configurados no
+     servidor E se a pessoa aceitar no aviso de cookies (ver /tracking.js). -->
+<script src="/tracking.js" defer></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,6 +67,33 @@
   .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;}
   .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;}
   section[id]{scroll-margin-top:84px;}
+  .phone{width:min(300px,78vw);aspect-ratio:9/18.5;border-radius:40px;border:11px solid #1c1917;background:#fff;overflow:hidden;box-shadow:0 40px 80px -24px rgba(12,41,38,.45);position:relative;margin:0 auto;}
+  .chat{height:100%;display:flex;flex-direction:column;background:#efeae2;}
+  .chat-head{background:var(--teal-800);color:#fff;display:flex;align-items:center;gap:10px;padding:34px 14px 10px;}
+  .chat-av{width:32px;height:32px;border-radius:50%;background:#7fd9c9;color:var(--teal-900);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;}
+  .chat-body{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:8px;overflow:hidden;}
+  .bubble{align-self:flex-end;background:#d9fdd3;border-radius:10px 2px 10px 10px;padding:5px;max-width:88%;font-size:13px;color:#1c1917;box-shadow:0 1px 1px rgba(0,0,0,.08);}
+  .bubble img{width:100%;display:block;border-radius:7px;}
+  .bubble-txt{padding:6px 4px 0;}
+  .bubble-meta{text-align:right;font-size:10.5px;color:#667781;padding:2px 4px 0;}
+  .bubble.in{align-self:flex-start;background:#fff;border-radius:2px 10px 10px 10px;padding:7px 9px;}
+  .phone::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:34%;height:20px;background:#1c1917;border-radius:999px;z-index:2;}
+  .hero-chip{position:absolute;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--teal-900);box-shadow:0 12px 30px -12px rgba(12,41,38,.35);display:flex;align-items:center;gap:8px;max-width:230px;line-height:1.35;}
+  .microcopy{margin-top:12px;font-size:13.5px;color:var(--stone-500);}
+  .microcopy strong{color:var(--teal-800);}
+  .tcard{background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;}
+  .tcard blockquote{margin:0;font-size:15.5px;line-height:1.6;color:var(--stone-700);}
+  .avatar{width:46px;height:46px;border-radius:50%;object-fit:cover;background:var(--teal-100);color:var(--teal-800);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
+  .video-wrap{position:relative;width:100%;max-width:760px;margin:0 auto;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;box-shadow:0 30px 60px -20px rgba(12,41,38,.35);}
+  .video-wrap iframe,.video-wrap video{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .wa-float{position:fixed;right:18px;bottom:18px;z-index:40;display:flex;align-items:center;gap:10px;background:#25d366;color:#fff;border-radius:999px;padding:12px 18px 12px 14px;font-weight:700;font-size:14.5px;box-shadow:0 12px 30px -8px rgba(0,0,0,.35);}
+  .wa-float:hover{background:#1ebe5b;}
+  .calc select{width:100%;font:inherit;font-size:18px;font-weight:700;padding:12px 14px;border:1.5px solid var(--stone-300);border-radius:10px;color:var(--teal-900);background:#fff;}
+  .grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;}
+  .breakdown{display:flex;flex-direction:column;gap:8px;font-size:15px;color:var(--stone-700);}
+  .breakdown div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px dashed var(--stone-200);padding-bottom:6px;}
+  .breakdown strong{white-space:nowrap;}
+  [data-when-founder]{display:none;}
   .card{background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:28px;}
   .cmp{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--stone-200);border-radius:16px;overflow:hidden;font-size:15px;}
   .cmp th,.cmp td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--stone-200);vertical-align:top;}
@@ -66,6 +108,10 @@
   .price-old{font-size:16px;color:#9fd4c8;text-decoration:line-through;margin-right:6px;}
   @media (max-width:860px){
     .grid-3,.grid-2{grid-template-columns:1fr;}
+    .grid-4{grid-template-columns:1fr 1fr;}
+    .hero-chip{display:none;}
+    .wa-float span{display:none;}
+    .wa-float{padding:14px;}
     .cmp th,.cmp td{padding:12px 12px;font-size:14px;}
   }
   @media (max-width:760px){
@@ -104,40 +150,65 @@
   </nav>
 
   <!-- HERO -->
-  <header id="top" style="background:linear-gradient(180deg,#eef9f6 0%, var(--stone-50) 55%);padding:72px 0 0;overflow:hidden;">
+  <header id="top" style="background:linear-gradient(180deg,#eef9f6 0%, var(--stone-50) 60%);padding:56px 0 0;overflow:hidden;">
     <div class="wrap">
-      <div style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
+      <div style="display:flex;flex-wrap:wrap;gap:48px;align-items:center;">
         <div style="flex:1 1 460px;min-width:0;">
-          <div style="display:inline-flex;align-items:center;gap:8px;background:var(--teal-100);color:var(--teal-800);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;margin-bottom:22px;">
+          <div style="display:inline-flex;align-items:center;gap:8px;background:var(--teal-100);color:var(--teal-800);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;margin-bottom:20px;">
             Feito para dentistas e clínicas odontológicas
           </div>
-          <h1 style="font-size:clamp(34px,4.6vw,52px);line-height:1.08;font-weight:800;color:var(--teal-900);">
-            Pare de precificar<br>no achismo.
+          <h1 style="font-size:clamp(32px,4.4vw,50px);line-height:1.1;font-weight:800;color:var(--teal-900);">
+            Saiba quanto cada procedimento te custa — e passe o valor com segurança.
           </h1>
-          <p style="margin-top:22px;font-size:19px;line-height:1.55;color:var(--stone-700);max-width:540px;">
-            O Precifica calcula o custo real de cada procedimento — material, hora clínica, taxa de cartão e imposto — e mostra o preço certo antes de você abrir a boca com o paciente.
+          <p style="margin-top:20px;font-size:18.5px;line-height:1.55;color:var(--stone-700);max-width:560px;">
+            Material, hora clínica, taxa da maquininha e imposto: o Precifica faz a conta e mostra o preço certo <strong>antes</strong> de você falar com o paciente. E entrega um plano de tratamento com a sua marca, pronto pro WhatsApp.
           </p>
-          <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:34px;">
-            <a href="/teste-gratis" class="btn btn-primary">Teste grátis por 7 dias</a>
-            <a href="#recursos" class="btn btn-ghost">Ver como funciona</a>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:30px;">
+            <a href="/teste-gratis" class="btn btn-primary" data-track="cta_hero">Testar 7 dias grátis</a>
+            <a href="#sem-cadastro" class="btn btn-ghost">Ver como funciona</a>
           </div>
+          <p class="microcopy"><strong>Nada é cobrado nos 7 dias.</strong> Cancele em 2 cliques, direto no app.</p>
           <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;">
             <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Já vem pronto:</strong> 37 procedimentos e 61 materiais cadastrados e vinculados</span></li>
             <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Não troca o seu sistema:</strong> funciona junto com a agenda e o prontuário que você já usa</span></li>
-            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Se paga sozinho:</strong> acertar o preço de poucos procedimentos já cobre o mês</span></li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>No celular ou no computador:</strong> monta o orçamento ali mesmo, na cadeira</span></li>
           </ul>
-          <p style="margin-top:18px;font-size:14px;color:var(--stone-500);">7 dias grátis, sem fidelidade · cancele quando quiser, direto no app</p>
         </div>
-        <div style="flex:1 1 480px;min-width:0;">
-          <div class="shot-frame">
-            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-            <img src="img/dashboard.png" alt="Dashboard do Precifica mostrando orçado, recebido, ticket médio e gráfico de orçamentos por status" class="shot" style="border-radius:0;">
+        <div style="flex:1 1 380px;min-width:0;position:relative;padding:10px 0 20px;">
+          <div class="phone">
+            <div class="chat">
+              <div class="chat-head"><div class="chat-av">M</div><div><div style="font-weight:700;font-size:14px;">Paciente Maria</div><div style="font-size:11px;opacity:.8;">online</div></div></div>
+              <div class="chat-body">
+                <div class="bubble">
+                  <img src="img/plano-tratamento.jpg" alt="Plano de tratamento gerado pelo Precifica, com logo, nome e CRO do dentista, procedimentos, valor total e formas de pagamento">
+                  <div class="bubble-txt">Oi Maria! Segue seu plano de tratamento 😊</div>
+                  <div class="bubble-meta">10:42 ✓✓</div>
+                </div>
+                <div class="bubble in">Perfeito, ficou super claro! Pode agendar 🙌<div class="bubble-meta">10:45</div></div>
+              </div>
+            </div>
           </div>
+          <div class="hero-chip" style="top:150px;left:0;"><span style="font-size:18px;">✓</span> Seu logo, seu nome e CRO</div>
+          <div class="hero-chip" style="top:46%;right:0;"><span style="font-size:18px;">💳</span> Valor certo pra cada forma de pagamento</div>
+          <div class="hero-chip" style="bottom:40px;left:4%;"><span style="font-size:18px;">💬</span> Envia em PDF, imagem ou WhatsApp</div>
         </div>
       </div>
     </div>
-    <div style="height:64px;"></div>
+    <div style="height:56px;"></div>
   </header>
+
+  <!-- PROVA SOCIAL — preenchida por conteudo.json (vídeo + depoimentos).
+       Fica escondida enquanto não houver nada cadastrado lá. -->
+  <section id="prova-social" style="display:none;padding:64px 0;background:#fff;border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
+    <div class="wrap">
+      <div style="text-align:center;max-width:640px;margin:0 auto 36px;">
+        <p class="eyebrow">Quem usa</p>
+        <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Dentistas que pararam de cobrar no escuro</h2>
+      </div>
+      <div id="ps-video" style="display:none;margin-bottom:36px;"></div>
+      <div id="ps-cards" class="grid-3"></div>
+    </div>
+  </section>
 
   <!-- DORES -->
   <section style="padding:72px 0;">
@@ -196,6 +267,7 @@
         <div class="card" style="background:var(--teal-50);border-color:var(--teal-100);">
           <div style="font-size:34px;font-weight:800;color:var(--teal-700);line-height:1;">Ou</div>
           <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);margin-top:12px;">A gente cadastra pra você</h3>
+          <p data-when-founder style="margin-top:8px;display:none;"><span style="background:var(--orange-600);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">GRÁTIS PARA FUNDADORES</span></p>
           <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Prefere não mexer em nada? Na consultoria, um especialista cadastra os seus materiais (marca, quantidade usada, preço do seu fornecedor) e deixa o preço de cada procedimento batendo com o custo real da sua clínica.</p>
           <a href="#consultoria" style="display:inline-block;margin-top:14px;font-size:14px;font-weight:600;color:var(--teal-700);">Ver como funciona a consultoria →</a>
         </div>
@@ -322,32 +394,56 @@
         </table>
       </div>
 
-      <!-- Calculadora: quanto o Precifica se paga -->
+      <!-- Calculadora: quanto some do preço (taxa da maquininha + imposto) -->
       <div style="max-width:860px;margin:44px auto 0;background:var(--teal-50);border:1px solid var(--teal-100);border-radius:18px;padding:32px;">
-        <h3 style="font-size:20px;font-weight:800;color:var(--teal-900);">Faça a conta: ele se paga?</h3>
-        <p style="margin-top:8px;font-size:15px;line-height:1.55;color:var(--stone-700);">Quem precifica "de cabeça" costuma esquecer algum custo — a taxa do cartão parcelado, o imposto, um material. Coloque números da sua realidade:</p>
-        <div class="calc grid-2" style="margin-top:22px;gap:18px;">
+        <h3 style="font-size:20px;font-weight:800;color:var(--teal-900);">Faça a conta: quanto some do seu preço?</h3>
+        <p style="margin-top:8px;font-size:15px;line-height:1.55;color:var(--stone-700);">Exemplo: uma coroa de R$ 1.200 parcelada em 10x no cartão. A maquininha fica com uma parte, o imposto com outra — e, se isso não estiver no preço, sai do <strong>seu</strong> bolso. Troque pelos seus números:</p>
+        <div class="calc grid-4" style="margin-top:22px;">
           <div>
-            <label for="calc-procs">Procedimentos que você faz por mês</label>
-            <input id="calc-procs" type="number" min="0" step="1" value="30" inputmode="numeric">
+            <label for="calc-ticket">Valor do procedimento (R$)</label>
+            <input id="calc-ticket" type="number" min="0" step="10" value="1200" inputmode="decimal">
           </div>
           <div>
-            <label for="calc-gap">Quanto fica "na mesa" por procedimento (R$)</label>
-            <input id="calc-gap" type="number" min="0" step="1" value="20" inputmode="decimal">
+            <label for="calc-parc">Parcelado em</label>
+            <select id="calc-parc">
+              <option value="1">À vista no crédito</option>
+              <option value="3">3x</option>
+              <option value="6">6x</option>
+              <option value="10" selected>10x</option>
+              <option value="12">12x</option>
+            </select>
+          </div>
+          <div>
+            <label for="calc-tax">Imposto (%)</label>
+            <input id="calc-tax" type="number" min="0" step="0.5" value="6" inputmode="decimal">
+          </div>
+          <div>
+            <label for="calc-procs">Quantos por mês</label>
+            <input id="calc-procs" type="number" min="0" step="1" value="8" inputmode="numeric">
           </div>
         </div>
         <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;">
-          <div style="flex:1 1 220px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;">
-            <div style="font-size:13px;color:var(--stone-500);">Dinheiro que pode estar ficando na mesa</div>
-            <div id="calc-loss" style="font-size:28px;font-weight:800;color:#b91c1c;margin-top:4px;">R$ 600/mês</div>
+          <div style="flex:1 1 280px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;">
+            <div style="font-size:13px;color:var(--stone-500);margin-bottom:10px;">Em cada procedimento</div>
+            <div class="breakdown">
+              <div><span>Taxa da maquininha (<span id="calc-fee-pct">12,5%</span>)</span><strong id="calc-fee">R$ 150,00</strong></div>
+              <div><span>Imposto</span><strong id="calc-taxv">R$ 72,00</strong></div>
+              <div style="border:none;"><span><strong>Sai do seu bolso se não estiver no preço</strong></span><strong id="calc-hidden" style="color:#b91c1c;">R$ 222,00</strong></div>
+            </div>
           </div>
-          <div style="flex:1 1 220px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;">
-            <div style="font-size:13px;color:var(--stone-500);">Precifica</div>
-            <div style="font-size:28px;font-weight:800;color:var(--teal-700);margin-top:4px;"><span data-price-effective>R$ 39,90</span>/mês</div>
+          <div style="flex:1 1 220px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:13px;color:var(--stone-500);">Por mês</div>
+              <div id="calc-loss" style="font-size:28px;font-weight:800;color:#b91c1c;margin-top:2px;">R$ 1.776,00</div>
+            </div>
+            <div>
+              <div style="font-size:13px;color:var(--stone-500);">Precifica</div>
+              <div style="font-size:22px;font-weight:800;color:var(--teal-700);"><span data-price-effective>R$ 39,90</span>/mês</div>
+            </div>
           </div>
         </div>
         <p id="calc-msg" style="margin-top:16px;font-size:15px;line-height:1.55;color:var(--stone-700);"></p>
-        <p style="margin-top:10px;font-size:12.5px;color:var(--stone-500);">Simulação ilustrativa com os números que você digitou — não é promessa de resultado.</p>
+        <p style="margin-top:10px;font-size:12.5px;color:var(--stone-500);">Simulação ilustrativa. As taxas usadas são as padrão do Precifica (de 3,5% à vista a cerca de 14,5% em 12x) — a sua maquininha pode cobrar diferente, e no Precifica você coloca as suas.</p>
       </div>
     </div>
   </section>
@@ -379,6 +475,25 @@
     </div>
   </section>
 
+  <!-- QUEM FEZ O PRECIFICA — texto escrito a partir do que o Marcelo
+       contou; ele deve revisar. Foto: conteudo.json → fundador.foto -->
+  <section id="quem-fez" style="padding:72px 0;background:#fff;border-top:1px solid var(--stone-200);">
+    <div class="wrap" style="max-width:860px;">
+      <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start;">
+        <div style="flex:0 0 auto;">
+          <div id="founder-photo" class="avatar" style="width:120px;height:120px;font-size:40px;">M</div>
+        </div>
+        <div style="flex:1 1 420px;min-width:0;">
+          <p class="eyebrow">Quem fez o Precifica</p>
+          <h2 style="font-size:clamp(24px,3vw,32px);font-weight:800;color:var(--teal-900);margin-top:10px;">Feito por quem vive a odontologia por dentro</h2>
+          <p style="margin-top:16px;font-size:16px;line-height:1.65;color:var(--stone-700);">Sou o Marcelo, protético. Tenho um laboratório de prótese dentária e sou casado com uma dentista — então acompanho de perto a rotina de consultório: o orçamento passado no feeling, a taxa do cartão parcelado que ninguém lembrou de colocar no preço, o mês de agenda cheia que termina com o caixa apertado.</p>
+          <p style="margin-top:12px;font-size:16px;line-height:1.65;color:var(--stone-700);">Criei o Precifica pra resolver isso com dados reais de consultório: cada procedimento com o custo de verdade, e um plano de tratamento que passa segurança pro paciente. Ficou com alguma dúvida? Fala direto comigo.</p>
+          <a href="https://wa.me/5513996980088?text=Oi%20Marcelo%2C%20vim%20pela%20p%C3%A1gina%20do%20Precifica%20e%20tenho%20uma%20d%C3%BAvida" class="btn btn-ghost" style="margin-top:22px;" data-track="whatsapp_fundador">Falar com o Marcelo no WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- PREÇOS -->
   <section id="precos" style="padding:80px 0;background:var(--stone-100);border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
     <div class="wrap">
@@ -404,8 +519,10 @@
             <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Base pronta com 37 procedimentos e 61 materiais</span></li>
             <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Plano de tratamento com sua marca (PDF, imagem, WhatsApp)</span></li>
             <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Cancele quando quiser</span></li>
+            <li data-when-founder style="display:none;gap:10px;align-items:flex-start;font-size:15px;color:var(--orange-700);font-weight:600;"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Bônus de fundador: a gente cadastra seus materiais pra você, grátis</span></li>
           </ul>
-          <a href="/teste-gratis" class="btn btn-primary" style="margin-top:28px;width:100%;">Testar 7 dias grátis</a>
+          <a href="/teste-gratis" class="btn btn-primary" style="margin-top:28px;width:100%;" data-track="cta_precos">Testar 7 dias grátis</a>
+          <p class="microcopy" style="text-align:center;"><strong>Nada é cobrado nos 7 dias.</strong> Cancele em 2 cliques.</p>
         </div>
         <!-- Anual (escondido enquanto a oferta de fundador está no ar — ver script) -->
         <div id="annual-card" style="flex:1 1 320px;max-width:380px;background:var(--teal-900);border-radius:18px;padding:36px;display:flex;flex-direction:column;box-shadow:0 30px 60px -20px rgba(11,59,55,.45);position:relative;">
@@ -434,7 +551,7 @@
     <div class="wrap">
       <div class="feature-row" style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
         <div style="flex:1 1 440px;min-width:0;">
-          <p class="eyebrow">Serviço opcional</p>
+          <p class="eyebrow"><span data-when-founder style="display:none;">Bônus de fundador</span><span data-when-not-founder>Serviço opcional</span></p>
           <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Prefere que a gente faça o cadastro por você?</h2>
           <p style="margin-top:16px;font-size:16px;line-height:1.6;color:var(--stone-700);">Oferecemos um serviço de consultoria independente para quem prefere entregar essa parte para alguém: um especialista cadastra e atualiza seus materiais — marca, quantidade usada, custo da embalagem — e vincula tudo aos seus procedimentos, com o preço final já batendo com o custo real da sua clínica.</p>
           <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;">
@@ -449,8 +566,14 @@
             <div style="width:46px;height:46px;border-radius:12px;background:var(--teal-100);display:flex;align-items:center;justify-content:center;margin-bottom:18px;">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 14c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
-            <h3 style="font-size:18px;font-weight:700;color:var(--teal-900);">Serviço sob consulta</h3>
-            <p style="margin-top:10px;font-size:15px;line-height:1.6;color:var(--stone-700);">O valor da consultoria varia conforme o tamanho da tabela de procedimentos e a quantidade de materiais a cadastrar. Fale com a gente para receber uma proposta.</p>
+            <div data-when-founder style="display:none;">
+              <h3 style="font-size:18px;font-weight:700;color:var(--orange-700);">Grátis para fundadores</h3>
+              <p style="margin-top:10px;font-size:15px;line-height:1.6;color:var(--stone-700);">Quem assina no preço de fundador ganha o <strong>cadastro inicial dos materiais feito por nós</strong>: você manda a lista de materiais e preços dos seus fornecedores pelo WhatsApp, e a gente cadastra e vincula aos seus procedimentos. Restam <strong data-founder-remaining>—</strong> vagas.</p>
+            </div>
+            <div data-when-not-founder>
+              <h3 style="font-size:18px;font-weight:700;color:var(--teal-900);">Serviço sob consulta</h3>
+              <p style="margin-top:10px;font-size:15px;line-height:1.6;color:var(--stone-700);">O valor da consultoria varia conforme o tamanho da tabela de procedimentos e a quantidade de materiais a cadastrar. Fale com a gente para receber uma proposta.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -464,7 +587,7 @@
         <p class="eyebrow">Dúvidas frequentes</p>
         <h2 style="font-size:clamp(26px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Perguntas de quem está decidindo</h2>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;"><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Já uso um sistema de gestão. Vou precisar trocar ou migrar alguma coisa?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. O Precifica não substitui sua agenda, prontuário ou financeiro — ele cuida só da precificação e do orçamento. Você usa os dois lado a lado: monta o orçamento no Precifica (no computador ou no celular) e segue a rotina normal no seu sistema.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Não tenho tempo de cadastrar procedimentos e materiais. Vale a pena mesmo assim?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Vale, porque você não começa do zero: a conta já vem com 37 procedimentos e 61 materiais cadastrados e vinculados. Pra começar, você só informa custos fixos, pró-labore e horas atendidas. O resto você ajusta aos poucos, conforme usa. E se preferir não mexer em nada, a consultoria faz o cadastro por você.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Os preços da base servem pra minha cidade?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">São valores de referência, pra você não começar do zero. Como o Precifica mostra o custo real de cada procedimento, você vê na hora se o valor de referência cobre seus custos e ajusta pro seu mercado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Preciso saber usar planilha ou ter conhecimento financeiro?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. Você configura o custo da sua hora clínica uma única vez (custos fixos, pró-labore desejado e horas atendidas) e o sistema faz o resto. Um tour guiado mostra cada passo na primeira vez que você entra.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O teste grátis de 7 dias pede cartão de crédito?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim, o cadastro do cartão é necessário para iniciar o teste, mas nada é cobrado durante os 7 dias. Se cancelar antes do fim, direto em Configurações › Gerenciar Assinatura, não paga nada. O teste vale uma vez por cartão.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Qual a diferença entre o mensal e o anual?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Os dois liberam tudo. No mensal você paga mês a mês e cancela quando quiser. No anual você paga uma vez por ano e sai bem mais barato por mês — e tem 7 dias pra desistir com reembolso total, como em qualquer compra online.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O que é o preço de fundador?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É uma condição de lançamento, por tempo limitado: enquanto houver vagas, quem assina o plano mensal paga um valor menor e mantém esse valor pra sempre, enquanto não cancelar a assinatura. Quando as vagas acabam, novos assinantes pagam o preço normal. Quando a oferta está no ar, ela aparece no topo desta página com o número de vagas restantes.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Serve para consultório individual e para clínica com vários dentistas?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Você escolhe se é consultório ou clínica, cadastra os profissionais e os dados de cada um (nome, especialidade, CRO) aparecem automaticamente nos orçamentos exportados.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Como funciona a consultoria de cadastro de materiais?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É um serviço opcional, separado da assinatura: um especialista cadastra e mantém atualizados os materiais da sua clínica (marca, quantidade usada e preço do seu fornecedor) vinculados a cada procedimento. O valor varia conforme o tamanho da sua tabela — fale com a gente pelo WhatsApp para uma proposta.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Meus dados e os dos meus pacientes ficam seguros?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. A conexão é criptografada, cada conta só acessa os próprios dados, e você pode baixar tudo ou excluir a conta quando quiser. Detalhes na <a href="/privacidade.html" style="color:var(--teal-700);text-decoration:underline;">Política de Privacidade</a>.</div></div>
+      <div style="display:flex;flex-direction:column;gap:12px;"><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Já uso um sistema de gestão. Vou precisar trocar ou migrar alguma coisa?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. O Precifica não substitui sua agenda, prontuário ou financeiro — ele cuida só da precificação e do orçamento. Você usa os dois lado a lado: monta o orçamento no Precifica (no computador ou no celular) e segue a rotina normal no seu sistema.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Não tenho tempo de cadastrar procedimentos e materiais. Vale a pena mesmo assim?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Vale, porque você não começa do zero: a conta já vem com 37 procedimentos e 61 materiais cadastrados e vinculados. Pra começar, você só informa custos fixos, pró-labore e horas atendidas. O resto você ajusta aos poucos, conforme usa. E se preferir não mexer em nada, a consultoria faz o cadastro por você.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Os preços da base servem pra minha cidade?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">São valores de referência, pra você não começar do zero. Como o Precifica mostra o custo real de cada procedimento, você vê na hora se o valor de referência cobre seus custos e ajusta pro seu mercado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Preciso saber usar planilha ou ter conhecimento financeiro?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. Você configura o custo da sua hora clínica uma única vez (custos fixos, pró-labore desejado e horas atendidas) e o sistema faz o resto. Um tour guiado mostra cada passo na primeira vez que você entra.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O teste grátis de 7 dias pede cartão de crédito?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim, o cadastro do cartão é necessário para iniciar o teste, mas nada é cobrado durante os 7 dias. Se cancelar antes do fim, direto em Configurações › Gerenciar Assinatura, não paga nada. O teste vale uma vez por cartão.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Qual a diferença entre o mensal e o anual?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Os dois liberam tudo. No mensal você paga mês a mês e cancela quando quiser. No anual você paga uma vez por ano e sai bem mais barato por mês — e tem 7 dias pra desistir com reembolso total, como em qualquer compra online.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O que é o preço de fundador?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É uma condição de lançamento, por tempo limitado: enquanto houver vagas, quem assina o plano mensal paga um valor menor e mantém esse valor pra sempre, enquanto não cancelar a assinatura. Quando as vagas acabam, novos assinantes pagam o preço normal. Quando a oferta está no ar, ela aparece no topo desta página com o número de vagas restantes.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Serve para consultório individual e para clínica com vários dentistas?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Você escolhe se é consultório ou clínica, cadastra os profissionais e os dados de cada um (nome, especialidade, CRO) aparecem automaticamente nos orçamentos exportados.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Como funciona a consultoria de cadastro de materiais?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Um especialista cadastra os materiais da sua clínica (marca, quantidade usada e preço do seu fornecedor) e vincula cada um aos seus procedimentos. Enquanto a oferta de fundador estiver no ar, quem assina como fundador ganha esse cadastro inicial de graça — é só mandar a lista pelo WhatsApp depois de assinar. Fora disso, é um serviço à parte, com valor conforme o tamanho da sua tabela.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Meus dados e os dos meus pacientes ficam seguros?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. A conexão é criptografada, cada conta só acessa os próprios dados, e você pode baixar tudo ou excluir a conta quando quiser. Detalhes na <a href="/privacidade.html" style="color:var(--teal-700);text-decoration:underline;">Política de Privacidade</a>.</div></div>
       </div>
     </div>
   </section>
@@ -492,6 +615,12 @@
 
 </div>
 
+<!-- Botão flutuante de WhatsApp (dúvidas antes de assinar) -->
+<a class="wa-float" href="https://wa.me/5513996980088?text=Oi%21%20Vim%20pela%20p%C3%A1gina%20do%20Precifica%20e%20tenho%20uma%20d%C3%BAvida" target="_blank" rel="noopener" aria-label="Tirar dúvidas pelo WhatsApp" data-track="whatsapp_flutuante">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2Zm5.8 14.13c-.24.68-1.42 1.31-1.96 1.36-.5.05-.98.23-3.3-.69-2.79-1.1-4.58-3.95-4.72-4.13-.14-.18-1.12-1.49-1.12-2.85 0-1.35.71-2.02.96-2.29.25-.27.55-.34.73-.34l.52.01c.17.01.39-.06.61.47.24.55.79 1.9.86 2.04.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.35-.41.47-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.9 1.05.93 1.93 1.22 2.2 1.36.27.14.43.11.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.33Z"/></svg>
+  <span>Dúvidas? Fale no WhatsApp</span>
+</a>
+
 <script>
 (function(){
   function brl(v){return 'R$ '+v.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
@@ -517,25 +646,71 @@
     // acabam, volta o mensal cheio + o anual com desconto.
     var ac=document.getElementById('annual-card');if(ac)ac.style.display=f?'none':'flex';
     if(f){setAll('[data-founder-price]',brl(P.founder.price));setAll('[data-founder-remaining]',String(P.founder.remaining));}
+    document.querySelectorAll('[data-when-founder]').forEach(function(e){e.style.display=f?(e.tagName==='LI'?'flex':(e.tagName==='SPAN'?'inline':'block')):'none';});
+    document.querySelectorAll('[data-when-not-founder]').forEach(function(e){e.style.display=f?'none':(e.tagName==='SPAN'?'inline':'block');});
     var sub=document.getElementById('plans-sub');if(sub)sub.textContent=f?'Condição de lançamento, por tempo limitado. Sem fidelidade — cancele quando quiser, direto no app.':'Tudo liberado nos dois planos. Sem fidelidade no mensal — cancele quando quiser, direto no app.';
     calc();
   }
+  // Taxas padrão do Precifica (DEFAULT_INSTALLMENT_FEES no App.jsx, +1 p.p.
+  // por parcela depois de 8x) — só pra simulação da página.
+  var FEES={1:3.5,3:5.5,6:8.5,10:12.5,12:14.5};
+  function pct(v){return v.toFixed(1).replace('.',',').replace(',0','')+'%';}
+  function val(id){return Math.max(0,Number(document.getElementById(id).value)||0);}
   function calc(){
-    var n=Math.max(0,Number(document.getElementById('calc-procs').value)||0);
-    var g=Math.max(0,Number(document.getElementById('calc-gap').value)||0);
-    var loss=n*g, price=effective();
-    document.getElementById('calc-loss').textContent=brl(loss)+'/mês';
+    var t=val('calc-ticket'),n=val('calc-procs'),tax=val('calc-tax');
+    var parc=Number(document.getElementById('calc-parc').value)||1, fee=FEES[parc]||3.5;
+    var feeV=t*fee/100, taxV=t*tax/100, hid=feeV+taxV, loss=hid*n, price=effective();
+    document.getElementById('calc-fee-pct').textContent=pct(fee);
+    document.getElementById('calc-fee').textContent=brl(feeV);
+    document.getElementById('calc-taxv').textContent=brl(taxV);
+    document.getElementById('calc-hidden').textContent=brl(hid);
+    document.getElementById('calc-loss').textContent=brl(loss);
     var msg=document.getElementById('calc-msg');
-    if(loss<=0){msg.textContent='';return;}
-    var need=Math.ceil(price/Math.max(g,0.01));
-    msg.innerHTML='Recuperando só <strong>'+need+(need===1?' procedimento':' procedimentos')+'</strong> por mês com o preço certo, o Precifica já se pagou'+(loss>price?' — e sobram <strong>'+brl(loss-price)+'</strong> por mês, '+brl((loss-price)*12)+' no ano.':'.');
+    if(hid<=0){msg.textContent='';return;}
+    msg.innerHTML='Isso é <strong>'+pct(hid/t*100)+'</strong> de cada procedimento. Se uma única venda dessas tiver o preço certo, o Precifica já se pagou'+(hid>price?' — e ainda sobram <strong>'+brl(hid-price)+'</strong>.':'.');
   }
-  ['calc-procs','calc-gap'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',calc);});
+  ['calc-ticket','calc-parc','calc-tax','calc-procs'].forEach(function(id){var el=document.getElementById(id);if(el){el.addEventListener('input',calc);el.addEventListener('change',calc);}});
   render();
   fetch('/api/payments/pricing').then(function(r){return r.json();}).then(function(d){
     if(!d||typeof d.monthlyPrice!=='number')return;
     P={monthly:d.monthlyPrice,annual:d.annualPrice,founder:d.founder||null};render();
   }).catch(function(){});
+
+  // ---- Conteúdo editável sem mexer no HTML: home/conteudo.json ----
+  // (vídeo-depoimento, depoimentos, foto do fundador). Ver HANDOFF.
+  function el(tag,attrs,text){var e=document.createElement(tag);for(var k in (attrs||{}))e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e;}
+  function videoEmbed(url){
+    var m=url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/);
+    if(m)return el('iframe',{src:'https://www.youtube-nocookie.com/embed/'+m[1]+'?rel=0',title:'Depoimento',allow:'encrypted-media; picture-in-picture',allowfullscreen:''});
+    var v=url.match(/vimeo\.com\/(\d+)/);
+    if(v)return el('iframe',{src:'https://player.vimeo.com/video/'+v[1],title:'Depoimento',allow:'fullscreen; picture-in-picture',allowfullscreen:''});
+    return el('video',{src:url,controls:'',playsinline:'',preload:'metadata'});
+  }
+  fetch('conteudo.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(c){
+    if(!c)return;
+    var deps=(c.depoimentos||[]).filter(function(d){return d&&d.texto&&d.nome;});
+    var vid=(c.videoDepoimento||'').trim();
+    if(deps.length||vid){
+      document.getElementById('prova-social').style.display='block';
+      if(vid){var w=el('div',{'class':'video-wrap'});w.appendChild(videoEmbed(vid));var box=document.getElementById('ps-video');box.appendChild(w);box.style.display='block';}
+      var cards=document.getElementById('ps-cards');
+      deps.forEach(function(d){
+        var card=el('div',{'class':'tcard'});
+        card.appendChild(el('blockquote',null,'“'+d.texto+'”'));
+        var who=el('div',{style:'display:flex;align-items:center;gap:12px;'});
+        if(d.foto){who.appendChild(el('img',{'class':'avatar',src:d.foto,alt:d.nome}));}
+        else{who.appendChild(el('div',{'class':'avatar'},(d.nome.replace(/^(dra?\.?\s+)/i,'')[0]||'?').toUpperCase()));}
+        var info=el('div');info.appendChild(el('div',{style:'font-weight:700;color:var(--stone-900);font-size:15px;'},d.nome));
+        var sub=[d.especialidade,d.cidade].filter(Boolean).join(' · ');
+        if(sub)info.appendChild(el('div',{style:'font-size:13px;color:var(--stone-500);'},sub));
+        who.appendChild(info);card.appendChild(who);cards.appendChild(card);
+      });
+    }
+    if(c.fundador&&c.fundador.foto){var ph=document.getElementById('founder-photo');var img=el('img',{'class':'avatar',src:c.fundador.foto,alt:'Marcelo, criador do Precifica',style:'width:120px;height:120px;'});ph.replaceWith(img);}
+  }).catch(function(){});
+
+  // Cliques nos botões principais → evento no pixel/Analytics (se ativo).
+  document.querySelectorAll('[data-track]').forEach(function(a){a.addEventListener('click',function(){if(window.precificaTrack)window.precificaTrack(a.getAttribute('href').indexOf('wa.me')>=0?'Contact':'CTAClick',{local:a.getAttribute('data-track')});});});
 })();
 document.querySelectorAll('.faq-q').forEach(function(b){b.addEventListener('click',function(){var a=b.nextElementSibling,open=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!open));a.hidden=open;b.querySelector('.faq-i').textContent=open?'+':'\u2212';});});
 </script>

@@ -194,11 +194,12 @@ async function createLicenseFromCheckoutSession(session) {
           code,
           process.env.APP_URL || "",
           expiresAt.toLocaleDateString("pt-BR"),
-          monthlyPrice.toFixed(2).replace(".", ",")
+          monthlyPrice.toFixed(2).replace(".", ","),
+          { founder: isFounder }
         )
       );
     } else {
-      emails.push(() => sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || ""));
+      emails.push(() => sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || "", { founder: isFounder }));
     }
 
     return { created: true, licenseType, licenseCode: code, buyerEmail };

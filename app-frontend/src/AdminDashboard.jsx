@@ -1319,7 +1319,17 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                       <td className="px-3 py-3">
                         {user.license_id ? (
                           <>
-                            <div className="text-xs font-medium text-stone-700">{userLicenseOriginInfo(user).label}</div>
+                            <div className="text-xs font-medium text-stone-700">
+                              {userLicenseOriginInfo(user).label}
+                              {user.license_founder && (
+                                <span
+                                  title="Assinou no preço de fundador — tem direito ao bônus de cadastro dos materiais"
+                                  className="ml-1.5 inline-block text-[10px] font-bold bg-orange-600 text-white px-1.5 py-0.5 rounded-full align-middle"
+                                >
+                                  FUNDADOR
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[11px] text-stone-400">{userLicenseOriginInfo(user).detail}</div>
                             {user.license_description && (
                               <div className="text-[11px] text-stone-500 italic mt-0.5 max-w-[180px]" title={user.license_description}>

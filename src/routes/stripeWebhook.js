@@ -88,7 +88,9 @@ async function handleInvoicePaid(invoice) {
       );
       if (buyerEmail) {
         if (wasTrial) {
-          emails.push(() => sendLicensePurchasedEmail(buyerEmail, existingLicense.code, process.env.APP_URL || ""));
+          emails.push(() =>
+            sendLicensePurchasedEmail(buyerEmail, existingLicense.code, process.env.APP_URL || "", { founder: !!existingLicense.founder })
+          );
         } else if (invoice.billing_reason !== "subscription_create") {
           emails.push(() => sendLicenseRenewedEmail(buyerEmail, expiresAt.toLocaleDateString("pt-BR")));
         }

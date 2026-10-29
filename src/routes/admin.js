@@ -401,6 +401,7 @@ router.get("/users", async (req, res) => {
         l.stripe_subscription_id AS license_stripe_subscription_id,
         l.cancel_at_period_end AS license_cancel_at_period_end,
         l.description AS license_description,
+        l.founder AS license_founder,
         a.value AS settings_json
       FROM users u
       LEFT JOIN LATERAL (

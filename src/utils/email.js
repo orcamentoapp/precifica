@@ -131,7 +131,32 @@ async function sendPasswordResetEmail(to, code) {
   });
 }
 
-async function sendLicensePurchasedEmail(to, licenseCode, appUrl) {
+// Bloco do bônus de fundador (cadastro dos materiais feito pela equipe) —
+// vai nos e-mails de boas-vindas de quem entrou no preço de fundador.
+const FOUNDER_WHATSAPP = "https://wa.me/5513996980088?text=" + encodeURIComponent("Oi! Sou fundador do Precifica e quero usar meu bônus de cadastro dos materiais.");
+function founderBonusText() {
+  return (
+    "\n\nVocê é FUNDADOR do Precifica: seu preço fica travado pra sempre enquanto mantiver a assinatura, e você ganhou o " +
+    "cadastro inicial dos seus materiais feito por nós. É só mandar a lista de materiais e preços dos seus fornecedores pelo WhatsApp: " +
+    FOUNDER_WHATSAPP
+  );
+}
+function founderBonusHtml() {
+  return `
+        <div style="background:#fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0 0 8px; font-weight: 700; color:#9a3412;">Você é fundador do Precifica 🎉</p>
+          <p style="margin: 0; font-size: 14px; color:#7c2d12;">
+            Seu preço fica <strong>travado pra sempre</strong> enquanto você mantiver a assinatura. E você ganhou o
+            <strong>cadastro inicial dos seus materiais feito por nós</strong>: mande a lista de materiais e preços dos seus
+            fornecedores pelo WhatsApp e a gente cadastra e vincula aos seus procedimentos.
+          </p>
+          <p style="margin: 12px 0 0;">
+            <a href="${FOUNDER_WHATSAPP}" style="background:#25d366; color:#fff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Usar meu bônus no WhatsApp</a>
+          </p>
+        </div>`;
+}
+
+async function sendLicensePurchasedEmail(to, licenseCode, appUrl, { founder = false } = {}) {
   const baseUrl = appUrl || "";
   const activationLink = baseUrl
     ? `${baseUrl}/?ativar=${encodeURIComponent(licenseCode)}&email=${encodeURIComponent(to)}`
@@ -141,8 +166,8 @@ async function sendLicensePurchasedEmail(to, licenseCode, appUrl) {
     to,
     subject: "Seu acesso ao Precifica está pronto",
     text: activationLink
-      ? `Recebemos seu pagamento! Sua chave de licença é: ${licenseCode}\n\nClique aqui pra ativar direto (a chave já vem preenchida): ${activationLink}`
-      : `Recebemos seu pagamento! Sua chave de licença é: ${licenseCode}\n\nAcesse o Precifica e clique em "Ativar licença" pra criar sua conta com esse código.`,
+      ? `Recebemos seu pagamento! Sua chave de licença é: ${licenseCode}\n\nClique aqui pra ativar direto (a chave já vem preenchida): ${activationLink}${founder ? founderBonusText() : ""}`
+      : `Recebemos seu pagamento! Sua chave de licença é: ${licenseCode}\n\nAcesse o Precifica e clique em "Ativar licença" pra criar sua conta com esse código.${founder ? founderBonusText() : ""}`,
     html: `
       <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
         <h2 style="color:#0f766e;">Precifica</h2>
@@ -158,6 +183,7 @@ async function sendLicensePurchasedEmail(to, licenseCode, appUrl) {
                <p style="color:#a8a29e; font-size: 12px;">O link já leva pra tela de ativação com a chave preenchida. Se o botão não funcionar, copie: ${activationLink}</p>`
             : `<p>Acesse o Precifica e clique em "Ativar licença" pra criar sua conta com esse código.</p>`
         }
+        ${founder ? founderBonusHtml() : ""}
         <p style="color:#78716c; font-size: 13px;">Se não achar o e-mail depois, confira também a pasta de spam.</p>
       </div>
     `,
@@ -169,7 +195,7 @@ async function sendLicensePurchasedEmail(to, licenseCode, appUrl) {
 // da cobrança (quando o cartão vai ser cobrado de verdade, e como cancelar
 // antes disso). Ainda inclui a chave de licença (continua sendo necessária
 // pra criar a conta), mas o conteúdo principal é sobre o prazo do trial.
-async function sendTrialStartedEmail(to, licenseCode, appUrl, trialEndLabel, monthlyPriceLabel) {
+async function sendTrialStartedEmail(to, licenseCode, appUrl, trialEndLabel, monthlyPriceLabel, { founder = false } = {}) {
   const baseUrl = appUrl || "";
   const activationLink = baseUrl
     ? `${baseUrl}/?ativar=${encodeURIComponent(licenseCode)}&email=${encodeURIComponent(to)}`
@@ -183,7 +209,8 @@ async function sendTrialStartedEmail(to, licenseCode, appUrl, trialEndLabel, mon
       `Sobre sua assinatura: valor atual R$ 0,00. Próxima cobrança: R$ ${monthlyPriceLabel} automaticamente em ${trialEndLabel}, caso não cancele.\n\n` +
       `Cancelamento: acesse "Configurações" > "Gerenciar Assinatura" e clique em cancelar assinatura. Faça isso pelo menos 24 horas antes de ${trialEndLabel} pra evitar a cobrança.\n\n` +
       `Sua chave de licença (pra criar sua conta): ${licenseCode}` +
-      (activationLink ? `\n\nAtive direto por aqui: ${activationLink}` : ""),
+      (activationLink ? `\n\nAtive direto por aqui: ${activationLink}` : "") +
+      (founder ? founderBonusText() : ""),
     html: `
       <div style="font-family: sans-serif; max-width: 460px; margin: 0 auto;">
         <h2 style="color:#0f766e;">Precifica</h2>
@@ -194,6 +221,7 @@ async function sendTrialStartedEmail(to, licenseCode, appUrl, trialEndLabel, mon
           <p style="margin: 0; font-size: 14px; color:#57534e;">Valor atual: <strong>R$ 0,00</strong></p>
           <p style="margin: 4px 0 0; font-size: 14px; color:#57534e;">Próxima cobrança: <strong>R$ ${monthlyPriceLabel}</strong> automaticamente em <strong>${trialEndLabel}</strong>, caso não cancele.</p>
         </div>
+        ${founder ? founderBonusHtml() : ""}
 
         <div style="background:#fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 16px; margin: 20px 0;">
           <p style="margin: 0 0 8px; font-weight: 600; color:#92400e;">Cancelamento</p>

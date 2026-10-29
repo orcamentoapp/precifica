@@ -49,6 +49,7 @@ export default function TrialSignup({ onBackToLogin }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o teste grátis.");
+      if (window.precificaTrack) window.precificaTrack("InitiateCheckout", { plano: "teste_gratis" });
       window.location.href = data.checkoutUrl;
     } catch (err) {
       setError(err.message);

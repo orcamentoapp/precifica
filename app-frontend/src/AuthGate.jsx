@@ -194,7 +194,19 @@ export default function AuthGate({ children }) {
               .then((result) => {
                 // Cartão que já usou o teste grátis: a assinatura nova foi
                 // cancelada sem cobrança — avisa em vez de dizer "sucesso".
-                if (result && result.reason === "trial_card_reused") setCheckoutNotice("trial-recusado");
+                if (result && result.reason === "trial_card_reused") {
+                  setCheckoutNotice("trial-recusado");
+                  return;
+                }
+                // Conversão pro pixel/Analytics (só se a pessoa aceitou
+                // cookies — ver public/tracking.js). Só conta quando a
+                // licença foi criada AGORA (não em recarregamentos).
+                if (result && result.created && window.precificaTrack) {
+                  window.precificaTrack(result.licenseType === "trial" ? "StartTrial" : "Subscribe", {
+                    plano: result.licenseType,
+                    currency: "BRL",
+                  });
+                }
               })
               .catch(() => {});
           }

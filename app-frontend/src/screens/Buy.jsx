@@ -79,6 +79,7 @@ export default function Buy({ onBackToLogin }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o pagamento.");
+      if (window.precificaTrack) window.precificaTrack("InitiateCheckout", { plano: plan === "annual" ? "anual" : "mensal" });
       window.location.href = data.checkoutUrl;
     } catch (err) {
       setError(err.message);

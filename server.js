@@ -52,18 +52,37 @@ function inlineScriptHashes() {
   return [...hashes];
 }
 
+// Pixel do Meta / Google Analytics (opcionais — só liberados na CSP quando
+// configurados; ver app-frontend/public/tracking.js).
+const META_PIXEL_ID = (process.env.META_PIXEL_ID || "").trim();
+const GA_MEASUREMENT_ID = (process.env.GA_MEASUREMENT_ID || "").trim();
+const trackingScriptSrc = [
+  ...(META_PIXEL_ID ? ["https://connect.facebook.net"] : []),
+  ...(GA_MEASUREMENT_ID ? ["https://www.googletagmanager.com"] : []),
+];
+const trackingConnectSrc = [
+  ...(META_PIXEL_ID ? ["https://www.facebook.com", "https://connect.facebook.net"] : []),
+  ...(GA_MEASUREMENT_ID
+    ? ["https://www.google-analytics.com", "https://*.google-analytics.com", "https://*.analytics.google.com", "https://www.googletagmanager.com"]
+    : []),
+];
+const trackingImgSrc = [
+  ...(META_PIXEL_ID ? ["https://www.facebook.com"] : []),
+  ...(GA_MEASUREMENT_ID ? ["https://www.google-analytics.com", "https://www.googletagmanager.com"] : []),
+];
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", ...inlineScriptHashes()],
+        scriptSrc: ["'self'", ...inlineScriptHashes(), ...trackingScriptSrc],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:"],
+        imgSrc: ["'self'", "data:", "blob:", ...trackingImgSrc],
         mediaSrc: ["'self'", "blob:", "data:", "https:"],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", ...trackingConnectSrc],
         workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'", "blob:", "https://www.youtube.com", "https://www.youtube-nocookie.com", "https://player.vimeo.com"],
         objectSrc: ["'none'"],
@@ -112,6 +131,13 @@ app.use("/api/payments", paymentsRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/app-data", appDataRoutes);
 app.use("/api/budgets", budgetsRoutes);
+
+// Configuração pública pro navegador (IDs de pixel/Analytics — não são
+// segredo, aparecem no código de qualquer site que usa).
+app.get("/api/public-config", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json({ metaPixelId: META_PIXEL_ID || null, gaMeasurementId: GA_MEASUREMENT_ID || null });
+});
 
 // Saúde do sistema — pra um monitor externo (ex: UptimeRobot, gratuito)
 // checar a cada poucos minutos e avisar por e-mail/WhatsApp se o Precifica

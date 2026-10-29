@@ -6,6 +6,106 @@
 > completo do que já foi construído, o que está testado, e o que falta.
 
 
+## ✅ Feito nesta sessão (29/10/2026, 3ª parte) — Página de vendas revisada como marketing odontológico
+
+Pedido do Marcelo: aplicar todas as melhorias de uma análise da landing
+"como especialista de marketing odontológico". Decisão dele: **a
+consultoria de cadastro vira bônus grátis pra fundadores**.
+
+### O que mudou na landing (`app-frontend/public/home/index.html`)
+- **Topo novo, pensado pro celular:** título "Saiba quanto cada
+  procedimento te custa — e passe o valor com segurança." No lugar do
+  print do dashboard, um **celular mostrando a conversa com a paciente**
+  com o plano de tratamento (imagem real `img/plano-tratamento.jpg`),
+  mais 3 selos (logo/CRO, valor por forma de pagamento, PDF/WhatsApp).
+  Abaixo dos botões: "**Nada é cobrado nos 7 dias.** Cancele em 2
+  cliques" (também no cartão de preço).
+- **Prova social sem mexer no código:** seção `#prova-social`, escondida
+  até ter conteúdo, preenchida por **`public/home/conteudo.json`**:
+  ```json
+  {
+    "videoDepoimento": "https://www.youtube.com/watch?v=XXXX",
+    "depoimentos": [
+      { "nome": "Dra. Fulana", "especialidade": "Prótese", "cidade": "Santos/SP",
+        "foto": "img/depoimentos/fulana.jpg", "texto": "O que ela disse..." }
+    ],
+    "fundador": { "foto": "img/marcelo.jpg" }
+  }
+  ```
+  O vídeo aceita link do YouTube (inclusive Shorts), do Vimeo ou um .mp4.
+  Os textos são inseridos como texto puro (nunca como HTML). **Só usar
+  depoimentos reais, com autorização por escrito.** O Marcelo sobe as
+  fotos em `public/home/img/...` e edita o JSON pelo GitHub, sem build.
+- **Seção "Quem fez o Precifica"** (`#quem-fez`): história do Marcelo
+  (protético, dono de laboratório, casado com uma dentista), com botão
+  "Falar com o Marcelo no WhatsApp". Mostra a inicial "M" até ter foto no
+  `conteudo.json`. **Texto escrito pela Claude a partir do que ele contou:
+  ele precisa revisar.**
+- **Calculadora refeita** (exemplo: coroa de R$ 1.200 em 10x): valor do
+  procedimento, parcelas, imposto % e quantos por mês. Mostra quanto vai
+  pra taxa da maquininha + imposto em cada procedimento e por mês, e
+  quando o Precifica se paga. As taxas são as padrão do app
+  (`DEFAULT_INSTALLMENT_FEES`, estendidas: 10x = 12,5%, 12x = 14,5%), com
+  aviso de simulação ilustrativa.
+- **Bônus de fundador = consultoria grátis.** Aparece (só com a oferta
+  ligada) no cartão de preço, no card "A gente cadastra pra você", na
+  seção da consultoria (que diz "Grátis para fundadores · restam X
+  vagas") e no FAQ. Sem a oferta, volta a "Serviço sob consulta".
+  Controle no script: `data-when-founder` / `data-when-not-founder`.
+- **Botão flutuante de WhatsApp** (5513996980088, com mensagem pronta).
+- **Prévia do link** (WhatsApp/Instagram/Facebook): tags Open Graph na
+  landing e no `app-frontend/index.html`, imagem `public/home/img/og.png`
+  (1200×630) gerada nesta sessão. As URLs são absolutas
+  (`https://precifica.verterelabs.com/home/...`): **se o domínio mudar,
+  trocar nos dois arquivos.**
+- O hero e o celular foram verificados em desktop e celular, sem rolagem
+  lateral.
+
+### Bônus de fundador no sistema
+- E-mails de boas-vindas (compra e teste grátis) de quem é fundador
+  ganham o bloco "Você é fundador 🎉", com botão do WhatsApp pra mandar
+  a lista de materiais (`founderBonusHtml/Text` em `email.js`; parâmetro
+  `{ founder }` em `sendLicensePurchasedEmail`/`sendTrialStartedEmail`).
+- Painel admin → Usuários: selo laranja **FUNDADOR** ao lado da origem da
+  licença, pra o Marcelo saber quem tem direito ao bônus.
+- Termos de Uso, item 4.1: regras da oferta de fundador e do bônus
+  (cadastro inicial, uma única vez, a partir da lista enviada pelo
+  WhatsApp, em prazo combinado; atualizações são à parte). A
+  `TERMS_VERSION` **não** foi trocada (não muda direitos de quem já
+  assina).
+
+### Pixel do Meta + Google Analytics, com consentimento (LGPD)
+- `public/tracking.js` (incluído na landing e no `index.html` do app).
+  Busca os IDs em `GET /api/public-config` (variáveis `META_PIXEL_ID` e
+  `GA_MEASUREMENT_ID` no Railway). **Sem IDs, não faz nada nem mostra
+  aviso.** Com IDs, mostra o aviso de cookies (Aceitar/Recusar, escolha
+  guardada no navegador) e só carrega os scripts depois de "Aceitar".
+  Dentro do app (pessoa logada) não mostra aviso.
+- A CSP do `server.js` só libera os domínios do Meta/Google quando o ID
+  respectivo está configurado.
+- Eventos: `PageView` (automático), `CTAClick` e `Contact` (cliques na
+  landing, atributo `data-track`), `InitiateCheckout` (TrialSignup/Buy),
+  `StartTrial`/`Subscribe` (na volta do checkout, só quando a licença
+  acabou de ser criada). No GA4 viram begin_checkout, sign_up, purchase
+  etc.
+- A Política de Privacidade foi atualizada (item 8 e lista de
+  destinatários: Meta e Google, só com consentimento).
+
+### Testado
+74 testes de API + 25 de navegador, todos passando, mais 9 novos de
+rastreamento/prova social (aviso aparece só com ID, aceitar carrega,
+recusar não carrega, escolha lembrada, nada no app logado, depoimento não
+interpreta HTML, vídeo do YouTube embutido, sem violação de CSP).
+
+### Pendências do Marcelo
+1. Revisar o texto "Quem fez o Precifica" e mandar uma foto.
+2. Conseguir 2–3 depoimentos reais (nome, especialidade, cidade, foto,
+   autorização) e, quando gravar, o vídeo-depoimento → `conteudo.json`.
+3. Criar o Pixel no Gerenciador de Eventos do Meta e a propriedade GA4,
+   e colocar `META_PIXEL_ID` e `GA_MEASUREMENT_ID` no Railway.
+4. Definir um limite prático pro bônus de cadastro (ex.: até X materiais)
+   se a demanda apertar, e aí ajustar o item 4.1 dos Termos.
+
 ## ✅ Feito nesta sessão (29/10/2026, 2ª parte) — Estratégia de preço + página de vendas contra as objeções
 
 ### Estratégia de preço decidida com o Marcelo
