@@ -9721,7 +9721,9 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
           {/* Mensal e anual (anual reativado em 29/10/2026). Quando é só
               "reativar a renovação" de uma assinatura ainda no período pago,
               não tem escolha de plano — continua no mesmo. */}
-          {!(license?.valid && license?.cancelAtPeriodEnd && license?.hasStripeSubscription) && (
+          {!(license?.valid && license?.cancelAtPeriodEnd && license?.hasStripeSubscription) &&
+            renewAnnualPrice > renewMonthlyPrice &&
+            renewAnnualPrice < renewMonthlyPrice * 12 && (
             <div className="grid grid-cols-2 gap-2 mb-4">
               <button
                 onClick={() => setRenewPlan("monthly")}

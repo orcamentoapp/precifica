@@ -114,6 +114,19 @@ async function setPricing({ monthlyPrice, annualPrice, founderActive, founderPri
     if (!Number.isFinite(n) || n <= 0) throw new Error("Preço anual inválido");
     updates.push(["annual_price", String(n)]);
   }
+  // O anual precisa ser um desconto de verdade em relação ao mensal (mais
+  // caro que 1 mês, mais barato que 12) — evita salvar valor de teste que
+  // apareceria no site como "R$ 0,08/mês".
+  {
+    const current = await getPricing();
+    const m = monthlyPrice != null ? Number(monthlyPrice) : current.monthlyPrice;
+    const a = annualPrice != null ? Number(annualPrice) : current.annualPrice;
+    if ((monthlyPrice != null || annualPrice != null) && !(a > m && a < m * 12)) {
+      throw new Error(
+        `Preço anual inválido: precisa ficar entre 1 e 12 mensalidades (entre R$ ${m.toFixed(2).replace(".", ",")} e R$ ${(m * 12).toFixed(2).replace(".", ",")}).`
+      );
+    }
+  }
   if (updates.length === 0) return getPricing();
 
   const client = await pool.connect();

@@ -43,7 +43,8 @@ export default function Buy({ onBackToLogin }) {
       .then((data) => {
         if (!cancelled && data && typeof data.monthlyPrice === "number") {
           setPricing({ monthlyPrice: data.monthlyPrice, annualPrice: data.annualPrice, founder: data.founder || null });
-          if (data.founder) setPlan("monthly");
+          const annualValid = data.annualPrice > data.monthlyPrice && data.annualPrice < data.monthlyPrice * 12;
+          if (data.founder || !annualValid) setPlan("monthly");
         }
       })
       .catch(() => {
@@ -55,6 +56,9 @@ export default function Buy({ onBackToLogin }) {
   }, []);
 
   const annualSavingsPct = Math.round((1 - pricing.annualPrice / (pricing.monthlyPrice * 12)) * 100);
+  // Anual só aparece se for desconto de verdade (protege contra valor de
+  // teste salvo no painel, ex: R$ 1,00).
+  const showAnnual = !pricing.founder && pricing.annualPrice > pricing.monthlyPrice && pricing.annualPrice < pricing.monthlyPrice * 12;
 
   async function handleSubmit() {
     if (!plan) {
@@ -101,7 +105,7 @@ export default function Buy({ onBackToLogin }) {
         {/* Fase de lançamento (oferta de fundador no ar): só o mensal de
             fundador — o anual sairia pelo mesmo valor por mês, com menos
             flexibilidade. Sem a oferta: mensal cheio + anual com desconto. */}
-        <div className={pricing.founder ? "mb-5" : "grid grid-cols-2 gap-3 mb-5"}>
+        <div className={showAnnual ? "grid grid-cols-2 gap-3 mb-5" : "mb-5"}>
           <button
             type="button"
             onClick={() => setPlan("monthly")}
@@ -129,7 +133,7 @@ export default function Buy({ onBackToLogin }) {
               </>
             )}
           </button>
-          {!pricing.founder && (
+          {showAnnual && (
           <button
             type="button"
             onClick={() => setPlan("annual")}

@@ -394,57 +394,6 @@
         </table>
       </div>
 
-      <!-- Calculadora: quanto some do preço (taxa da maquininha + imposto) -->
-      <div style="max-width:860px;margin:44px auto 0;background:var(--teal-50);border:1px solid var(--teal-100);border-radius:18px;padding:32px;">
-        <h3 style="font-size:20px;font-weight:800;color:var(--teal-900);">Faça a conta: quanto some do seu preço?</h3>
-        <p style="margin-top:8px;font-size:15px;line-height:1.55;color:var(--stone-700);">Exemplo: uma coroa de R$ 1.200 parcelada em 10x no cartão. A maquininha fica com uma parte, o imposto com outra — e, se isso não estiver no preço, sai do <strong>seu</strong> bolso. Troque pelos seus números:</p>
-        <div class="calc grid-4" style="margin-top:22px;">
-          <div>
-            <label for="calc-ticket">Valor do procedimento (R$)</label>
-            <input id="calc-ticket" type="number" min="0" step="10" value="1200" inputmode="decimal">
-          </div>
-          <div>
-            <label for="calc-parc">Parcelado em</label>
-            <select id="calc-parc">
-              <option value="1">À vista no crédito</option>
-              <option value="3">3x</option>
-              <option value="6">6x</option>
-              <option value="10" selected>10x</option>
-              <option value="12">12x</option>
-            </select>
-          </div>
-          <div>
-            <label for="calc-tax">Imposto (%)</label>
-            <input id="calc-tax" type="number" min="0" step="0.5" value="6" inputmode="decimal">
-          </div>
-          <div>
-            <label for="calc-procs">Quantos por mês</label>
-            <input id="calc-procs" type="number" min="0" step="1" value="8" inputmode="numeric">
-          </div>
-        </div>
-        <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;">
-          <div style="flex:1 1 280px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;">
-            <div style="font-size:13px;color:var(--stone-500);margin-bottom:10px;">Em cada procedimento</div>
-            <div class="breakdown">
-              <div><span>Taxa da maquininha (<span id="calc-fee-pct">12,5%</span>)</span><strong id="calc-fee">R$ 150,00</strong></div>
-              <div><span>Imposto</span><strong id="calc-taxv">R$ 72,00</strong></div>
-              <div style="border:none;"><span><strong>Sai do seu bolso se não estiver no preço</strong></span><strong id="calc-hidden" style="color:#b91c1c;">R$ 222,00</strong></div>
-            </div>
-          </div>
-          <div style="flex:1 1 220px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;">
-            <div>
-              <div style="font-size:13px;color:var(--stone-500);">Por mês</div>
-              <div id="calc-loss" style="font-size:28px;font-weight:800;color:#b91c1c;margin-top:2px;">R$ 1.776,00</div>
-            </div>
-            <div>
-              <div style="font-size:13px;color:var(--stone-500);">Precifica</div>
-              <div style="font-size:22px;font-weight:800;color:var(--teal-700);"><span data-price-effective>R$ 39,90</span>/mês</div>
-            </div>
-          </div>
-        </div>
-        <p id="calc-msg" style="margin-top:16px;font-size:15px;line-height:1.55;color:var(--stone-700);"></p>
-        <p style="margin-top:10px;font-size:12.5px;color:var(--stone-500);">Simulação ilustrativa. As taxas usadas são as padrão do Precifica (de 3,5% à vista a cerca de 14,5% em 12x) — a sua maquininha pode cobrar diferente, e no Precifica você coloca as suas.</p>
-      </div>
     </div>
   </section>
 
@@ -635,7 +584,7 @@
     setAll('[data-annual-savings]','Economia de '+brl(Math.max(0,save))+' no ano');
     var months=Math.floor(save/P.monthly+0.0001);
     var pct=Math.round((1-P.annual/(P.monthly*12))*100);
-    setAll('[data-annual-badge]',months>=1?(months+(months===1?' MÊS GRÁTIS':' MESES GRÁTIS')):(pct>0?('-'+pct+'%'):'ANUAL'));
+    setAll('[data-annual-badge]',(months>=1&&months<=6)?(months+(months===1?' MÊS GRÁTIS':' MESES GRÁTIS')):(pct>0?('-'+pct+'%'):'ANUAL'));
     setAll('[data-price-monthly-effective]',brl(effective()));
     setAll('[data-price-effective]',brl(effective()));
     var f=!!P.founder;
@@ -644,32 +593,15 @@
     // Fase de lançamento: só a oferta de fundador (o anual sairia pelo mesmo
     // valor mensal, com menos flexibilidade — confundiria). Quando as vagas
     // acabam, volta o mensal cheio + o anual com desconto.
-    var ac=document.getElementById('annual-card');if(ac)ac.style.display=f?'none':'flex';
+    // Anual só aparece se for um desconto de verdade: mais caro que 1 mês e
+    // mais barato que 12 meses (protege contra valor de teste salvo no painel).
+    var annualOk=P.annual>P.monthly&&P.annual<P.monthly*12;
+    var ac=document.getElementById('annual-card');if(ac)ac.style.display=(f||!annualOk)?'none':'flex';
     if(f){setAll('[data-founder-price]',brl(P.founder.price));setAll('[data-founder-remaining]',String(P.founder.remaining));}
     document.querySelectorAll('[data-when-founder]').forEach(function(e){e.style.display=f?(e.tagName==='LI'?'flex':(e.tagName==='SPAN'?'inline':'block')):'none';});
     document.querySelectorAll('[data-when-not-founder]').forEach(function(e){e.style.display=f?'none':(e.tagName==='SPAN'?'inline':'block');});
-    var sub=document.getElementById('plans-sub');if(sub)sub.textContent=f?'Condição de lançamento, por tempo limitado. Sem fidelidade — cancele quando quiser, direto no app.':'Tudo liberado nos dois planos. Sem fidelidade no mensal — cancele quando quiser, direto no app.';
-    calc();
+    var sub=document.getElementById('plans-sub');if(sub)sub.textContent=f?'Condição de lançamento, por tempo limitado. Sem fidelidade — cancele quando quiser, direto no app.':(annualOk?'Tudo liberado nos dois planos. Sem fidelidade no mensal — cancele quando quiser, direto no app.':'Tudo liberado. Sem fidelidade — cancele quando quiser, direto no app.');
   }
-  // Taxas padrão do Precifica (DEFAULT_INSTALLMENT_FEES no App.jsx, +1 p.p.
-  // por parcela depois de 8x) — só pra simulação da página.
-  var FEES={1:3.5,3:5.5,6:8.5,10:12.5,12:14.5};
-  function pct(v){return v.toFixed(1).replace('.',',').replace(',0','')+'%';}
-  function val(id){return Math.max(0,Number(document.getElementById(id).value)||0);}
-  function calc(){
-    var t=val('calc-ticket'),n=val('calc-procs'),tax=val('calc-tax');
-    var parc=Number(document.getElementById('calc-parc').value)||1, fee=FEES[parc]||3.5;
-    var feeV=t*fee/100, taxV=t*tax/100, hid=feeV+taxV, loss=hid*n, price=effective();
-    document.getElementById('calc-fee-pct').textContent=pct(fee);
-    document.getElementById('calc-fee').textContent=brl(feeV);
-    document.getElementById('calc-taxv').textContent=brl(taxV);
-    document.getElementById('calc-hidden').textContent=brl(hid);
-    document.getElementById('calc-loss').textContent=brl(loss);
-    var msg=document.getElementById('calc-msg');
-    if(hid<=0){msg.textContent='';return;}
-    msg.innerHTML='Isso é <strong>'+pct(hid/t*100)+'</strong> de cada procedimento. Se uma única venda dessas tiver o preço certo, o Precifica já se pagou'+(hid>price?' — e ainda sobram <strong>'+brl(hid-price)+'</strong>.':'.');
-  }
-  ['calc-ticket','calc-parc','calc-tax','calc-procs'].forEach(function(id){var el=document.getElementById(id);if(el){el.addEventListener('input',calc);el.addEventListener('change',calc);}});
   render();
   fetch('/api/payments/pricing').then(function(r){return r.json();}).then(function(d){
     if(!d||typeof d.monthlyPrice!=='number')return;

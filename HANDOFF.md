@@ -6,6 +6,23 @@
 > completo do que já foi construído, o que está testado, e o que falta.
 
 
+## ✅ Feito nesta sessão (29/10/2026, 4ª parte) — Calculadora removida + trava no preço anual
+
+- **Calculadora da landing removida** a pedido do Marcelo (HTML e script).
+  As outras partes da seção "já pago um sistema" continuam.
+- **Bug de configuração visto em produção:** o painel estava com mensal
+  R$ 29,50 e anual R$ 1,00 (provavelmente valor de teste), e a landing
+  mostrava "Anual R$ 0,08/mês · 11 meses grátis". Correções:
+  - `setPricing()` agora **recusa** um anual fora da faixa "mais que 1
+    mensalidade e menos que 12", com mensagem clara no painel.
+  - Landing, `Buy.jsx` e o modal de renovação **escondem o anual** se o
+    valor salvo não for um desconto de verdade (proteção extra).
+  - O selo "X MESES GRÁTIS" só aparece de 1 a 6 meses; fora disso vira
+    "-N%".
+- **O Marcelo precisa salvar no painel:** Mensal 39,90 · Anual 358,80
+  (e, se quiser a fase de lançamento, ligar o fundador com 29,90 / 100
+  vagas).
+
 ## ✅ Feito nesta sessão (29/10/2026, 3ª parte) — Página de vendas revisada como marketing odontológico
 
 Pedido do Marcelo: aplicar todas as melhorias de uma análise da landing
