@@ -3040,7 +3040,7 @@ const DEFAULT_PROCEDURES = [
     "laborCost": 0,
     "marginPercent": 40,
     "valorMinimo": 0,
-    "valorBase": 0,
+    "valorBase": 1500,
     "materials": [
       {
         "id": "ini92b0a",
@@ -4157,6 +4157,21 @@ function calcProcedure(proc, settings, materialsCatalog) {
   return { totalCost, directCost, additionalCost, laborCost, margin, suggestedBase, listPrice, taxPct, rows, materialsCost };
 }
 
+// Deixa o "% Lucro" coerente com o "Valor" definido: dado o custo total
+// atual, calcula a margem que faz o preço bater exatamente com o Valor.
+// Usado sempre que o Valor é editado (o Preço final acompanha o Valor
+// automaticamente, sem precisar do "Igualar") e na base padrão de contas
+// novas.
+function withMarginFromValor(proc, settings, materialsCatalog) {
+  const valor = Number(proc.valorBase);
+  if (!(valor > 0)) return proc;
+  const totalCost = calcProcedure(proc, settings, materialsCatalog).totalCost || 0;
+  if (!(totalCost > 0)) return proc;
+  const margin = Number((100 * (1 - totalCost / valor)).toFixed(2));
+  if (margin === Number(proc.marginPercent)) return proc;
+  return { ...proc, marginPercent: margin };
+}
+
 function calcBudget(procList, settings, clientLevelPercent = 0, materialsCatalog) {
   const taxPct = Number(settings.taxProvisionPercent) || 0;
   const methods = buildPaymentMethods(settings);
@@ -4246,8 +4261,8 @@ function sortItems(items, calcs, sortConfig) {
       av = (a.name || "").toLowerCase();
       bv = (b.name || "").toLowerCase();
     } else if (key === "suggestedBase") {
-      av = calcs[a.id]?.suggestedBase || 0;
-      bv = calcs[b.id]?.suggestedBase || 0;
+      av = calcs[a.id]?.listPrice || 0;
+      bv = calcs[b.id]?.listPrice || 0;
     } else if (key === "totalCost") {
       av = calcs[a.id]?.totalCost || 0;
       bv = calcs[b.id]?.totalCost || 0;
@@ -4391,7 +4406,7 @@ function ProcedureTable({
         additionalCost: String(p.additionalCost ?? ""),
         valorBase: String(p.valorBase ?? ""),
         marginPercent: String(p.marginPercent ?? ""),
-        suggestedBase: c ? money(c.suggestedBase) : "",
+        suggestedBase: c ? money(c.listPrice) : "",
         durationMinutes: String(p.durationMinutes ?? ""),
         sessions: String(p.sessions ?? ""),
         totalCost: c ? money(c.totalCost) : "",
@@ -4820,7 +4835,7 @@ function ProcedureTable({
                         </div>
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono font-semibold text-amber-700 overflow-hidden">
-                        <div className="truncate">{calc ? money(calc.suggestedBase) : "—"}</div>
+                        <div className="truncate">{calc ? money(calc.listPrice) : "—"}</div>
                       </td>
                       <td className="px-3 py-1.5">
                         <input
@@ -12244,6 +12259,7 @@ export default function App() {
       // Antes, uma falha aqui fazia o app abrir como se fosse conta nova, e
       // a próxima edição salvava os padrões POR CIMA dos dados reais.
       let failed = false;
+      let loadedSettingsForDefaults = DEFAULT_SETTINGS; // usado na base padrão de conta nova
       try {
         let s = null;
         try {
@@ -12308,6 +12324,7 @@ export default function App() {
           }
 
           setSettings(merged);
+          loadedSettingsForDefaults = merged;
         }
       } catch (e) {}
       // Procedimentos e catálogo de materiais são buscados em PARALELO e só
@@ -12343,6 +12360,11 @@ export default function App() {
           if (Array.isArray(storedCatalog) && storedCatalog.length) materialsList = storedCatalog;
         }
       } catch (e) {}
+      // Conta nova (base padrão): deixa o "% Lucro" de cada procedimento
+      // coerente com o Valor de tabela (ex: Prótese Total = R$ 1.500).
+      if (list === DEFAULT_PROCEDURES) {
+        list = DEFAULT_PROCEDURES.map((p) => withMarginFromValor(p, loadedSettingsForDefaults, materialsList));
+      }
       setProcedures(list);
       setMaterialsCatalog(materialsList);
       // Histórico de orçamentos agora vem da tabela própria (1 linha por
@@ -13122,7 +13144,19 @@ export default function App() {
 
   function updateProcedure(id, patch) {
     scheduleHistoryCheckpoint(procedures);
-    persistProcedures(procedures.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    persistProcedures(
+      procedures.map((p) => {
+        if (p.id !== id) return p;
+        const merged = { ...p, ...patch };
+        // Mudou o "Valor" (e não a margem): o "% Lucro" se ajusta sozinho
+        // pra o Preço final continuar igual ao Valor — antes isso só
+        // acontecia clicando com o botão direito → "Igualar".
+        if (Object.prototype.hasOwnProperty.call(patch, "valorBase") && !Object.prototype.hasOwnProperty.call(patch, "marginPercent")) {
+          return withMarginFromValor(merged, settings, materialsCatalog);
+        }
+        return merged;
+      })
+    );
   }
 
   function duplicateProcedure(id) {

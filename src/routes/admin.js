@@ -592,14 +592,29 @@ router.post("/licenses/:id/revoke", async (req, res) => {
 // aqui — pra isso existe excluir a conta do usuário (DELETE /users/:id).
 router.delete("/licenses/:id", async (req, res) => {
   try {
-    const { rowCount } = await pool.query("DELETE FROM licenses WHERE id = $1 AND user_id IS NULL", [
+    const { rows: found } = await pool.query("SELECT id, user_id, stripe_subscription_id FROM licenses WHERE id = $1", [
       req.params.id,
     ]);
-    if (rowCount === 0) {
+    if (!found[0] || found[0].user_id) {
       return res
         .status(400)
         .json({ error: "Essa chave já está vinculada a uma conta — exclua a conta em vez da chave." });
     }
+    // Chave solta que veio de uma compra (ex: pessoa pagou/começou o teste
+    // mas nunca ativou a conta): cancela a assinatura no Stripe ANTES de
+    // apagar — senão o Stripe continuaria cobrando sem ninguém saber.
+    let stripeWarning = null;
+    if (found[0].stripe_subscription_id) {
+      const r = await cancelSubscriptionNow(found[0].stripe_subscription_id);
+      if (r.reason === "stripe_error") {
+        return res.status(502).json({
+          error:
+            "Não foi possível cancelar a assinatura dessa chave no Stripe agora, então ela não foi apagada (pra não continuar cobrando). Tente de novo ou cancele direto no painel do Stripe.",
+        });
+      }
+    }
+    await pool.query("DELETE FROM licenses WHERE id = $1 AND user_id IS NULL", [req.params.id]);
+    if (stripeWarning) return res.json({ deleted: true, stripeWarning });
     res.status(204).end();
   } catch (err) {
     console.error(err);

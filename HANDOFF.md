@@ -6,6 +6,75 @@
 > completo do que já foi construído, o que está testado, e o que falta.
 
 
+## ✅ Feito nesta sessão (29/10/2026, 9ª parte) — Preço final sempre igual ao Valor + Prótese Total R$ 1.500
+
+Pedido do Marcelo: o "Preço Final" da tabela de Procedimentos tem que
+SEMPRE acompanhar o "Valor"; antes só igualava clicando com o botão
+direito no "% Lucro" → "Igualar".
+- **Coluna "Preço Final"** (`App.jsx`, tabela de procedimentos): agora
+  mostra `calc.listPrice` (= Valor, ou o sugerido enquanto o Valor está
+  vazio/0), não mais `suggestedBase` (custo ÷ margem). Ordenação e
+  auto-ajuste de largura da coluna usam o mesmo valor. Isso também já era
+  o que o orçamento cobra de verdade (calcProcedure/calcBudget usam
+  listPrice).
+- **Editar o Valor ajusta o "% Lucro" sozinho**: helper novo
+  `withMarginFromValor(proc, settings, catalog)`, chamado em
+  `updateProcedure` sempre que o patch tem `valorBase` (e não
+  `marginPercent`). Vale pra tabela e pro modal de edição. Editar o
+  "% Lucro" continua recalculando o Valor (comportamento antigo,
+  mantido). O "Igualar" do botão direito continua existindo, mas quase
+  nunca vai aparecer.
+- **Base padrão de conta nova**: "Prótese Total (arcada)" agora vem com
+  Valor **R$ 1.500** (antes 0, ou seja, usava o sugerido). E, ao carregar a
+  base padrão numa conta nova, todos os procedimentos passam por
+  `withMarginFromValor`, pra o % Lucro já nascer coerente com o Valor.
+  Contas existentes não são alteradas.
+- Testado no navegador (conta nova): Prótese Total = R$ 1.500 no Valor e
+  no Preço final, margem coerente; mudar o Valor atualiza o Preço final e
+  o % Lucro na hora e salva no banco; editar o % Lucro recalcula Valor e
+  Preço final juntos; sem erros JS.
+
+## ✅ Feito nesta sessão (29/10/2026, 8ª parte) — Apagar chave solta cancela a assinatura
+
+- Brecha encontrada no teste do Marcelo: uma chave de compra que nunca foi
+  ativada (o e-mail não chegou) fica "solta" (sem dono). Apagar essa
+  chave no admin (`DELETE /admin/licenses/:id`) NÃO cancelava a
+  assinatura no Stripe, então o trial cobraria depois de 7 dias. Agora
+  cancela antes de apagar; se o Stripe falhar, a chave não é apagada
+  (502 com mensagem). Testado com o mock.
+- O bloqueio de "1 teste grátis por cartão" (`trial_card_fingerprints`)
+  NÃO é liberado quando o admin apaga a conta/chave, de propósito (senão
+  bastaria apagar e refazer). Pra testar de novo com o mesmo cartão:
+  usar "Assinar agora" + cupom TESTE100 (o fluxo sem trial não checa
+  cartão), ou, só pra teste interno, rodar no Postgres do Railway (aba
+  Data → Query):
+  `DELETE FROM trial_card_fingerprints WHERE created_at > now() - interval '1 day';`
+  (apaga só os registros das últimas 24h).
+
+## ✅ Feito nesta sessão (29/10/2026, 7ª parte) — E-mails não chegavam (Brevo bloqueando IP)
+
+- **Causa (log do Railway):** `Brevo respondeu 401: unrecognised IP
+  address 152.55.185.243`. A variável `BREVO_API_KEY` está preenchida no
+  Railway, e o código PREFERE a Brevo quando ela existe (ver
+  `sendEmail` em `email.js`). A Brevo bloqueia IP não autorizado, e o IP
+  de saída do Railway muda. Afeta TODOS os e-mails.
+- **⚠️ NÃO APAGAR a `BREVO_API_KEY`.** O Marcelo confirmou que já tentou
+  isso antes e "ferrou tudo". A configuração real é: **Brevo ENVIA**
+  (pela API HTTP, porque o Railway provavelmente bloqueia a saída SMTP no
+  plano dele) e **Zoho só RECEBE** (a caixa suporte@verterelabs.com). As
+  duas configurações ficam no Railway de propósito.
+- **Solução certa:** no painel da Brevo → Segurança → IPs autorizados
+  (https://app.brevo.com/security/authorised_ips) → **desativar o
+  bloqueio**. Adicionar só o IP não resolve, porque o IP de saída do
+  Railway muda. Não precisa mexer no código nem no Railway.
+- Código: `nodemailer` fixado na versão exata **10.2.1** (a 10.3.x saiu
+  no próprio dia 29/10; a 10.2.1 já corrige as vulnerabilidades) e
+  `"engines": { "node": ">=20" }` no `package.json` (o nodemailer 10
+  exige Node 20+; o Railway respeita esse campo). Envio testado contra
+  servidor SMTP local: OK.
+- Foi sugerido um botão "Enviar e-mail de teste" no painel admin, mas o
+  Marcelo recusou: **não implementar**.
+
 ## ✅ Feito nesta sessão (29/10/2026, 6ª parte) — Campo de cupom no checkout
 
 - `createCheckoutSession` (`src/utils/stripe.js`) agora envia

@@ -87,9 +87,15 @@ o fluxo enquanto nada estiver configurado.
 hospedada lá pra receber respostas. Use as variáveis `SMTP_HOST`,
 `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`, `EMAIL_FROM_NAME` —
 veja os valores exatos e o aviso sobre senha de aplicativo no
-`.env.example`. **Não deixe `BREVO_API_KEY` preenchida ao mesmo tempo** —
-ela tem prioridade sobre o SMTP, então se estiver com algum valor (mesmo
-antigo/de teste), o sistema tenta usar a Brevo em vez do Zoho.
+`.env.example`.
+
+**Configuração em produção (confirmada em 29/10/2026):** a **Brevo
+ENVIA** os e-mails (API HTTP, porque o Railway bloqueia a saída SMTP no
+plano atual) e o **Zoho só RECEBE** (caixa suporte@verterelabs.com).
+**Não apague a `BREVO_API_KEY`**, senão nenhum e-mail sai. Na Brevo, o
+bloqueio por IP precisa ficar **desativado** (Segurança → IPs
+autorizados), porque o IP de saída do Railway muda; com o bloqueio ligado,
+todo envio falha com "unrecognised IP address".
 
 ## Rodando localmente
 
