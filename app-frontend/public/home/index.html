@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Precifica — precifique seus procedimentos com inteligência</title>
+<meta name="description" content="Descubra o custo real de cada procedimento odontológico e monte planos de tratamento com o preço certo. Teste grátis por 7 dias.">
+<link rel="icon" href="img/favicon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal-900:#0b3b37;
+    --teal-800:#0f4f49;
+    --teal-700:#0f6b61;
+    --teal-600:#128075;
+    --teal-500:#15988a;
+    --teal-100:#d7efe9;
+    --teal-50:#f1faf7;
+    --orange-600:#ea580c;
+    --orange-700:#c2410c;
+    --stone-900:#1c1917;
+    --stone-700:#44403c;
+    --stone-500:#78716c;
+    --stone-300:#d6d3d1;
+    --stone-200:#e7e5e4;
+    --stone-100:#f5f5f4;
+    --stone-50:#fafaf9;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--stone-900);background:var(--stone-50);}
+  a{color:inherit;text-decoration:none;}
+  h1,h2,h3{font-family:'Inter',system-ui,sans-serif;margin:0;letter-spacing:-0.02em;}
+  p{margin:0;}
+  button{font-family:inherit;cursor:pointer;}
+  .wrap{max-width:1160px;margin:0 auto;padding-inline:24px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-weight:600;padding:14px 26px;font-size:16px;border:none;transition:transform .12s ease, box-shadow .12s ease;}
+  .btn:hover{transform:translateY(-1px);}
+  .btn-primary{background:var(--orange-600);color:#fff;box-shadow:0 8px 20px -6px rgba(234,88,12,.55);}
+  .btn-primary:hover{background:var(--orange-700);}
+  .btn-ghost{background:transparent;color:var(--teal-900);border:1.5px solid var(--stone-300);}
+  .btn-ghost:hover{border-color:var(--teal-700);background:var(--teal-50);}
+  .btn-on-dark{background:#fff;color:var(--teal-800);}
+  .btn-on-dark:hover{background:var(--teal-50);}
+  .eyebrow{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--teal-700);}
+  .shot{width:100%;display:block;border-radius:14px;}
+  .shot-frame{border-radius:16px;border:1px solid var(--stone-200);box-shadow:0 30px 60px -20px rgba(12,41,38,.25);overflow:hidden;background:#fff;}
+  .browser-bar{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--stone-100);border-bottom:1px solid var(--stone-200);}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--stone-300);}
+  @media (max-width:760px){
+    .nav-links{display:none !important;}
+    .hide-mobile{display:none !important;}
+    .feature-row{flex-direction:column !important;}
+    .feature-row > *{width:100% !important;}
+  }
+</style>
+
+</head>
+<body>
+
+
+<div style="width:100%;min-height:100vh;display:flex;flex-direction:column;">
+
+  <!-- NAV -->
+  <nav style="position:sticky;top:0;z-index:20;background:rgba(250,250,249,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--stone-200);">
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;height:72px;">
+      <a href="#top" style="display:flex;align-items:center;gap:10px;">
+        <img src="img/logo.png" alt="Precifica" style="width:34px;height:34px;">
+        <span style="font-size:20px;font-weight:700;color:var(--teal-900);">Precifica</span>
+      </a>
+      <div class="nav-links" style="display:flex;align-items:center;gap:32px;font-size:15px;font-weight:500;color:var(--stone-700);">
+        <a href="#recursos" style="transition:color .12s;">Recursos</a>
+        <a href="#como-funciona" style="transition:color .12s;">Como funciona</a>
+        <a href="#precos" style="transition:color .12s;">Preços</a>
+        <a href="#faq" style="transition:color .12s;">Dúvidas</a>
+      </div>
+      <a href="/teste-gratis" class="btn btn-primary" style="padding:10px 20px;font-size:14px;">Teste grátis por 7 dias</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header id="top" style="background:linear-gradient(180deg,#eef9f6 0%, var(--stone-50) 55%);padding:72px 0 0;overflow:hidden;">
+    <div class="wrap">
+      <div style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
+        <div style="flex:1 1 460px;min-width:0;">
+          <div style="display:inline-flex;align-items:center;gap:8px;background:var(--teal-100);color:var(--teal-800);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;margin-bottom:22px;">
+            Feito para dentistas e clínicas odontológicas
+          </div>
+          <h1 style="font-size:clamp(34px,4.6vw,52px);line-height:1.08;font-weight:800;color:var(--teal-900);">
+            Pare de precificar<br>no achismo.
+          </h1>
+          <p style="margin-top:22px;font-size:19px;line-height:1.55;color:var(--stone-700);max-width:540px;">
+            O Precifica calcula o custo real de cada procedimento — material, hora clínica, taxa de cartão e imposto — e mostra o preço certo antes de você abrir a boca com o paciente.
+          </p>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:34px;">
+            <a href="/teste-gratis" class="btn btn-primary">Teste grátis por 7 dias</a>
+            <a href="#recursos" class="btn btn-ghost">Ver como funciona</a>
+          </div>
+          <p style="margin-top:18px;font-size:14px;color:var(--stone-500);">7 dias grátis, sem compromisso de permanência · cancele quando quiser</p>
+        </div>
+        <div style="flex:1 1 480px;min-width:0;">
+          <div class="shot-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <img src="img/dashboard.png" alt="Dashboard do Precifica mostrando orçado, recebido, ticket médio e gráfico de orçamentos por status" class="shot" style="border-radius:0;">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="height:64px;"></div>
+  </header>
+
+  <!-- DORES -->
+  <section style="padding:72px 0;">
+    <div class="wrap">
+      <div style="text-align:center;max-width:640px;margin:0 auto 48px;">
+        <p class="eyebrow">O problema</p>
+        <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">
+          Toda clínica sente isso em algum momento
+        </h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;">
+        <div style="background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:28px;">
+          <div style="width:46px;height:46px;border-radius:12px;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin-bottom:18px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A2 2 0 0 0 3.82 21h16.36a2 2 0 0 0 1.71-2.96L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="#dc2626" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Preço no "achismo"</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Cobrar um valor só porque "sempre foi assim" ou porque ouviu falar de outro consultório — sem saber se aquilo cobre o custo de verdade.</p>
+        </div>
+        <div style="background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:28px;">
+          <div style="width:46px;height:46px;border-radius:12px;background:#fef3c7;display:flex;align-items:center;justify-content:center;margin-bottom:18px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v4H4V4Zm0 6h7v10H4V10Zm9 0h7v6h-7v-6Z" stroke="#d97706" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Planilha solta por fora</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Uma planilha aqui, uma anotação no papel ali, um cálculo de cabeça na hora da consulta — nada conversa entre si.</p>
+        </div>
+        <div style="background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:28px;">
+          <div style="width:46px;height:46px;border-radius:12px;background:var(--teal-100);display:flex;align-items:center;justify-content:center;margin-bottom:18px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Sem saber se cobre o custo</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">No fim do mês, a dúvida: esse procedimento deu lucro ou só pagou o material e a hora clínica?</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE 1: Novo Orçamento -->
+  <section id="recursos" style="padding:56px 0;background:#fff;border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
+    <div class="wrap">
+      <div class="feature-row" style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
+        <div style="flex:1 1 460px;min-width:0;">
+          <p class="eyebrow">O coração do sistema</p>
+          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Monta o orçamento e já mostra o valor a cobrar</h2>
+          <p style="margin-top:16px;font-size:16px;line-height:1.6;color:var(--stone-700);">Busca o paciente — os dados de contato já preenchem sozinhos, se ele já estiver cadastrado — adiciona os procedimentos e escolhe a forma de pagamento. O Precifica já calcula o valor final na hora, considerando taxa de cartão, imposto e a margem de lucro configurada.</p>
+          <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;">
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Resumo financeiro (custo, hora clínica, taxa, imposto) visível só para você conferir antes de apresentar o valor</li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Salva, exporta ou apresenta direto na tela para o paciente, sem planilha por fora</li>
+          </ul>
+        </div>
+        <div style="flex:1 1 480px;min-width:0;">
+          <div class="shot-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <img src="img/novo-orcamento.png" alt="Tela de novo orçamento do Precifica mostrando procedimentos adicionados, forma de pagamento e valor final calculado" class="shot" style="border-radius:0;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ORÇAMENTO PERSONALIZADO -->
+  <section style="padding:72px 0;background:var(--teal-50);border-bottom:1px solid var(--teal-100);">
+    <div class="wrap">
+      <div class="feature-row" style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
+        <div style="flex:1 1 380px;min-width:0;display:flex;justify-content:center;">
+          <img src="img/plano-tratamento.jpg" alt="Plano de tratamento exportado pelo Precifica, com logo, nome e CRO do dentista, marca d'água, valor total, forma de pagamento e rodapé com endereço e contatos" style="width:100%;max-width:440px;display:block;border-radius:6px;box-shadow:0 30px 60px -20px rgba(12,41,38,.35);border:1px solid var(--stone-200);">
+        </div>
+        <div style="flex:1 1 440px;min-width:0;">
+          <p class="eyebrow">Plano de tratamento personalizado</p>
+          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Um plano de tratamento com a cara da sua clínica, não com a do sistema</h2>
+          <p style="margin-top:16px;font-size:16px;line-height:1.6;color:var(--stone-700);">Muitos sistemas entregam um orçamento genérico, com a marca deles no topo. No Precifica, o orçamento sai como um <strong>plano de tratamento completo</strong>: com o <strong>seu logo, o seu nome e o CRO</strong>, uma <strong>marca d'água</strong> da sua identidade, saudação ao paciente pelo nome, data e validade do plano, procedimentos numerados, valor total, forma de pagamento e rodapé com endereço, telefone e Instagram. O paciente recebe um documento que passa a imagem de uma clínica de grande porte, e não uma lista de preços</p>
+          <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;">
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Seus dados configurados uma vez e aplicados em todo orçamento, sem redigitar</li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Exporte em PDF, imagem ou envie direto pelo WhatsApp</li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Valor de cada forma de pagamento visível ao lado dela, com opção de dividir o pagamento</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE 2: Procedimentos -->
+  <section style="padding:72px 0;">
+    <div class="wrap">
+      <div class="feature-row" style="display:flex;flex-wrap:wrap-reverse;gap:56px;align-items:center;">
+        <div style="flex:1 1 480px;min-width:0;">
+          <div class="shot-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <img src="img/procedimentos.png" alt="Tabela de procedimentos do Precifica organizada por categoria, com custo, margem de lucro e preço final calculados" class="shot" style="border-radius:0;">
+          </div>
+        </div>
+        <div style="flex:1 1 440px;min-width:0;">
+          <p class="eyebrow">Precificação</p>
+          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Já vem com uma base pronta de procedimentos</h2>
+          <p style="margin-top:16px;font-size:16px;line-height:1.6;color:var(--stone-700);">Dezenas de procedimentos já cadastrados, organizados por categoria — Prótese, Clínico, Endodontia, Estética, Ortodontia — com valores de referência de mercado. Você não começa do zero: ajusta o que já existe para a sua realidade.</p>
+          <p style="margin-top:14px;font-size:16px;line-height:1.6;color:var(--stone-700);">Para cada procedimento: custo do material, margem de lucro desejada, duração, número de sessões — e o Precifica calcula sozinho o preço final e o custo total, já considerando o valor da sua hora clínica.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE 3: Custos/Materiais -->
+  <section style="padding:56px 0;background:var(--teal-900);color:#fff;">
+    <div class="wrap">
+      <div class="feature-row" style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
+        <div style="flex:1 1 460px;min-width:0;">
+          <p style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7fd9c9;">O maior diferencial</p>
+          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;margin-top:10px;">De onde vem cada centavo do preço</h2>
+          <p style="margin-top:16px;font-size:16px;line-height:1.6;color:#d8ebe7;">Cadastre o material com o preço da embalagem — "esse tubo de resina custa X e rende Y gramas" — e vincule a quantidade usada em cada procedimento. O Precifica calcula o custo exato daquele uso, sozinho.</p>
+          <p style="margin-top:14px;font-size:16px;line-height:1.6;color:#d8ebe7;">Em vez de chutar "esse procedimento me custa mais ou menos R$ 30 de material", você vê o valor exato, baseado no que realmente se gasta — e isso já vira o custo do procedimento automaticamente.</p>
+        </div>
+        <div style="flex:1 1 480px;min-width:0;">
+          <div class="shot-frame" style="border-color:rgba(255,255,255,.15);">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <img src="img/custos-materiais.png" alt="Tela de Custos e Materiais do Precifica, mostrando materiais vinculados a cada procedimento com custo calculado automaticamente" class="shot" style="border-radius:0;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMO FUNCIONA -->
+  <section id="como-funciona" style="padding:80px 0;">
+    <div class="wrap">
+      <div style="text-align:center;max-width:620px;margin:0 auto 52px;">
+        <p class="eyebrow">Como funciona</p>
+        <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Do zero ao orçamento fechado, em 3 passos</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;">
+        <div>
+          <div style="width:40px;height:40px;border-radius:999px;background:var(--teal-700);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;margin-bottom:18px;">1</div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Configure uma vez</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Custos fixos, pró-labore e horas produtivas geram o custo da sua hora clínica. Mais imposto e taxas de pagamento — tudo entra sozinho em todo procedimento, dali em diante.</p>
+        </div>
+        <div>
+          <div style="width:40px;height:40px;border-radius:999px;background:var(--teal-700);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;margin-bottom:18px;">2</div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Ajuste procedimentos e materiais</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Parta da base já pronta, ou cadastre os seus. Vincule os materiais usados em cada um e deixe o sistema calcular o custo real.</p>
+        </div>
+        <div>
+          <div style="width:40px;height:40px;border-radius:999px;background:var(--teal-700);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;margin-bottom:18px;">3</div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Monte orçamentos com o preço certo</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Escolha os procedimentos e a forma de pagamento — o valor final já aparece calculado, pronto para apresentar ao paciente.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREÇOS -->
+  <section id="precos" style="padding:80px 0;background:var(--stone-100);border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
+    <div class="wrap">
+      <div style="text-align:center;max-width:620px;margin:0 auto 52px;">
+        <p class="eyebrow">Planos</p>
+        <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Comece com 7 dias grátis</h2>
+        <p style="margin-top:14px;font-size:16px;color:var(--stone-600);">Sem letra miúda. Cancele quando quiser, direto no painel de "Gerenciar assinatura".</p>
+      </div>
+      <div style="display:flex;justify-content:center;">
+        <div style="flex:1 1 360px;max-width:400px;background:var(--teal-900);border-radius:18px;padding:40px;display:flex;flex-direction:column;box-shadow:0 30px 60px -20px rgba(11,59,55,.45);">
+          <h3 style="font-size:18px;font-weight:700;color:#fff;">Plano único</h3>
+          <p style="margin-top:6px;font-size:14px;color:#9fd4c8;">Tudo do Precifica, sem pegadinha</p>
+          <div style="margin-top:22px;display:flex;align-items:baseline;gap:6px;">
+            <span style="font-size:44px;font-weight:800;color:#fff;">R$ 19,90</span>
+            <span style="font-size:15px;color:#9fd4c8;">/mês</span>
+          </div>
+          <ul style="margin:26px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;flex:1;">
+            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Orçamentos ilimitados</li>
+            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Procedimentos, materiais e pacientes ilimitados</li>
+            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Cancele quando quiser</li>
+          </ul>
+          <a href="/teste-gratis" class="btn btn-primary" style="margin-top:28px;width:100%;">Teste grátis por 7 dias</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONSULTORIA -->
+  <section style="padding:72px 0;background:#fff;border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
+    <div class="wrap">
+      <div class="feature-row" style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
+        <div style="flex:1 1 440px;min-width:0;">
+          <p class="eyebrow">Serviço opcional</p>
+          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Não tem tempo de cadastrar tudo sozinho?</h2>
+          <p style="margin-top:16px;font-size:16px;line-height:1.6;color:var(--stone-700);">Oferecemos um serviço de consultoria independente para quem prefere entregar essa parte para alguém: um especialista cadastra e atualiza seus materiais — marca, quantidade usada, custo da embalagem — e vincula tudo aos seus procedimentos, com o preço final já batendo com o custo real da sua clínica.</p>
+          <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;">
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Cadastro e atualização de materiais com marca, quantidade e preço</li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Cálculo do custo real por procedimento, vinculado aos materiais certos</li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Revisão periódica conforme o preço dos seus fornecedores muda</li>
+          </ul>
+          <a href="https://wa.me/5513996980088?text=Quero%20saber%20sobre%20a%20consultoria%20do%20Precifica" class="btn btn-ghost" style="margin-top:28px;">Falar sobre a consultoria</a>
+        </div>
+        <div style="flex:1 1 380px;min-width:0;">
+          <div style="background:var(--teal-50);border:1px solid var(--teal-100);border-radius:18px;padding:36px;">
+            <div style="width:46px;height:46px;border-radius:12px;background:var(--teal-100);display:flex;align-items:center;justify-content:center;margin-bottom:18px;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 14c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 style="font-size:18px;font-weight:700;color:var(--teal-900);">Serviço sob consulta</h3>
+            <p style="margin-top:10px;font-size:15px;line-height:1.6;color:var(--stone-700);">O valor da consultoria varia conforme o tamanho da tabela de procedimentos e a quantidade de materiais a cadastrar. Fale com a gente para receber uma proposta.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" style="padding:80px 0;">
+    <div class="wrap" style="max-width:780px;">
+      <div style="text-align:center;margin-bottom:44px;">
+        <p class="eyebrow">Dúvidas frequentes</p>
+        <h2 style="font-size:clamp(26px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Perguntas de quem está decidindo</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Preciso saber usar planilha ou ter conhecimento financeiro para usar o Precifica?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. Você configura o custo da sua hora clínica uma única vez (custos fixos, pró-labore desejado e horas produtivas) e o sistema faz o resto. Depois disso, cada procedimento já nasce com o preço calculado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O teste grátis de 7 dias pede cartão de crédito?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim, o cadastro do cartão é necessário para iniciar o teste, mas você não é cobrado durante os 7 dias. Pode cancelar quando quiser antes do fim do período, direto pelo painel de "Gerenciar assinatura".</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Existe fidelidade ou plano anual?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Hoje o Precifica tem um plano único, de R$ 19,90 por mês. Você pode cancelar quando quiser, direto no painel de "Gerenciar assinatura".</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O Precifica serve para consultório individual e para clínica com vários dentistas?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Nas configurações você escolhe se é um consultório ou uma clínica, e os dados (nome, CRO/CRM, endereço) aparecem automaticamente nos orçamentos exportados.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Consigo exportar o orçamento para mostrar ao paciente?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Todo orçamento pode ser salvo, exportado ou apresentado direto na tela para o paciente, com o valor final já calculado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Como funciona a consultoria de cadastro de materiais?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É um serviço opcional, separado da assinatura do Precifica: um especialista cadastra e mantém atualizados os materiais da sua clínica (marca, quantidade usada e custo) vinculados a cada procedimento. O valor varia conforme o tamanho da sua tabela — fale com a gente para uma proposta.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section style="padding:72px 0;background:linear-gradient(135deg,var(--teal-800),var(--teal-900));">
+    <div class="wrap" style="text-align:center;">
+      <h2 style="font-size:clamp(26px,3.4vw,38px);font-weight:800;color:#fff;max-width:620px;margin:0 auto;">Da configuração ao orçamento fechado, sem planilha nenhuma por fora.</h2>
+      <p style="margin-top:16px;font-size:16px;color:#bfe3da;">Experimente o Precifica por 7 dias e veja o preço de cada procedimento bater com o custo real do seu consultório.</p>
+      <a href="/teste-gratis" class="btn btn-on-dark" style="margin-top:30px;">Começar teste grátis</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="padding:40px 0;background:var(--stone-900);">
+    <div class="wrap" style="display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="img/logo.png" alt="Precifica" style="width:26px;height:26px;">
+        <span style="font-size:15px;font-weight:600;color:#fff;">Precifica</span>
+        <span style="font-size:13px;color:#8a8580;" class="hide-mobile">· precifique seus procedimentos com inteligência</span>
+      </div>
+      <p style="font-size:13px;color:#8a8580;">© 2026 Precifica — um produto Vertere Labs</p>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+document.querySelectorAll('.faq-q').forEach(function(b){b.addEventListener('click',function(){var a=b.nextElementSibling,open=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!open));a.hidden=open;b.querySelector('.faq-i').textContent=open?'+':'\u2212';});});
+</script>
+</body>
+</html>
