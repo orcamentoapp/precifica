@@ -1,8 +1,12 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const pool = require("../db");
-const { signUserToken } = require("../utils/jwt");
+const { signUserToken, signTwoFactorPendingToken, verifyToken } = require("../utils/jwt");
 const { requireAuth } = require("../middleware/auth");
+const limits = require("../middleware/rateLimit");
+const totp = require("../utils/totp");
+const { TERMS_VERSION } = require("../utils/terms");
+const { cancelAllSubscriptionsForUser } = require("../utils/subscriptionCleanup");
 const { generateShortCode } = require("../utils/shortCode");
 const { sendVerificationEmail, sendPasswordResetEmail, sendLicensePurchasedEmail } = require("../utils/email");
 const { getLicenseStatusForUser } = require("../utils/licenseStatus");
@@ -11,6 +15,24 @@ const router = express.Router();
 
 const VERIFY_CODE_TTL_MIN = 15;
 const RESET_CODE_TTL_MIN = 30;
+// Depois de 5 códigos errados, o código atual é invalidado (precisa pedir
+// outro por e-mail). Junto com o rate limit, isso torna inviável adivinhar
+// um código de 6 dígitos por tentativa e erro.
+const MAX_CODE_ATTEMPTS = 5;
+// Depois de 10 senhas erradas seguidas, a conta fica travada por 15 min.
+const MAX_LOGIN_FAILURES = 10;
+const LOGIN_LOCK_MINUTES = 15;
+const MIN_PASSWORD_LENGTH = 8;
+const DUMMY_HASH = bcrypt.hashSync("senha-que-nao-existe", 10);
+
+// Comparação de códigos em tempo constante (não vaza, pelo tempo de
+// resposta, quantos dígitos estavam certos).
+function codesMatch(expected, given) {
+  const a = Buffer.from(String(expected || ""));
+  const b = Buffer.from(String(given || "").trim());
+  if (a.length === 0 || a.length !== b.length) return false;
+  return require("crypto").timingSafeEqual(a, b);
+}
 
 function isValidEmail(email) {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -35,12 +57,16 @@ function publicUser(user) {
     clinicName: user.clinic_name,
     status: user.status,
     emailVerified: user.email_verified,
+    // Aceitou a versão ATUAL dos Termos/Política? Se não (conta antiga, ou
+    // os termos mudaram), o app mostra a tela de aceite antes de liberar.
+    termsAccepted: !!user.terms_accepted_at && user.terms_version === TERMS_VERSION,
+    twoFactorEnabled: !!user.totp_enabled,
   };
 }
 
 // ---------- CADASTRO (com chave de licença) ----------
-router.post("/register", async (req, res) => {
-  const { licenseCode, email, password, confirmPassword, name, clinicName } = req.body || {};
+router.post("/register", limits.emailSendPerIp, limits.emailSendPerAccount, async (req, res) => {
+  const { licenseCode, email, password, confirmPassword, name, clinicName, acceptedTerms } = req.body || {};
 
   if (!licenseCode || !licenseCode.trim()) {
     return res.status(400).json({ error: "Informe a chave de licença" });
@@ -48,11 +74,14 @@ router.post("/register", async (req, res) => {
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: "E-mail inválido" });
   }
-  if (!password || password.length < 6) {
-    return res.status(400).json({ error: "A senha precisa ter pelo menos 6 caracteres" });
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres` });
   }
   if (password !== confirmPassword) {
     return res.status(400).json({ error: "As senhas não conferem" });
+  }
+  if (acceptedTerms !== true) {
+    return res.status(400).json({ error: "Pra criar a conta, aceite os Termos de Uso e a Política de Privacidade." });
   }
 
   const client = await pool.connect();
@@ -122,9 +151,9 @@ router.post("/register", async (req, res) => {
     const verifyExpiresAt = new Date(Date.now() + VERIFY_CODE_TTL_MIN * 60 * 1000);
 
     const { rows: userRows } = await client.query(
-      `INSERT INTO users (email, password_hash, role, name, clinic_name, email_verify_code, email_verify_expires_at)
-       VALUES ($1, $2, 'user', $3, $4, $5, $6) RETURNING *`,
-      [email.trim().toLowerCase(), passwordHash, name || null, clinicName || null, verifyCode, verifyExpiresAt]
+      `INSERT INTO users (email, password_hash, role, name, clinic_name, email_verify_code, email_verify_expires_at, terms_accepted_at, terms_version)
+       VALUES ($1, $2, 'user', $3, $4, $5, $6, now(), $7) RETURNING *`,
+      [email.trim().toLowerCase(), passwordHash, name || null, clinicName || null, verifyCode, verifyExpiresAt, TERMS_VERSION]
     );
     user = userRows[0];
 
@@ -161,7 +190,7 @@ router.post("/register", async (req, res) => {
 // criar conta, a pessoa deve usar "Esqueci minha senha" em vez disso. Não
 // revela se o e-mail existe ou não (mesmo padrão de privacidade das outras
 // rotas de reenvio aqui).
-router.post("/resend-license-key", async (req, res) => {
+router.post("/resend-license-key", limits.emailSendPerIp, limits.emailSendPerAccount, async (req, res) => {
   const { email } = req.body || {};
   if (!isValidEmail(email)) return res.status(400).json({ error: "E-mail inválido" });
 
@@ -181,7 +210,7 @@ router.post("/resend-license-key", async (req, res) => {
   }
 });
 
-router.post("/resend-verification", async (req, res) => {
+router.post("/resend-verification", limits.emailSendPerIp, limits.emailSendPerAccount, async (req, res) => {
   const { email } = req.body || {};
   if (!isValidEmail(email)) return res.status(400).json({ error: "E-mail inválido" });
 
@@ -195,7 +224,7 @@ router.post("/resend-verification", async (req, res) => {
 
     const verifyCode = generateShortCode();
     const verifyExpiresAt = new Date(Date.now() + VERIFY_CODE_TTL_MIN * 60 * 1000);
-    await pool.query("UPDATE users SET email_verify_code = $1, email_verify_expires_at = $2 WHERE id = $3", [
+    await pool.query("UPDATE users SET email_verify_code = $1, email_verify_expires_at = $2, email_verify_attempts = 0 WHERE id = $3", [
       verifyCode,
       verifyExpiresAt,
       user.id,
@@ -209,7 +238,7 @@ router.post("/resend-verification", async (req, res) => {
 });
 
 // ---------- CONFIRMAR E-MAIL ----------
-router.post("/verify-email", async (req, res) => {
+router.post("/verify-email", limits.codePerIp, limits.codePerAccount, async (req, res) => {
   const { email, code } = req.body || {};
   if (!isValidEmail(email) || !code) {
     return res.status(400).json({ error: "Informe o e-mail e o código" });
@@ -234,16 +263,29 @@ router.post("/verify-email", async (req, res) => {
     }
     if (
       !user.email_verify_code ||
-      user.email_verify_code !== String(code).trim() ||
       !user.email_verify_expires_at ||
       new Date(user.email_verify_expires_at) < new Date()
     ) {
       await client.query("ROLLBACK");
       return res.status(400).json({ error: "Código inválido ou expirado. Peça um novo código." });
     }
+    if (!codesMatch(user.email_verify_code, code)) {
+      const attempts = (user.email_verify_attempts || 0) + 1;
+      if (attempts >= MAX_CODE_ATTEMPTS) {
+        await client.query(
+          "UPDATE users SET email_verify_code = NULL, email_verify_expires_at = NULL, email_verify_attempts = 0 WHERE id = $1",
+          [user.id]
+        );
+        await client.query("COMMIT");
+        return res.status(400).json({ error: "Muitas tentativas erradas. Peça um novo código." });
+      }
+      await client.query("UPDATE users SET email_verify_attempts = $1 WHERE id = $2", [attempts, user.id]);
+      await client.query("COMMIT");
+      return res.status(400).json({ error: "Código inválido ou expirado. Peça um novo código." });
+    }
 
     await client.query(
-      "UPDATE users SET email_verified = true, email_verify_code = NULL, email_verify_expires_at = NULL WHERE id = $1",
+      "UPDATE users SET email_verified = true, email_verify_code = NULL, email_verify_expires_at = NULL, email_verify_attempts = 0 WHERE id = $1",
       [user.id]
     );
 
@@ -315,7 +357,20 @@ router.post("/verify-email", async (req, res) => {
 });
 
 // ---------- LOGIN ----------
-router.post("/login", async (req, res) => {
+// Gera a resposta de "login concluído" (token + dados), usada tanto no
+// login normal quanto depois do código de duas etapas.
+async function completeLogin(user, res) {
+  const token = signUserToken(user);
+  const licenseStatus = user.role === "admin" ? null : await getLicenseStatusForUser(pool, user.id);
+  // Marca o momento desse login pro painel admin ("Último acesso"). Não
+  // trava a resposta se isso falhar por algum motivo — login já aconteceu.
+  pool
+    .query("UPDATE users SET last_login_at = now(), last_seen_at = now() WHERE id = $1", [user.id])
+    .catch((err) => console.error("Erro ao atualizar last_login_at (login seguiu normalmente):", err));
+  return res.json({ token, user: publicUser(user), license: licenseStatus });
+}
+
+router.post("/login", limits.loginPerIp, limits.loginPerAccount, async (req, res) => {
   const { email, password } = req.body || {};
   if (!isValidEmail(email) || !password) {
     return res.status(400).json({ error: "Informe e-mail e senha" });
@@ -324,10 +379,35 @@ router.post("/login", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email.trim().toLowerCase()]);
     const user = rows[0];
-    if (!user) return res.status(401).json({ error: "E-mail ou senha inválidos" });
+    if (!user) {
+      // Mesmo custo de tempo de uma conta que existe (não revela, pelo
+      // tempo de resposta, se o e-mail tem conta).
+      await bcrypt.compare(password, DUMMY_HASH);
+      return res.status(401).json({ error: "E-mail ou senha inválidos" });
+    }
+
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(429).json({
+        error: `Muitas tentativas de senha errada. Por segurança, essa conta está travada por alguns minutos — tente de novo depois, ou use "Esqueci minha senha".`,
+      });
+    }
 
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: "E-mail ou senha inválidos" });
+    if (!ok) {
+      const failures = (user.failed_login_attempts || 0) + 1;
+      if (failures >= MAX_LOGIN_FAILURES) {
+        await pool.query(
+          `UPDATE users SET failed_login_attempts = 0, locked_until = now() + interval '${LOGIN_LOCK_MINUTES} minutes' WHERE id = $1`,
+          [user.id]
+        );
+      } else {
+        await pool.query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2", [failures, user.id]);
+      }
+      return res.status(401).json({ error: "E-mail ou senha inválidos" });
+    }
+    if (user.failed_login_attempts || user.locked_until) {
+      await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
+    }
 
     if (user.status === "blocked") {
       return res.status(403).json({ error: "Essa conta está bloqueada. Entre em contato com o suporte." });
@@ -340,16 +420,51 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const token = signUserToken(user);
-    const licenseStatus = user.role === "admin" ? null : await getLicenseStatusForUser(pool, user.id);
+    // Verificação em duas etapas ligada: a senha certa sozinha não basta —
+    // devolve um token temporário (5 min) que só serve pra mandar o código
+    // do app autenticador em /login/2fa.
+    if (user.totp_enabled && user.totp_secret) {
+      return res.json({ twoFactorRequired: true, pendingToken: signTwoFactorPendingToken(user) });
+    }
 
-    // Marca o momento desse login pro painel admin ("Último acesso"). Não
-    // trava a resposta se isso falhar por algum motivo — login já aconteceu.
-    pool
-      .query("UPDATE users SET last_login_at = now(), last_seen_at = now() WHERE id = $1", [user.id])
-      .catch((err) => console.error("Erro ao atualizar last_login_at (login seguiu normalmente):", err));
+    return completeLogin(user, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao entrar" });
+  }
+});
 
-    res.json({ token, user: publicUser(user), license: licenseStatus });
+// Segunda etapa do login (código de 6 dígitos do app autenticador).
+router.post("/login/2fa", limits.codePerIp, async (req, res) => {
+  const { pendingToken, code } = req.body || {};
+  let payload;
+  try {
+    payload = verifyToken(pendingToken);
+  } catch (err) {
+    return res.status(401).json({ error: "O tempo pra digitar o código acabou. Entre com a senha de novo." });
+  }
+  if (!payload || !payload.twoFactorPending) {
+    return res.status(401).json({ error: "Sessão inválida. Entre com a senha de novo." });
+  }
+  try {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [payload.twoFactorPending]);
+    const user = rows[0];
+    if (!user || (user.token_version || 0) !== (payload.tv || 0) || user.status === "blocked") {
+      return res.status(401).json({ error: "Sessão inválida. Entre com a senha de novo." });
+    }
+    if (!user.totp_enabled || !totp.verifyCode(user.totp_secret, code)) {
+      const failures = (user.failed_login_attempts || 0) + 1;
+      if (failures >= MAX_LOGIN_FAILURES) {
+        await pool.query(
+          `UPDATE users SET failed_login_attempts = 0, locked_until = now() + interval '${LOGIN_LOCK_MINUTES} minutes' WHERE id = $1`,
+          [user.id]
+        );
+      } else {
+        await pool.query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2", [failures, user.id]);
+      }
+      return res.status(400).json({ error: "Código incorreto. Confira o app autenticador e tente de novo." });
+    }
+    return completeLogin(user, res);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao entrar" });
@@ -357,7 +472,7 @@ router.post("/login", async (req, res) => {
 });
 
 // ---------- ESQUECI MINHA SENHA ----------
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", limits.emailSendPerIp, limits.emailSendPerAccount, async (req, res) => {
   const { email } = req.body || {};
   if (!isValidEmail(email)) return res.status(400).json({ error: "E-mail inválido" });
 
@@ -369,7 +484,7 @@ router.post("/forgot-password", async (req, res) => {
     if (user) {
       const resetCode = generateShortCode();
       const resetExpiresAt = new Date(Date.now() + RESET_CODE_TTL_MIN * 60 * 1000);
-      await pool.query("UPDATE users SET password_reset_code = $1, password_reset_expires_at = $2 WHERE id = $3", [
+      await pool.query("UPDATE users SET password_reset_code = $1, password_reset_expires_at = $2, password_reset_attempts = 0 WHERE id = $3", [
         resetCode,
         resetExpiresAt,
         user.id,
@@ -385,34 +500,52 @@ router.post("/forgot-password", async (req, res) => {
 });
 
 // ---------- REDEFINIR SENHA ----------
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", limits.codePerIp, limits.codePerAccount, async (req, res) => {
   const { email, code, newPassword, confirmPassword } = req.body || {};
   if (!isValidEmail(email) || !code) {
     return res.status(400).json({ error: "Informe o e-mail e o código" });
   }
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: "A nova senha precisa ter pelo menos 6 caracteres" });
+  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `A nova senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres` });
   }
   if (newPassword !== confirmPassword) {
     return res.status(400).json({ error: "As senhas não conferem" });
   }
 
+  const genericError = "Código inválido ou expirado. Peça um novo código.";
   try {
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email.trim().toLowerCase()]);
     const user = rows[0];
     if (
       !user ||
       !user.password_reset_code ||
-      user.password_reset_code !== String(code).trim() ||
       !user.password_reset_expires_at ||
       new Date(user.password_reset_expires_at) < new Date()
     ) {
-      return res.status(400).json({ error: "Código inválido ou expirado. Peça um novo código." });
+      return res.status(400).json({ error: genericError });
+    }
+    if (!codesMatch(user.password_reset_code, code)) {
+      const attempts = (user.password_reset_attempts || 0) + 1;
+      if (attempts >= MAX_CODE_ATTEMPTS) {
+        await pool.query(
+          "UPDATE users SET password_reset_code = NULL, password_reset_expires_at = NULL, password_reset_attempts = 0 WHERE id = $1",
+          [user.id]
+        );
+        return res.status(400).json({ error: "Muitas tentativas erradas. Peça um novo código." });
+      }
+      await pool.query("UPDATE users SET password_reset_attempts = $1 WHERE id = $2", [attempts, user.id]);
+      return res.status(400).json({ error: genericError });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
+    // Senha nova: também destrava a conta (se estava travada por senha
+    // errada) e derruba TODAS as sessões abertas em qualquer aparelho —
+    // se alguém tinha roubado a sessão, perde o acesso aqui.
     await pool.query(
-      "UPDATE users SET password_hash = $1, password_reset_code = NULL, password_reset_expires_at = NULL WHERE id = $2",
+      `UPDATE users SET password_hash = $1, password_reset_code = NULL, password_reset_expires_at = NULL,
+         password_reset_attempts = 0, failed_login_attempts = 0, locked_until = NULL,
+         token_version = token_version + 1
+       WHERE id = $2`,
       [passwordHash, user.id]
     );
 
@@ -420,6 +553,196 @@ router.post("/reset-password", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao redefinir a senha" });
+  }
+});
+
+// ---------- TROCAR SENHA (logado, sabendo a senha atual) ----------
+// Derruba as sessões dos OUTROS aparelhos e devolve um token novo pra esse
+// aparelho continuar logado.
+router.post("/change-password", requireAuth, limits.codePerIp, async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body || {};
+  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `A nova senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres` });
+  }
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ error: "As senhas não conferem" });
+  }
+  try {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.sub]);
+    const user = rows[0];
+    if (!user || !(await bcrypt.compare(String(currentPassword || ""), user.password_hash))) {
+      return res.status(400).json({ error: "Senha atual incorreta" });
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const { rows: updated } = await pool.query(
+      "UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2 RETURNING *",
+      [passwordHash, user.id]
+    );
+    res.json({ success: true, token: signUserToken(updated[0]) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao trocar a senha" });
+  }
+});
+
+// ---------- ACEITAR TERMOS (contas antigas / termos atualizados) ----------
+router.post("/accept-terms", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "UPDATE users SET terms_accepted_at = now(), terms_version = $1 WHERE id = $2 RETURNING *",
+      [TERMS_VERSION, req.user.sub]
+    );
+    res.json({ success: true, user: publicUser(rows[0]) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao registrar o aceite" });
+  }
+});
+
+// ---------- LGPD: EXPORTAR TODOS OS MEUS DADOS ----------
+// Direito de portabilidade/acesso: devolve tudo que o Precifica guarda da
+// conta (perfil, assinatura, procedimentos, materiais, pacientes,
+// orçamentos, configurações) num JSON só. Funciona mesmo com a assinatura
+// vencida — os dados são da pessoa.
+router.get("/export", requireAuth, async (req, res) => {
+  try {
+    const { rows: userRows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.sub]);
+    const user = userRows[0];
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+    const { rows: dataRows } = await pool.query("SELECT key, value, updated_at FROM app_data WHERE user_id = $1", [user.id]);
+    const { rows: budgetRows } = await pool.query(
+      "SELECT data FROM budgets WHERE user_id = $1 ORDER BY created_at DESC",
+      [user.id]
+    );
+    const { rows: licenseRows } = await pool.query(
+      "SELECT code, status, type, activated_at, expires_at, created_at, cancel_at_period_end FROM licenses WHERE user_id = $1 ORDER BY created_at DESC",
+      [user.id]
+    );
+    const data = {};
+    dataRows.forEach((r) => {
+      if (r.key === "budgetHistory_migrated") return;
+      try {
+        data[r.key] = JSON.parse(r.value);
+      } catch (e) {
+        data[r.key] = r.value;
+      }
+    });
+    data.budgetHistory = budgetRows.map((r) => {
+      try {
+        return JSON.parse(r.data);
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean);
+    res.setHeader("Content-Disposition", `attachment; filename="precifica-meus-dados.json"`);
+    res.json({
+      exportedAt: new Date().toISOString(),
+      account: {
+        email: user.email,
+        name: user.name,
+        clinicName: user.clinic_name,
+        createdAt: user.created_at,
+        termsAcceptedAt: user.terms_accepted_at,
+        termsVersion: user.terms_version,
+      },
+      licenses: licenseRows,
+      data,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao exportar os dados" });
+  }
+});
+
+// ---------- LGPD: EXCLUIR MINHA CONTA ----------
+// Exige a senha (confirmação). Cancela a assinatura no Stripe na hora (pra
+// não continuar cobrando), revoga a licença e apaga a conta — os dados do
+// simulador (app_data, budgets) somem junto (ON DELETE CASCADE). A licença
+// fica guardada sem dono, como registro financeiro da compra.
+router.post("/delete-account", requireAuth, limits.codePerIp, async (req, res) => {
+  const { password } = req.body || {};
+  try {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.sub]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+    if (user.role === "admin") {
+      return res.status(400).json({ error: "A conta de administrador não pode ser excluída por aqui." });
+    }
+    if (!(await bcrypt.compare(String(password || ""), user.password_hash))) {
+      return res.status(400).json({ error: "Senha incorreta" });
+    }
+    const cleanup = await cancelAllSubscriptionsForUser(user.id);
+    if (!cleanup.ok) {
+      return res.status(502).json({
+        error:
+          "Não conseguimos cancelar sua assinatura no sistema de pagamento agora, então a conta não foi excluída (pra você não continuar sendo cobrado). Tente de novo em alguns minutos ou fale com o suporte.",
+      });
+    }
+    await pool.query("UPDATE licenses SET status = 'revoked', cancelled_at = COALESCE(cancelled_at, now()) WHERE user_id = $1", [user.id]);
+    await pool.query("DELETE FROM users WHERE id = $1", [user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao excluir a conta" });
+  }
+});
+
+// ---------- VERIFICAÇÃO EM DUAS ETAPAS (app autenticador) ----------
+// Passo 1: gera um segredo novo (ainda NÃO ligado) e devolve o QR code.
+router.post("/2fa/setup", requireAuth, async (req, res) => {
+  try {
+    const secret = totp.generateSecret();
+    await pool.query("UPDATE users SET totp_pending_secret = $1 WHERE id = $2", [secret, req.user.sub]);
+    const url = totp.otpauthUrl(secret, req.user.email);
+    const qrDataUrl = await require("qrcode").toDataURL(url, { margin: 1, width: 220 });
+    res.json({ secret, otpauthUrl: url, qrDataUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao preparar a verificação em duas etapas" });
+  }
+});
+
+// Passo 2: confirma com um código do app — só aí liga de verdade.
+router.post("/2fa/enable", requireAuth, limits.codePerIp, async (req, res) => {
+  const { code } = req.body || {};
+  try {
+    const { rows } = await pool.query("SELECT totp_pending_secret FROM users WHERE id = $1", [req.user.sub]);
+    const pending = rows[0] && rows[0].totp_pending_secret;
+    if (!pending) return res.status(400).json({ error: "Comece a configuração de novo." });
+    if (!totp.verifyCode(pending, code)) {
+      return res.status(400).json({ error: "Código incorreto. Confira o app autenticador e tente de novo." });
+    }
+    await pool.query(
+      "UPDATE users SET totp_secret = totp_pending_secret, totp_pending_secret = NULL, totp_enabled = true WHERE id = $1",
+      [req.user.sub]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao ligar a verificação em duas etapas" });
+  }
+});
+
+// Desligar exige senha + código atual.
+router.post("/2fa/disable", requireAuth, limits.codePerIp, async (req, res) => {
+  const { password, code } = req.body || {};
+  try {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.sub]);
+    const user = rows[0];
+    if (!user || !(await bcrypt.compare(String(password || ""), user.password_hash))) {
+      return res.status(400).json({ error: "Senha incorreta" });
+    }
+    if (user.totp_enabled && !totp.verifyCode(user.totp_secret, code)) {
+      return res.status(400).json({ error: "Código incorreto" });
+    }
+    await pool.query(
+      "UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_pending_secret = NULL WHERE id = $1",
+      [user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao desligar a verificação em duas etapas" });
   }
 });
 

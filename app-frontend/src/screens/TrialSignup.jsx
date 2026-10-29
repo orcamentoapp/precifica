@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { screenStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle } from "../authStyles";
 import AuthLogo from "../AuthLogo";
+import TermsCheckbox from "../TermsCheckbox";
 
 // Fluxo separado do "Assinar agora" (Buy.jsx) — o teste grátis só pode ser
 // usado uma vez por pessoa, então não faz sentido misturar com a escolha de
@@ -8,6 +9,7 @@ import AuthLogo from "../AuthLogo";
 // escolha nenhuma). Só pede o e-mail e deixa bem claro o que vai acontecer.
 export default function TrialSignup({ onBackToLogin }) {
   const [email, setEmail] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,13 +19,17 @@ export default function TrialSignup({ onBackToLogin }) {
       setError("Preencha o e-mail antes de continuar.");
       return;
     }
+    if (!acceptedTerms) {
+      setError("Pra continuar, aceite os Termos de Uso e a Política de Privacidade.");
+      return;
+    }
     setError("");
     setSubmitting(true);
     try {
       const res = await fetch("/api/payments/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), plan: "monthly", trial: true }),
+        body: JSON.stringify({ email: email.trim(), plan: "monthly", trial: true, acceptedTerms }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o teste grátis.");
@@ -70,10 +76,12 @@ export default function TrialSignup({ onBackToLogin }) {
               a qualquer momento antes do fim do teste e nada será cobrado.
               <br />
               <br />
-              <strong>Nota:</strong> é necessário cadastrar um cartão válido para ativar o período de testes.
+              <strong>Nota:</strong> é necessário cadastrar um cartão válido para ativar o período de testes. O
+              teste grátis vale uma vez por cartão.
             </p>
           </div>
 
+          <TermsCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} />
           <button type="submit" disabled={submitting} style={buttonStyle}>
             {submitting ? "Preparando..." : "Testar grátis por 7 dias"}
           </button>

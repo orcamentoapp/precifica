@@ -65,10 +65,12 @@ export function switchToAccount(email) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const { skipAuth, ...rest } = options;
+  // `token`: usa esse token em vez do da conta ativa (a fila de salvamento
+  // usa isso pra mandar cada alteração com o token de quem a fez).
+  const { skipAuth, token: tokenOverride, ...rest } = options;
   const headers = Object.assign({ "Content-Type": "application/json" }, rest.headers || {});
   if (!skipAuth) {
-    const token = getToken();
+    const token = tokenOverride || getToken();
     if (token) headers["Authorization"] = "Bearer " + token;
   }
 

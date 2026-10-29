@@ -46,13 +46,12 @@ precifica/
 │   ├── routes/admin.js         # gerar chave, listar usuários/licenças, bloquear, renovar, revogar
 │   ├── routes/appData.js       # settings/procedures/budgetHistory do simulador, por conta (tabela app_data)
 │   ├── routes/support.js       # formulário de contato do menu do app (manda e-mail pro suporte)
-│   ├── routes/payments.js      # checkout Stripe (assinatura) + Mercado Pago (pagamento único Pix/Boleto/cartão)
+│   ├── routes/payments.js      # checkout Stripe (assinatura), renovação, portal de cobrança, cancelamento
+│   ├── routes/budgets.js       # histórico de orçamentos (1 linha por orçamento)
 │   ├── routes/stripeWebhook.js # webhook do Stripe (gera/renova a ASSINATURA automaticamente)
-│   ├── routes/mercadopagoWebhook.js # webhook do Mercado Pago (soma dias após pagamento único aprovado)
 │   ├── middleware/auth.js      # protege rotas (requireAuth / requireAdmin)
 │   ├── utils/email.js          # envio de e-mail (SMTP configurável, com fallback pro console)
 │   ├── utils/stripe.js         # chamadas à API do Stripe (assinatura recorrente por cartão)
-│   ├── utils/mercadopago.js    # chamadas à API do Mercado Pago (pagamento único Pix/Boleto/cartão)
 │   └── migrate.js              # cria as tabelas + o admin inicial
 └── app-frontend/                # o app em si — projeto Vite + React
     └── src/
@@ -98,7 +97,9 @@ antigo/de teste), o sistema tenta usar a Brevo em vez do Zoho.
 2. `cp .env.example .env` e preencha pelo menos `DATABASE_URL`, `JWT_SECRET`,
    `ADMIN_BOOTSTRAP_EMAIL` e `ADMIN_BOOTSTRAP_PASSWORD`.
 3. Na raiz do projeto: `npm install`
-4. `npm run migrate` — cria as tabelas e a conta de admin inicial.
+4. (opcional) `npm run migrate` — cria as tabelas e a conta de admin
+   inicial. Desde 29/10/2026 isso também roda sozinho toda vez que o
+   servidor sobe, então pode pular.
 5. `npm run build` — compila o app (gera `app-frontend/dist`).
 6. `npm start` — sobe o servidor (padrão: porta 3000).
 7. Acesse `http://localhost:3000/` — vai cair na tela de login. Entre com o
@@ -122,10 +123,10 @@ antigo/de teste), o sistema tenta usar a Brevo em vez do Zoho.
    aparecem no log, não chegam de verdade por e-mail).
 6. O Railway detecta sozinho o script `"build"` do `package.json` da raiz e
    compila o app antes de rodar `npm start`. Não precisa configurar nada extra.
-7. Rode a migração uma única vez: troque temporariamente o **Start Command**
-   pra `npm run migrate && npm start`, deixe redeployar, confira nos logs
-   "Migração concluída com sucesso", e depois volte o Start Command pra
-   `npm start`.
+7. **Migração do banco é automática**: roda sozinha toda vez que o servidor
+   sobe (cria só o que ainda não existe — nunca apaga nada). Confira nos
+   logs "Migração concluída com sucesso". Não precisa mais trocar o Start
+   Command.
 8. Gere um domínio público (**Settings → Networking → Generate Domain**).
 9. Pronto: `https://SEU-APP.up.railway.app/` é a tela de login — a mesma
    pra você e pros seus clientes.
@@ -161,7 +162,7 @@ não vem habilitado por padrão numa conta nova. Cartão e boleto já
 funcionam sem pedir nada, mas a ASSINATURA aqui usa só cartão, de
 propósito (é a proteção contra abuso do teste grátis de 7 dias — ver nota
 mais abaixo) — Pix/Boleto pra pagamento avulso já não passam mais pelo
-Stripe, ver a seção do Mercado Pago logo adiante.
+Stripe (a integração com Mercado Pago foi cancelada e removida).
 
 **Configuração necessária** (veja `.env.example`): `STRIPE_SECRET_KEY`,
 `STRIPE_WEBHOOK_SECRET`, `PRECIFICA_MONTHLY_PRICE`, `PRECIFICA_ANNUAL_PRICE`
@@ -169,10 +170,16 @@ e `APP_URL`.
 
 No painel do Stripe (**Desenvolvedores → Webhooks**), cadastre um endpoint
 apontando pra `https://SEU-APP.up.railway.app/api/payments/stripe/webhook`,
-selecione os eventos **checkout.session.completed** e **invoice.paid**
-(os dois — o primeiro libera acesso na hora do trial, o segundo processa
-a cobrança de verdade), e copie o "Signing secret" gerado pra usar em
-`STRIPE_WEBHOOK_SECRET`.
+selecione os eventos **checkout.session.completed**, **invoice.paid**,
+**invoice.payment_failed**, **customer.subscription.updated**,
+**customer.subscription.deleted** e **charge.dispute.created**, e copie o
+"Signing secret" gerado pra usar em `STRIPE_WEBHOOK_SECRET`.
+
+**Portal de cobrança (trocar cartão / ver faturas)** — precisa ser ativado
+UMA VEZ no painel do Stripe, no modo live: **Configurações → Billing →
+Customer portal** → deixe marcado "Atualizar formas de pagamento" e "Ver
+histórico de faturas" → **Salvar**. Sem isso, o botão "Gerenciar
+pagamento" do app mostra um erro.
 
 Diferente da Asaas, o Stripe **não exige uma conta separada pra testes** —
 é a mesma conta, só alternando entre "modo de teste" e "modo produção" no
@@ -194,69 +201,6 @@ e-mail chega e a licença é criada certinha) antes de trocar pra
 O código continua funcionando 100% no modo manual também (você pode
 continuar gerando chaves pelo painel a qualquer momento, os dois jeitos
 convivem).
-
-## Pagamento único (Mercado Pago) — Pix, Boleto ou cartão avulso
-
-Além da assinatura recorrente (Stripe, acima), o app tem um segundo jeito
-de pagar: **+30 ou +365 dias avulsos**, sem virar assinatura — usado no
-botão "Pagar com Pix ou Boleto" da tela de compra, e nos botões "+30
-dias"/"+365 dias" dentro de Configurações → Licença (pra quem já tem
-conta renovar sozinho). Isso é **só Mercado Pago** — o Stripe não entra
-nessa parte, porque nem Pix nem Boleto conseguem ser cobrados de novo
-sozinhos (diferente do cartão), então não fazia sentido misturar com o
-provedor da assinatura.
-
-**Por que Mercado Pago e não Stripe pra isso**: o Pix do Stripe pra
-contas brasileiras é por convite (ver nota acima) e ainda não foi
-liberado nessa conta; o Mercado Pago libera Pix, Boleto e cartão sem fila
-de espera nenhuma.
-
-**Configuração necessária** (veja `.env.example`): `MERCADOPAGO_ACCESS_TOKEN`
-e `MERCADOPAGO_WEBHOOK_SECRET`. Os preços usados são os mesmos
-`PRECIFICA_MONTHLY_PRICE`/`PRECIFICA_ANNUAL_PRICE` já configurados pro
-Stripe.
-
-**Como pegar as credenciais**:
-1. Crie uma conta em [mercadopago.com.br](https://www.mercadopago.com.br)
-   (pode ser conta pessoal, com CPF — não precisa de CNPJ).
-2. Acesse [mercadopago.com.br/developers](https://www.mercadopago.com.br/developers/panel),
-   faça login com a mesma conta, e crie uma "Aplicação" (qualquer nome,
-   tipo pagamentos online/Checkout Pro).
-3. Na aba **Credenciais de teste**, copie o Access Token (começa com
-   `TEST-`) pra `MERCADOPAGO_ACCESS_TOKEN` — use esse primeiro, pra testar
-   sem dinheiro de verdade. Quando for pra produção, troca pro Access
-   Token de produção (`APP_USR-...`).
-4. Na mesma aplicação, procure a seção **Webhooks**, cadastre um endpoint
-   apontando pra `https://SEU-APP.up.railway.app/api/payments/mercadopago/webhook`,
-   selecione o evento **Pagamentos**, e copie a "Chave secreta" gerada pra
-   usar em `MERCADOPAGO_WEBHOOK_SECRET`.
-
-⚠️ **Nome que aparece pro cliente**: como a conta é pessoa física (sem
-CNPJ), o nome que aparece no extrato/comprovante de quem paga pode ser o
-seu nome pessoal, não um nome fantasia — isso é uma característica da
-própria plataforma nesse tipo de conta, não tem como configurar diferente
-por código. Se isso incomodar, abrir um MEI (gratuito, rápido, sozinho
-pelo Portal do Empreendedor) e criar a conta Mercado Pago em cima do CNPJ
-resolve.
-
-⚠️ **Segurança — CVE-2026-76842**: o SDK oficial do Mercado Pago pra
-Node.js teve uma vulnerabilidade de path injection corrigida a partir da
-versão 3.5.0 (publicada bem recentemente). O `package.json` já fixa
-`^3.6.0` (corrigida), e o código em `src/utils/mercadopago.js` também
-valida manualmente que qualquer ID de pagamento vindo de fora é só
-dígitos antes de usar, como camada extra de proteção — não remova essa
-validação mesmo que a SDK seja atualizada.
-
-⚠️ **Importante — não testado contra a API real do Mercado Pago** (mesma
-limitação do Stripe: sem acesso a `api.mercadopago.com` no ambiente onde
-isso foi construído). **A verificação de assinatura do webhook, porém,
-foi testada de verdade** — gerei uma assinatura HMAC válida com o mesmo
-algoritmo do Mercado Pago e confirmei que é aceita, e que uma assinatura
-forjada é rejeitada. Antes de ativar em produção, teste o fluxo completo
-no modo de teste do Mercado Pago (pague com um
-[cartão/Pix de teste](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro/additional-content/your-integrations/test/cards),
-confirme que o e-mail chega e a licença é criada/renovada certinha) antes
-de trocar pro Access Token de produção.
 
 ## Fluxo de venda, na prática
 
@@ -282,3 +226,22 @@ sozinho todo mês. Você só acompanha pelo painel admin.
 admin hoje é pelas variáveis `ADMIN_BOOTSTRAP_EMAIL`/`ADMIN_BOOTSTRAP_PASSWORD`
 na primeira migração. Se precisar de mais de uma conta admin depois, me avisa
 que eu adiciono isso.
+
+## Segurança e operação (revisão de 29/10/2026)
+
+- **Verificação em duas etapas do admin**: painel admin → Configurações →
+  "Ligar verificação em duas etapas" (Google Authenticator/Authy). Perdeu o
+  celular? No Railway, crie a variável `ADMIN_RESET_2FA_EMAIL` com o e-mail
+  do admin, deixe redeployar (a verificação é desligada no boot) e **apague
+  a variável** em seguida.
+- **Monitoramento**: `GET /api/health` responde `{"ok":true}` quando o app e
+  o banco estão no ar. Cadastre essa URL num monitor gratuito (ex:
+  UptimeRobot) pra ser avisado se cair.
+- **Backups**: confira no Railway (Postgres → Backups) se o backup
+  automático está ligado, e teste uma restauração uma vez.
+- **JWT_SECRET**: precisa ter 64+ caracteres aleatórios. O servidor avisa
+  no log se estiver curto.
+- Termos de Uso e Política de Privacidade: `app-frontend/public/termos.html`
+  e `privacidade.html`. Se mudar o texto de forma relevante, troque
+  `TERMS_VERSION` em `src/utils/terms.js` — todo mundo vê a tela de aceite
+  de novo no próximo acesso.

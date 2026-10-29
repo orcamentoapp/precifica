@@ -1,9 +1,7 @@
-// Integração com o Stripe — usada SÓ pra assinatura recorrente por cartão
-// (mensal, anual, ou teste grátis de 7 dias). Pagamento único (Pix/Boleto)
-// não é mais feito por aqui — isso agora é tudo Mercado Pago
-// (ver src/utils/mercadopago.js), porque nem Boleto nem Pix conseguem ser
-// cobrados de novo sozinhos, então não fazia sentido ficar no mesmo
-// provedor da assinatura recorrente.
+// Integração com o Stripe — único meio de pagamento do Precifica:
+// assinatura recorrente por cartão (mensal, anual, ou teste grátis de 7
+// dias). A integração com Mercado Pago (Pix/Boleto) foi cancelada e o
+// código dela removido em 29/10/2026.
 const Stripe = require("stripe");
 const { getPricing } = require("./pricingSettings");
 
@@ -27,7 +25,7 @@ function getClient() {
 // a pessoa da aba principal), e o metadata carrega o ID do usuário pra
 // `createLicenseFromCheckoutSession` saber que deve ATUALIZAR a licença que
 // já existe, em vez de criar uma solta esperando ativação por e-mail.
-async function createCheckoutSession({ email, name, plan = "monthly", trial = false, renewalUserId = null }) {
+async function createCheckoutSession({ email, name, plan = "monthly", trial = false, renewalUserId = null, termsAccepted = false }) {
   const stripe = getClient();
   const isRenewal = !!renewalUserId;
   const isAnnual = plan === "annual";
@@ -41,6 +39,9 @@ async function createCheckoutSession({ email, name, plan = "monthly", trial = fa
     plan: isAnnual ? "annual" : "monthly",
     trial: effectiveTrial ? "true" : "false",
     ...(isRenewal ? { renewalUserId: String(renewalUserId) } : {}),
+    // Aceite dos Termos/Política na tela de compra (LGPD/CDC) — copiado pra
+    // licença quando o pagamento é confirmado.
+    ...(termsAccepted ? { termsAcceptedAt: new Date().toISOString() } : {}),
   };
 
   const sessionParams = {
@@ -99,4 +100,39 @@ async function cancelSubscriptionAtPeriodEnd(subscriptionId) {
   return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
 }
 
-module.exports = { getClient, createCheckoutSession, cancelSubscriptionAtPeriodEnd };
+// Desfaz um cancelamento pedido (a assinatura volta a renovar sozinha, SEM
+// cobrança nova agora — o período já pago continua valendo). Usado por
+// "Renovar assinatura" quando a assinatura antiga ainda está ativa.
+async function reactivateSubscription(subscriptionId) {
+  const stripe = getClient();
+  return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+}
+
+// Portal de cobrança do próprio Stripe: trocar cartão, ver/baixar faturas.
+// Precisa estar ativado UMA VEZ no painel do Stripe (modo live):
+// Configurações → Billing → Customer portal → "Ativar link"/Salvar.
+async function createBillingPortalSession(customerId, returnUrl) {
+  const stripe = getClient();
+  return stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
+}
+
+// A partir de certa versão da API do Stripe, o vínculo fatura→assinatura
+// saiu de invoice.subscription e foi pra invoice.parent.subscription_details
+// — os webhooks podem chegar em qualquer um dos dois formatos.
+function subscriptionIdFromInvoice(invoice) {
+  if (!invoice || typeof invoice !== "object") return null;
+  const direct = invoice.subscription;
+  if (direct) return typeof direct === "string" ? direct : direct.id;
+  const nested = invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription;
+  if (nested) return typeof nested === "string" ? nested : nested.id;
+  return null;
+}
+
+module.exports = {
+  getClient,
+  createCheckoutSession,
+  cancelSubscriptionAtPeriodEnd,
+  reactivateSubscription,
+  createBillingPortalSession,
+  subscriptionIdFromInvoice,
+};

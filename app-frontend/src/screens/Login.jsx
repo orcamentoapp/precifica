@@ -26,6 +26,20 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
   const [resendKeyEmail, setResendKeyEmail] = useState("");
   const [resendKeySending, setResendKeySending] = useState(false);
   const [resendKeyMsg, setResendKeyMsg] = useState("");
+  // Verificação em duas etapas (só contas que ligaram — hoje, o admin):
+  // depois da senha certa, pede o código de 6 dígitos do app autenticador.
+  const [twoFactorToken, setTwoFactorToken] = useState(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [accountDeletedNotice] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("conta") === "excluida") {
+        window.history.replaceState({}, "", window.location.pathname);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  });
 
   async function handleResendLicenseKey(e) {
     e.preventDefault();
@@ -50,11 +64,23 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
     setError("");
     setSubmitting(true);
     try {
-      const data = await apiRequest("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: email.trim(), password }),
-        skipAuth: true,
-      });
+      const data = twoFactorToken
+        ? await apiRequest("/api/auth/login/2fa", {
+            method: "POST",
+            body: JSON.stringify({ pendingToken: twoFactorToken, code: twoFactorCode }),
+            skipAuth: true,
+          })
+        : await apiRequest("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({ email: email.trim(), password }),
+            skipAuth: true,
+          });
+      if (data && data.twoFactorRequired) {
+        setTwoFactorToken(data.pendingToken);
+        setTwoFactorCode("");
+        return;
+      }
+      setTwoFactorToken(null);
       // Guarda só o e-mail (nunca a senha) — salvar senha em texto puro no
       // navegador é um risco de segurança real, não é feito aqui mesmo
       // marcando essa caixinha.
@@ -76,6 +102,8 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
         onNeedsVerification(err.data.email || email.trim());
         return;
       }
+      // Token temporário das duas etapas expirou (5 min) — volta pra senha.
+      if (twoFactorToken && err.status === 401) setTwoFactorToken(null);
       setError(err.message);
     } finally {
       setSubmitting(false);
@@ -180,6 +208,16 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
             )}
           </div>
         )}
+        {accountDeletedNotice && (
+          <div style={noticeStyle}>Sua conta foi excluída e a assinatura cancelada. Obrigado por ter usado o Precifica.</div>
+        )}
+        {checkoutNotice === "trial-recusado" && (
+          <div style={{ ...noticeStyle, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412" }}>
+            Esse cartão já foi usado num teste grátis do Precifica, então o novo teste não foi ativado e{" "}
+            <strong>nada foi cobrado</strong>. Se quiser continuar, é só assinar direto (sem teste) pelo botão
+            "Assinar".
+          </div>
+        )}
         {checkoutNotice === "cancelado" && (
           <div
             style={{
@@ -199,6 +237,40 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
 
         {error && <div style={errorBoxStyle}>{error}</div>}
 
+        {twoFactorToken ? (
+          <form onSubmit={handleSubmit}>
+            <p style={{ fontSize: 13, color: "#57534e", lineHeight: 1.5, margin: "0 0 12px" }}>
+              Verificação em duas etapas: digite o código de 6 dígitos que aparece agora no seu app autenticador.
+            </p>
+            <label style={labelStyle}>Código</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={twoFactorCode}
+              onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ""))}
+              style={{ ...inputStyle, letterSpacing: 6, fontSize: 18, textAlign: "center" }}
+              autoFocus
+              required
+            />
+            <button type="submit" disabled={submitting || twoFactorCode.length !== 6} style={buttonStyle}>
+              {submitting ? "Verificando..." : "Entrar"}
+            </button>
+            <div style={{ textAlign: "center", marginTop: 12 }}>
+              <button
+                type="button"
+                style={linkStyle}
+                onClick={() => {
+                  setTwoFactorToken(null);
+                  setError("");
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit}>
           <label style={labelStyle}>E-mail</label>
           <input
@@ -244,6 +316,7 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
             {submitting ? "Entrando..." : "Entrar"}
           </button>
         </form>
+        )}
 
         <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#78716c" }}>
           Já tem uma chave de licença?{" "}
@@ -282,3 +355,14 @@ export default function Login({ checkoutNotice, onDismissNotice, onLoggedIn, onG
     </div>
   );
 }
+
+const noticeStyle = {
+  background: "#f0fdfa",
+  border: "1px solid #99f6e4",
+  color: "#115e59",
+  fontSize: 13,
+  padding: "12px 14px",
+  borderRadius: 8,
+  marginBottom: 16,
+  lineHeight: 1.5,
+};

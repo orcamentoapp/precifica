@@ -5,7 +5,246 @@
 > documento inteiro antes de fazer qualquer coisa. Ele te dá o contexto
 > completo do que já foi construído, o que está testado, e o que falta.
 
-## ✅ Feito nesta sessão — Preço editável pelo painel admin (não precisa mais do Railway)
+
+## ✅ Feito nesta sessão (29/10/2026) — Revisão completa de segurança + TODAS as correções implementadas
+
+Na mesma sessão: (1) revisão completa do sistema pra ver o que faltava pra
+ser seguro de usar e vender (25 itens encontrados), (2) o Marcelo pediu
+pra resolver todos, e (3) tudo foi implementado e testado. Abaixo está o
+que mudou, organizado por bloco, e no fim **o que o Marcelo precisa fazer
+fora do código** (Stripe, Railway, jurídico).
+
+### Como foi testado
+Montei um Postgres local e um "Stripe falso" local (servidor que responde
+igual à API do Stripe, com webhooks assinados de verdade com
+`generateTestHeaderString`) e rodei o servidor real contra os dois:
+- **64 testes de API**, todos passando com o banco zerado (simula um
+  deploy novo): segurança de conta, dados/versões/orçamentos, cobrança e
+  webhooks, troca de senha/tokens.
+- **Testes no navegador (Playwright)**, desktop e celular: erro de
+  carregamento, queda de rede durante salvamento, conflito entre abas, 2FA
+  do admin (ligar + login com código), tela de aceite de termos, seção de
+  privacidade, tela de licença vencida, páginas legais, tela de compra,
+  salvar orçamento pela tela → aparece no Histórico depois de recarregar,
+  e nenhuma violação da Content-Security-Policy.
+- Build do frontend limpo e `npm audit` com 0 vulnerabilidades.
+**Não testado contra o Stripe real** (o ambiente não acessa
+api.stripe.com). Ver o checklist pós-deploy no fim desta seção.
+
+### Mudança de infraestrutura importante: migração automática
+`src/migrate.js` agora exporta `migrate()` e o `server.js` roda ela **toda
+vez que o servidor sobe** (idempotente: só cria o que não existe). Não
+precisa mais trocar o Start Command do Railway. Isso é obrigatório agora:
+o código novo depende de colunas novas. `npm run migrate` continua
+funcionando à mão.
+
+Schema novo (tudo em migrate.js, com comentários):
+- `users`: `token_version`, `email_verify_attempts`,
+  `password_reset_attempts`, `failed_login_attempts`, `locked_until`,
+  `totp_secret`, `totp_enabled`, `totp_pending_secret`,
+  `terms_accepted_at`, `terms_version`.
+- `licenses`: `terms_accepted_at`, mais o índice único parcial
+  `uniq_licenses_stripe_subscription`. Se o banco de produção já tiver
+  licenças duplicadas pra mesma assinatura, o índice não é criado: o log
+  mostra um AVISO com a query pra achar as duplicadas. O código continua
+  protegido pela trava `pg_advisory_xact_lock` mesmo sem o índice.
+- `app_data`: `version` (controle de conflito entre aparelhos).
+- Tabelas novas: `budgets` (1 linha por orçamento) e
+  `trial_card_fingerprints`.
+
+### Bloco A — Segurança de conta
+- **Rate limit** (`src/middleware/rateLimit.js`, `express-rate-limit` 8)
+  em login, códigos, rotas que mandam e-mail, suporte e checkout, mais um
+  teto geral de 300/min por IP na API. Usa `app.set("trust proxy", 1)` por
+  causa do proxy do Railway. É em memória: se um dia rodar mais de uma
+  instância, trocar por um store compartilhado.
+- **Código de 6 dígitos invalidado depois de 5 erros** (verificar e-mail e
+  redefinir senha), com comparação em tempo constante.
+- **Conta travada por 15 min depois de 10 senhas erradas** seguidas
+  (`locked_until`). "Esqueci minha senha" destrava.
+- **`token_version`**: entra no JWT (`tv`). Redefinir ou trocar a senha
+  derruba todas as sessões em todos os aparelhos. O `requireAuth` agora
+  consulta o banco em toda requisição: conta bloqueada perde acesso na
+  hora, e o papel (admin/usuário) vem do banco, não do token. Tokens
+  antigos (sem `tv`) continuam valendo, então ninguém é deslogado no
+  deploy.
+- **Senha mínima de 8 caracteres** (cadastro, redefinição e troca). Quem
+  já tem senha de 6 continua entrando normalmente.
+- **Rota nova `POST /api/auth/change-password`** (logado, exige a senha
+  atual e devolve um token novo pra este aparelho).
+- **`helmet` com Content-Security-Policy.** Os scripts inline legítimos
+  (registro do service worker e o script da landing) são liberados por
+  hash, calculado sozinho no boot a partir do `dist`. Se um dia entrar
+  script/fonte/imagem de outro domínio (ex: Google Analytics, pixel do
+  Facebook pra campanha de tráfego pago), **é preciso adicionar o domínio
+  na CSP do `server.js`**, senão o navegador bloqueia.
+- **CORS restrito** ao `APP_URL` (+ `CORS_ORIGINS` opcional). Rota de API
+  inexistente responde 404 em JSON. Há um tratador de erro genérico que
+  nunca mostra detalhes internos. `index.html` e `sw.js` agora vão com
+  `no-cache`, pra deploy novo aparecer na hora.
+- **E-mail de suporte escapa HTML** (`escapeHtml` em `email.js`), com
+  limite de tamanho.
+- O log de boot avisa se `JWT_SECRET` tiver menos de 32 caracteres.
+
+### Bloco B — Proteção dos dados do cliente
+- **Fila de salvamento** (`app-frontend/src/syncQueue.js`). Toda gravação
+  passa por ela: uma de cada vez, na ordem, com nova tentativa automática
+  (2s, 5s, 10s, 20s, 30s...) em caso de rede ou servidor fora, e cada
+  gravação vai com o token de quem fez a alteração. O navegador pergunta
+  antes de fechar a aba se ainda há algo pendente.
+- **`SaveStatusBanner.jsx`**: faixa no topo que só aparece quando há
+  problema (sem conexão, erro, conflito, sessão expirada, assinatura
+  inativa), e mostra "✓ Tudo salvo" por 3s quando o problema se resolve.
+- **`storageShim.js` reescrito.** O `get()` agora **lança erro** quando a
+  leitura falha (antes devolvia null e o app tratava como conta nova), e
+  uma chave cuja leitura falhou fica travada pra gravação. O `App.jsx`
+  mostra a tela "Não foi possível carregar seus dados, tentar de novo" e
+  não libera o app (`loadError`). **Isso resolve o risco de os valores
+  padrão serem salvos por cima dos dados reais.**
+- **Conflito entre aparelhos/abas**: `app_data.version`. O `PUT` manda
+  `baseVersion`; se outro aparelho salvou antes, o servidor responde 409 e
+  o banner oferece "Recarregar (usar a versão salva)" ou "Manter as
+  alterações desta tela". Um `PUT` sem `baseVersion` (app antigo ainda
+  aberto em algum navegador) continua aceito.
+- **Histórico de orçamentos sem limite**: tabela `budgets` +
+  `src/routes/budgets.js` (`GET /api/budgets`, `PUT/DELETE
+  /api/budgets/:id`, `DELETE /api/budgets`). No frontend:
+  `budgetsApi` (no `storageShim.js`). Os 4 handlers do `App.jsx` (salvar,
+  excluir, limpar, mudar status) mexem só no orçamento envolvido. O
+  `slice(0, 200)` foi removido.
+  **Migração automática:** na primeira abertura depois do deploy, o `GET`
+  importa o JSON antigo (`app_data` com chave `budgetHistory`) pra tabela,
+  mantendo a ordem, e renomeia a chave pra `budgetHistory_migrated`. Essa
+  cópia de segurança fica guardada e nunca é importada duas vezes.
+- **Gravar exige licença válida** (`requireValidLicense` no `PUT` de
+  `app_data` e nas rotas de `budgets`). Ler continua liberado pra pessoa
+  conseguir exportar.
+- **Bug corrigido:** a chave `"onboarding"` não estava na lista do
+  backend, então o popup de boas-vindas e o tour nunca apareciam. Agora
+  aparecem.
+
+### Bloco C — Cobrança e Stripe
+- **Admin excluir / revogar → cancela a assinatura no Stripe na hora.
+  Admin bloquear → cancela no fim do período já pago** (se desbloquear, o
+  cliente usa "Renovar", que desfaz sem cobrar). Helper novo:
+  `src/utils/subscriptionCleanup.js`. Se o Stripe falhar, o admin vê um
+  aviso no toast pra conferir no painel do Stripe.
+- **"Renovar" não cobra em dobro** (`/stripe/renew-checkout`). Se a
+  assinatura está ativa e marcada pra cancelar, só desfaz o cancelamento
+  (`reactivateSubscription`), sem checkout e sem cobrança, e responde
+  `{ reactivated: true }`. Se está ativa e sem cancelamento, responde 409.
+  Se está encerrada ou com pagamento pendente, cria checkout novo e a
+  assinatura antiga é cancelada quando a nova é confirmada. O modal
+  mostra o texto certo em cada caso.
+- **Tela de licença vencida (`LicenseBlocked.jsx`)**: botões "Renovar
+  assinatura agora", "Trocar cartão / ver faturas", "Baixar meus dados" e
+  "Sair". A `RenewalConfirm` ganhou um botão "Voltar para o Precifica"
+  (pra quando a renovação acontece na mesma aba).
+- **Portal do Stripe** (`POST /api/payments/stripe/portal`) com botão
+  "Gerenciar pagamento (trocar cartão, ver faturas)" em Configurações →
+  Gerenciar Assinatura. **Precisa ser ativado uma vez no painel do
+  Stripe** (ver checklist).
+- **Webhook confiável** (`stripeWebhook.js` reescrito). Se der erro, a
+  marca de "processado" é desfeita e a resposta é 500, então o Stripe
+  reenvia. Eventos novos tratados: `invoice.payment_failed` (manda e-mail
+  na 1ª falha, via `sendPaymentFailedEmail`) e
+  `customer.subscription.updated/deleted` (sincroniza o cancelamento). O
+  chargeback acha a assinatura nos dois formatos da API e usa o
+  `stripe_customer_id` como reserva.
+- **Sem licença/e-mail em dobro**: `createLicenseFromCheckoutSession`
+  (`checkoutLicense.js`) roda em transação com trava por assinatura, e os
+  e-mails só saem depois do COMMIT.
+- **Validade = período real do Stripe**: o `invoice.paid` usa o
+  `period.end` da fatura, e a compra usa o `current_period_end`/
+  `trial_end`. **Tolerância de 48h** (`LICENSE_GRACE_HOURS`) pra
+  assinaturas que renovam sozinhas, centralizada em
+  `src/utils/licenseStatus.js` (`isLicenseValidNow`). Licença manual,
+  cancelada ou revogada vence na hora exata.
+- **BUG ANTIGO ENCONTRADO E CORRIGIDO:** o `invoice.paid` fazia `UPDATE
+  status = 'active'` numa licença ainda `unused`. Na assinatura direta
+  (sem teste grátis), a primeira fatura chegava logo depois do checkout e
+  a chave virava "já utilizada" antes de o cliente ativar a conta. Agora
+  uma licença `unused` continua `unused`, e uma `revoked` continua
+  `revoked`.
+- **Teste grátis: 1 por cartão** (`trial_card_fingerprints`, via
+  `card.fingerprint` do Stripe). Num trial repetido, a assinatura nova é
+  cancelada na hora (nada é cobrado), a licença não é criada e a tela de
+  login mostra o aviso "trial-recusado". O texto da tela de teste grátis
+  avisa "vale uma vez por cartão".
+- **Código do Mercado Pago removido** (arquivos, rotas, dependência e
+  seção do README), conforme autorizado.
+
+### Bloco D — LGPD e jurídico
+- **`app-frontend/public/termos.html` e `privacidade.html`**: texto
+  completo em português, com direito de arrependimento (CDC art. 49),
+  papéis da LGPD (dentista = controlador dos dados de pacientes, Vertere
+  Labs = operadora), suboperadores (Railway, Stripe, Zoho), transferência
+  internacional, retenção, direitos do titular e encarregado
+  (suporte@verterelabs.com). Links nos rodapés da landing
+  (`public/home`), nas telas de cadastro/compra e em Configurações.
+  **Rascunho feito pela Claude: precisa de revisão de advogado e dos
+  dados da empresa (ver checklist).**
+- **Aceite obrigatório** (`TermsCheckbox.jsx`) no cadastro
+  (`Register.jsx`), na compra (`Buy.jsx`) e no teste grátis
+  (`TrialSignup.jsx`). O servidor também confere (400 sem aceite) e grava
+  a data: `users.terms_accepted_at/terms_version`; na compra vai pelo
+  metadata do Stripe e fica em `licenses.terms_accepted_at`.
+- **Contas antigas** veem a tela `TermsUpdate.jsx` uma vez
+  (`POST /api/auth/accept-terms`). Mudou os termos? Troque
+  `TERMS_VERSION` em `src/utils/terms.js` e todo mundo aceita de novo.
+- **Configurações → "Privacidade e segurança"** (`PrivacySection.jsx`):
+  trocar senha, **baixar todos os meus dados** (`GET /api/auth/export`,
+  JSON completo, funciona mesmo vencido), **excluir minha conta**
+  (`POST /api/auth/delete-account`, exige a senha e digitar EXCLUIR;
+  cancela o Stripe antes, e se o Stripe falhar a conta NÃO é excluída pra
+  não continuar cobrando) e links dos termos.
+
+### Bloco E — Admin, limpeza e operação
+- **Verificação em duas etapas (TOTP)** pro admin: `src/utils/totp.js`
+  (RFC 6238, testado com os vetores oficiais), rotas `/api/auth/2fa/setup|
+  enable|disable` e `/api/auth/login/2fa`. O cartão
+  `AdminSecurityCard.jsx` fica na aba do admin agora chamada
+  "Configurações" (antes "Preços"), com QR code (pacote `qrcode`). O
+  `Login.jsx` pede o código quando necessário. **Recuperação de
+  emergência:** variável `ADMIN_RESET_2FA_EMAIL` no Railway (desliga no
+  boot; apagar depois).
+- `GET /api/health` (checa o banco), pra monitor externo.
+- `.env.example` recriado com todas as variáveis, e `.gitignore` criado.
+- `AuthGate`: queda de internet não desloga mais ninguém (tela "Sem
+  conexão com o servidor" com nova tentativa automática). Só 401/403/404
+  limpam a sessão.
+- README atualizado (deploy, eventos do Stripe, portal, segurança).
+
+### ⚠️ CHECKLIST DO MARCELO — fazer junto com o deploy
+1. **Stripe → Desenvolvedores → Webhooks → endpoint**: marcar também
+   `invoice.payment_failed`, `customer.subscription.updated`,
+   `customer.subscription.deleted` (além de
+   `checkout.session.completed`, `invoice.paid` e
+   `charge.dispute.created`).
+2. **Stripe → Configurações → Billing → Customer portal** (modo live):
+   ativar "atualizar forma de pagamento" e "histórico de faturas" e
+   salvar.
+3. **Railway → Variables**: conferir se `JWT_SECRET` tem 64+ caracteres
+   aleatórios (o log do boot avisa se estiver curto; trocar desloga todo
+   mundo uma vez) e se `APP_URL` está certo (`https://precifica.verterelabs.com`),
+   porque agora o CORS depende dele.
+4. **Railway → Postgres → Backups**: confirmar backup automático ligado.
+5. Depois do deploy, **ligar a verificação em duas etapas** no admin
+   (Configurações).
+6. Cadastrar `https://precifica.verterelabs.com/api/health` num monitor
+   gratuito (UptimeRobot).
+7. **Termos/Política**: completar com razão social e CNPJ da empresa
+   (hoje só diz "Vertere Labs") e passar por um advogado. Confirmar com o
+   contador a emissão de NFS-e das assinaturas e o enquadramento da
+   empresa.
+8. Teste rápido em produção: fazer uma compra real de teste (ou cupom
+   100%), ativar, salvar um orçamento, cancelar, clicar "Renovar" (deve
+   reativar sem cobrar) e testar "Gerenciar pagamento".
+9. Conferir nos logs do boot se apareceu o AVISO do índice único de
+   `stripe_subscription_id` (só aparece se já existirem licenças
+   duplicadas em produção).
+
+## ✅ Feito em sessão anterior — Preço editável pelo painel admin (não precisa mais do Railway)
 
 Pedido do Marcelo: dar pra ajustar o preço mensal/anual direto pelo
 painel admin, sem precisar mexer em variável nenhuma do Railway (que
@@ -954,22 +1193,15 @@ nesse projeto segue este padrão fixo, sem exceção**:
 Essa regra é específica desse projeto (Precifica) — não confundir com
 convenções de entrega de outros produtos do Marcelo.
 
-## ⚠️ CANCELADO: integração com Mercado Pago (pagamento via Pix/Boleto)
+## ⚠️ CANCELADO E REMOVIDO: integração com Mercado Pago (pagamento via Pix/Boleto)
 
-O Marcelo decidiu **não seguir mais** com a integração do Mercado Pago
-que ficou pendente numa sessão anterior (aguardando as credenciais de
-teste, que estavam dando erro no painel deles). **O Precifica vai usar
-só cartão de crédito, via Stripe** — sem Pix, sem Boleto, sem
-pagamento único avulso por fora da assinatura. Ignore toda a seção
-"Atualização anterior: Mercado Pago pro pagamento único" mais abaixo
-neste arquivo — o código que ela descreve (`src/utils/mercadopago.js`,
-`src/routes/mercadopagoWebhook.js`, as rotas
-`/mercadopago/checkout`/`/mercadopago/renew-checkout`, os botões
-"Pagar com Pix ou Boleto" em `Buy.jsx` e "+30 dias"/"+365 dias" via
-Mercado Pago em Configurações) **continua existindo no código, mas não
-deve ser retomado nem finalizado** — se algum dia o Marcelo quiser
-removê-lo de vez, é só perguntar antes de mexer, mas por enquanto ele
-simplesmente fica parado, sem uso.
+O Marcelo decidiu **não seguir** com o Mercado Pago. **O Precifica usa só
+cartão de crédito, via Stripe.** O código parado do Mercado Pago
+(`src/utils/mercadopago.js`, `src/routes/mercadopagoWebhook.js`, as rotas
+`/mercadopago/*` e o pacote `mercadopago`) **foi removido em 29/10/2026**,
+com autorização dele. Seções antigas mais abaixo que citam o Mercado Pago
+são só histórico. O painel admin ainda reconhece a origem "mercadopago" em
+licenças antigas, se existir alguma, só pra exibição.
 
 ## ✅ Feito nesta sessão — cards da Visão Geral clicáveis, abrindo a lista de usuários por trás do número
 
@@ -2397,44 +2629,52 @@ feito sem inflar o arquivo:
 
 ```
 precifica/
-├── server.js                    # Express: serve o app React (/) e a API (/api)
+├── server.js                    # Express: segurança (helmet/CSP, CORS, rate limit), API (/api), app React (/), migração automática no boot
 ├── package.json                  # scripts da raiz, incluindo "build" do frontend
 ├── .env.example                   # todas as variáveis de ambiente documentadas
 ├── src/
 │   ├── db.js                       # conexão Postgres
-│   ├── migrate.js                  # cria/atualiza tabelas + admin inicial (idempotente)
-│   ├── middleware/auth.js          # requireAuth / requireAdmin (JWT)
+│   ├── migrate.js                  # cria/atualiza tabelas + admin inicial (idempotente; roda sozinho no boot)
+│   ├── middleware/
+│   │   ├── auth.js                   # requireAuth (confere conta/bloqueio/token_version no banco), requireAdmin, requireValidLicense
+│   │   └── rateLimit.js              # limites de tentativas (login, códigos, e-mails, checkout, geral)
 │   ├── routes/
-│   │   ├── auth.js                    # cadastro, verificação de e-mail, login, esqueci/redefinir senha, reenviar chave
-│   │   ├── admin.js                   # gerar chave (mensal/trial/anual/vitalícia), listar usuários/licenças, bloquear, renovar, revogar, métricas da Visão Geral
-│   │   ├── payments.js                # checkout Stripe, renovação self-service (autenticada), cancelar assinatura
-│   │   ├── stripeWebhook.js           # checkout.session.completed, invoice.paid, charge.dispute.created (chargeback)
-│   │   ├── mercadopagoWebhook.js       # CANCELADO — ver aviso no topo deste arquivo, não mexer
+│   │   ├── auth.js                    # cadastro, e-mail, login (+2FA), senhas, aceite de termos, exportar/excluir conta (LGPD), 2FA
+│   │   ├── admin.js                   # chaves, usuários (bloquear/excluir cancelam Stripe), métricas, preços
+│   │   ├── payments.js                # checkout, confirmação, renovação (reativa sem cobrar), portal de cobrança, cancelar
+│   │   ├── stripeWebhook.js           # checkout.session.completed, invoice.paid/payment_failed, subscription.updated/deleted, chargeback
+│   │   ├── appData.js                 # dados do simulador por chave, com versão (conflito entre aparelhos)
+│   │   ├── budgets.js                 # histórico de orçamentos, 1 linha por orçamento (+ migração do JSON antigo)
 │   │   └── support.js                  # contato/suporte
 │   └── utils/
-│       ├── email.js                       # envio de e-mail (Brevo/SMTP + fallback console) — inclui e-mail dedicado de início de trial
-│       ├── jwt.js                         # assinar/verificar token
-│       ├── licenseCode.js                 # gerador de código XXXX-XXXX-XXXX-XXXX
-│       ├── licenseStatus.js               # calcula validade/dias restantes/tipo de uma licença
-│       ├── checkoutLicense.js             # cria/atualiza licença a partir de uma sessão de checkout (webhook OU confirmação síncrona)
-│       ├── stripe.js                       # criação de sessão de checkout (compra nova E renovação)
-│       └── shortCode.js                    # gerador de código numérico de 6 dígitos (e-mail)
-└── app-frontend/                   # projeto Vite + React (compilado em app-frontend/dist)
+│       ├── email.js                       # envio de e-mail (Brevo/SMTP + fallback console), escapeHtml, e-mail de cobrança recusada
+│       ├── jwt.js                         # token de sessão (com token_version) e token temporário do 2FA
+│       ├── totp.js                        # verificação em duas etapas (RFC 6238)
+│       ├── terms.js                       # TERMS_VERSION dos Termos/Política
+│       ├── licenseCode.js / shortCode.js  # geradores de chave e código de 6 dígitos
+│       ├── licenseStatus.js               # validade da licença (com tolerância de 48h pra renovação automática)
+│       ├── checkoutLicense.js             # cria/atualiza licença a partir do checkout (trava por assinatura, 1 trial por cartão)
+│       ├── subscriptionCleanup.js         # cancela assinatura Stripe (admin/exclusão de conta)
+│       ├── pricingSettings.js             # preço (banco > env > padrão)
+│       └── stripe.js                       # checkout, reativar, portal, helpers
+└── app-frontend/
+    ├── public/termos.html, privacidade.html   # páginas legais
     └── src/
-        ├── App.jsx                    # o app inteiro logado: Dashboard, Novo Orçamento, Pacientes, Procedimentos, Custos/Materiais, Histórico, Configurações/Perfil — arquivo grande, é o coração do produto
-        ├── AuthGate.jsx               # decide o que mostrar: login/cadastro/app/admin/confirmação de renovação, roteamento por URL
-        ├── AdminDashboard.jsx         # painel administrativo (Visão Geral, Usuários, Chaves), tema claro/escuro próprio
-        ├── AuthLogo.jsx               # logo+nome usado em todas as telas de autenticação
-        ├── TrialBanner.jsx            # banner vermelho fixo (só quando licença é trial)
-        ├── RenewalWarningBanner.jsx   # aviso de vencimento pra licença que NÃO renova sozinha (admin-gerada)
-        ├── LicenseCodeInput.jsx       # campo de chave de licença em 4 caixas (sem traço, cola em qualquer uma)
-        ├── screens/                    # Login, Register, VerifyEmail, ForgotPassword, ResetPassword, Buy, TrialSignup, RenewalConfirm, LicenseBlocked
-        ├── storageShim.js             # substitui window.storage do Claude.ai por localStorage
-        └── api.js                      # chamadas à API com token de autenticação
+        ├── App.jsx                    # o app inteiro logado (coração do produto)
+        ├── AuthGate.jsx               # decide a tela: login/cadastro/app/admin/termos/bloqueio/offline
+        ├── syncQueue.js               # fila de salvamento com nova tentativa e detecção de conflito
+        ├── storageShim.js             # window.storage → /api/app-data (com versões) + budgetsApi
+        ├── SaveStatusBanner.jsx       # aviso "não salvo / conflito / sem conexão"
+        ├── PrivacySection.jsx         # Configurações → Privacidade e segurança
+        ├── AdminSecurityCard.jsx      # 2FA do admin
+        ├── TermsCheckbox.jsx          # caixinha de aceite dos termos
+        ├── AdminDashboard.jsx         # painel administrativo
+        ├── screens/                    # Login (+2FA), Register, VerifyEmail, ForgotPassword, ResetPassword, Buy, TrialSignup, RenewalConfirm, LicenseBlocked, TermsUpdate
+        └── api.js                      # chamadas à API com token
 ```
 
-Detalhes técnicos completos (tabelas do banco, variáveis de ambiente,
-passo a passo de deploy no Railway) estão no `README.md` na raiz.
+Detalhes técnicos completos (variáveis de ambiente, deploy no Railway,
+Stripe) estão no `README.md` na raiz.
 
 ## Hub central (verterelabs.com) — combinado verbalmente, não iniciado
 

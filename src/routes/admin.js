@@ -3,6 +3,11 @@ const pool = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { generateLicenseCode } = require("../utils/licenseCode");
 const { getPricing, setPricing } = require("../utils/pricingSettings");
+const { cancelSubscriptionNow, cancelAllSubscriptionsForUser } = require("../utils/subscriptionCleanup");
+const { cancelSubscriptionAtPeriodEnd } = require("../utils/stripe");
+
+const STRIPE_WARNING =
+  "Atenção: não foi possível cancelar a cobrança no Stripe agora. Confira essa assinatura direto no painel do Stripe pra o cliente não continuar sendo cobrado.";
 
 const router = express.Router();
 const LICENSE_DURATION_DAYS = Number(process.env.LICENSE_DURATION_DAYS) || 30;
@@ -414,7 +419,13 @@ router.get("/users", async (req, res) => {
   }
 });
 
-// Bloqueia ou reativa um usuário
+// Bloqueia ou reativa um usuário.
+// Bloquear: derruba as sessões abertas na hora (o middleware recusa conta
+// bloqueada) e PARA a cobrança — a assinatura do Stripe é marcada pra
+// cancelar no fim do período já pago (antes, o cliente bloqueado continuava
+// sendo cobrado todo mês). Se desbloquear depois, a própria pessoa pode
+// clicar em "Renovar assinatura", que desfaz esse cancelamento sem cobrar
+// de novo.
 router.post("/users/:id/status", async (req, res) => {
   const { status } = req.body || {};
   if (!["active", "blocked"].includes(status)) {
@@ -426,25 +437,49 @@ router.post("/users/:id/status", async (req, res) => {
       [status, req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: "Usuário não encontrado" });
-    res.json(rows[0]);
+    let stripeWarning = null;
+    if (status === "blocked") {
+      await pool.query("UPDATE users SET token_version = token_version + 1 WHERE id = $1", [rows[0].id]);
+      const { rows: subs } = await pool.query(
+        "SELECT id, stripe_subscription_id FROM licenses WHERE user_id = $1 AND stripe_subscription_id IS NOT NULL AND cancel_at_period_end = false",
+        [rows[0].id]
+      );
+      for (const lic of subs) {
+        try {
+          await cancelSubscriptionAtPeriodEnd(lic.stripe_subscription_id);
+          await pool.query("UPDATE licenses SET cancel_at_period_end = true, cancelled_at = COALESCE(cancelled_at, now()) WHERE id = $1", [lic.id]);
+        } catch (err) {
+          if (err.code === "resource_missing") continue;
+          console.error("Erro ao parar cobrança de usuário bloqueado:", err.message);
+          stripeWarning = STRIPE_WARNING;
+        }
+      }
+    }
+    res.json({ ...rows[0], stripeWarning });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao alterar status do usuário" });
   }
 });
 
-// Remove um usuário (a licença dele fica órfã — não é apagada; já os dados
-// do simulador em `app_data` SÃO apagados automaticamente, via ON DELETE
-// CASCADE na foreign key — não precisa de nenhum DELETE extra aqui)
+// Remove um usuário. Cancela NA HORA a assinatura do Stripe (antes o
+// cliente excluído continuava sendo cobrado). A licença fica guardada sem
+// dono e revogada (registro financeiro); os dados do simulador (`app_data`,
+// `budgets`) são apagados junto via ON DELETE CASCADE.
 router.delete("/users/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM users WHERE id = $1 AND role = 'user'", [req.params.id]);
+    const { rows } = await pool.query("SELECT id FROM users WHERE id = $1 AND role = 'user'", [req.params.id]);
+    if (!rows[0]) return res.status(204).end();
+    const cleanup = await cancelAllSubscriptionsForUser(rows[0].id);
+    await pool.query("UPDATE licenses SET status = 'revoked', cancelled_at = COALESCE(cancelled_at, now()) WHERE user_id = $1", [rows[0].id]);
+    await pool.query("DELETE FROM users WHERE id = $1 AND role = 'user'", [rows[0].id]);
+    if (!cleanup.ok) return res.status(200).json({ deleted: true, stripeWarning: STRIPE_WARNING });
     res.status(204).end();
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao remover usuário" });
   }
-});
+})
 
 // Gera uma chave de licença NOVA e SOLTA (sem usuário ainda) — é essa chave
 // que você entrega pro cliente depois que ele pagar, pra ele usar no cadastro.
@@ -518,14 +553,21 @@ router.post("/licenses/:id/renew", async (req, res) => {
   }
 });
 
-// Revoga uma licença (fica inválida mesmo sem ter expirado)
+// Revoga uma licença (fica inválida mesmo sem ter expirado) e cancela NA
+// HORA a assinatura do Stripe ligada a ela (antes continuava cobrando).
 router.post("/licenses/:id/revoke", async (req, res) => {
   try {
-    const { rows } = await pool.query("UPDATE licenses SET status = 'revoked' WHERE id = $1 RETURNING *", [
-      req.params.id,
-    ]);
+    const { rows } = await pool.query(
+      "UPDATE licenses SET status = 'revoked', cancelled_at = COALESCE(cancelled_at, now()), cancel_at_period_end = (stripe_subscription_id IS NOT NULL) OR cancel_at_period_end WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
     if (!rows[0]) return res.status(404).json({ error: "Licença não encontrada" });
-    res.json(rows[0]);
+    let stripeWarning = null;
+    if (rows[0].stripe_subscription_id) {
+      const r = await cancelSubscriptionNow(rows[0].stripe_subscription_id);
+      if (r.reason === "stripe_error") stripeWarning = STRIPE_WARNING;
+    }
+    res.json({ ...rows[0], stripeWarning });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao revogar licença" });

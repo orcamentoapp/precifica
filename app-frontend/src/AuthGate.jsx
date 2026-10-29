@@ -9,6 +9,7 @@ import ForgotPassword from "./screens/ForgotPassword";
 import ResetPassword from "./screens/ResetPassword";
 import RenewalConfirm from "./screens/RenewalConfirm";
 import LicenseBlocked from "./screens/LicenseBlocked";
+import TermsUpdate from "./screens/TermsUpdate";
 // Carregado sob demanda — só quem é admin (uma pessoa só, o Marcelo) chega
 // nessa tela; não faz sentido todo cliente baixar o código do painel admin
 // junto do pacote principal do site.
@@ -122,6 +123,10 @@ export default function AuthGate({ children }) {
     setSession({ user, license });
     if (user.role === "admin") {
       setScreen("admin");
+    } else if (!user.termsAccepted) {
+      // Conta criada antes dos Termos/Política existirem (ou termos
+      // atualizados): precisa aceitar antes de continuar.
+      setScreen("terms");
     } else if (license && license.valid) {
       setScreen("app");
     } else {
@@ -185,7 +190,13 @@ export default function AuthGate({ children }) {
               method: "POST",
               body: JSON.stringify({ sessionId }),
               skipAuth: true,
-            }).catch(() => {});
+            })
+              .then((result) => {
+                // Cartão que já usou o teste grátis: a assinatura nova foi
+                // cancelada sem cobrança — avisa em vez de dizer "sucesso".
+                if (result && result.reason === "trial_card_reused") setCheckoutNotice("trial-recusado");
+              })
+              .catch(() => {});
           }
         }
         // Nenhum parâmetro especial — usa a rota da URL se for uma das
@@ -203,8 +214,16 @@ export default function AuthGate({ children }) {
       // depois de relogar uma vez com a caixinha marcada.
       decideScreenFromSession(data.user, data.license);
     } catch (err) {
-      clearToken();
-      setScreen("login");
+      // Só desloga se o servidor RECUSOU a sessão (expirada/inválida/conta
+      // bloqueada). Queda de internet ou servidor reiniciando não pode
+      // deslogar ninguém — tenta de novo em alguns segundos.
+      if (err && (err.status === 401 || err.status === 403 || err.status === 404)) {
+        clearToken();
+        setScreen("login");
+      } else if (screen === "checking") {
+        setScreen("offline");
+        setTimeout(checkSession, 5000);
+      }
     }
   }
 
@@ -324,7 +343,40 @@ export default function AuthGate({ children }) {
   }
 
   if (screen === "blocked") {
-    return <LicenseBlocked reason={licenseReason} onLogout={() => goToScreen("login")} />;
+    return (
+      <LicenseBlocked
+        reason={licenseReason}
+        license={session?.license}
+        email={session?.user?.email}
+        onLogout={() => goToScreen("login")}
+      />
+    );
+  }
+
+  if (screen === "terms") {
+    return (
+      <TermsUpdate
+        onAccepted={(user) => decideScreenFromSession(user, session?.license)}
+        onLogout={() => {
+          clearToken();
+          goToScreen("login");
+        }}
+      />
+    );
+  }
+
+  if (screen === "offline") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", color: "#57534e", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+        <div>
+          <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>Sem conexão com o servidor</p>
+          <p style={{ fontSize: 13, margin: "0 0 16px" }}>Tentando de novo automaticamente...</p>
+          <button onClick={() => window.location.reload()} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#fff", cursor: "pointer" }}>
+            Tentar agora
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (screen === "admin") {

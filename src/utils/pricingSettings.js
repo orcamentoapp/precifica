@@ -12,7 +12,7 @@
 //   3. Valor padrão fixo no código (99.9 / 599.9) — última rede de segurança,
 //      só entra em cena se nem banco nem variável de ambiente tiverem nada.
 //
-// Cache em memória de 30s: todo checkout (Stripe/Mercado Pago) chama
+// Cache em memória de 30s: todo checkout (Stripe) chama
 // getPricing(), e sem cache isso viraria uma consulta ao banco a cada
 // tentativa de pagamento — preço muda raramente, então 30s de atraso pra um
 // ajuste feito pelo admin valer em TODO lugar é um troca perfeitamente

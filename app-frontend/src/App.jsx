@@ -1,8 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal, HelpCircle, BookOpen, PlayCircle, ArrowLeft, ArrowLeftRight } from "lucide-react";
+import { Plus, Stethoscope, User, ChevronRight, ChevronUp, ChevronDown, Search, Percent, CreditCard, Landmark, Banknote, X, Loader2, Undo2, Redo2, Star, Save, Check, Download, Upload, FileText, Image as ImageIcon, Printer, MessageCircle, Clock, CheckCircle2, XCircle, CircleDollarSign, Settings, LogOut, Calculator, ClipboardList, Menu, Pencil, Columns3, GripVertical, ArrowUpDown, Trash2, LayoutDashboard, Users, SplitSquareHorizontal, HelpCircle, BookOpen, PlayCircle, ArrowLeft, ArrowLeftRight, AlertTriangle } from "lucide-react";
 import { apiRequest, clearToken, getSavedAccounts, switchToAccount, removeSavedAccount } from "./api";
 import { useAccount } from "./AccountContext";
 import { useInstallPrompt, isRunningInstalled, isIOS } from "./pwaInstall";
+import { budgetsApi } from "./storageShim";
+import SaveStatusBanner from "./SaveStatusBanner";
+import PrivacySection from "./PrivacySection";
 
 const BRAZIL_UF_LIST = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
@@ -9310,6 +9313,22 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
   // mexe) e fica de olho em quando essa aba fecha sozinha (o Stripe manda
   // ela pra "/renovacao-confirmada", que confirma o pagamento e se fecha)
   // pra então atualizar os dados da assinatura na tela principal.
+  // Portal do Stripe (trocar cartão, ver/baixar faturas) — abre na mesma aba
+  // e o Stripe traz de volta pra /configuracoes no fim.
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalError, setPortalError] = useState("");
+  async function handleOpenBillingPortal() {
+    setPortalBusy(true);
+    setPortalError("");
+    try {
+      const data = await apiRequest("/api/payments/stripe/portal", { method: "POST" });
+      window.location.href = data.url;
+    } catch (err) {
+      setPortalError(err.message);
+      setPortalBusy(false);
+    }
+  }
+
   async function handleStartRenewal() {
     if (!renewPlan) {
       setRenewError("Escolha um plano antes de continuar.");
@@ -9322,6 +9341,15 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
         method: "POST",
         body: JSON.stringify({ plan: renewPlan }),
       });
+      // Assinatura ainda dentro do período pago: o servidor só desfez o
+      // cancelamento (sem cobrança nova, sem checkout) — volta a renovar
+      // sozinha na data de sempre.
+      if (data && data.reactivated) {
+        setRenewModalOpen(false);
+        setCancelFeedback("");
+        await account?.refreshSession?.();
+        return;
+      }
       const popup = window.open(data.checkoutUrl, "_blank");
       setRenewModalOpen(false);
       if (!popup || popup.closed) {
@@ -9558,6 +9586,19 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
                 </span>
               </div>
             )}
+            {license.hasStripeSubscription && (
+              <div>
+                <button
+                  type="button"
+                  onClick={handleOpenBillingPortal}
+                  disabled={portalBusy}
+                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 rounded-lg py-2 hover:bg-stone-50 transition disabled:opacity-50"
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> {portalBusy ? "Abrindo..." : "Gerenciar pagamento (trocar cartão, ver faturas)"}
+                </button>
+                {portalError && <p className="text-xs text-rose-600 mt-1">{portalError}</p>}
+              </div>
+            )}
             {typeof daysLeft === "number" &&
               (license.type === "trial" || !license.hasStripeSubscription || license.cancelAtPeriodEnd) && (
                 <div className="flex items-center justify-between gap-2">
@@ -9657,6 +9698,8 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
           </p>
         )}
       </SettingsSubSection>
+
+      <PrivacySection Section={SettingsSubSection} email={account?.user?.email} />
     </SettingsCard>
 
     {renewModalOpen && (
@@ -9664,7 +9707,11 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
         <div className="bg-white rounded-2xl p-5 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
           <h3 className="font-semibold text-stone-800 text-sm mb-1">Renovar assinatura</h3>
           <p className="text-xs text-stone-400 mb-4 leading-relaxed">
-            Escolha o plano. Vamos abrir o pagamento numa aba nova — essa tela continua aberta do jeito que está.
+            {license?.valid && license?.cancelAtPeriodEnd && license?.hasStripeSubscription
+              ? `Sua assinatura volta a renovar automaticamente${
+                  license.expiresAt ? ` em ${new Date(license.expiresAt).toLocaleDateString("pt-BR")}` : ""
+                }, no mesmo cartão. Nada é cobrado agora — o período que você já pagou continua valendo.`
+              : "Escolha o plano. Vamos abrir o pagamento numa aba nova — essa tela continua aberta do jeito que está."}
           </p>
           {renewError && <div className="text-xs text-rose-600 mb-3">{renewError}</div>}
           {/* Só o plano mensal por enquanto (pedido do Marcelo) — o anual fica
@@ -9702,7 +9749,11 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
             disabled={renewSubmitting || !renewPlan}
             className="w-full text-sm font-semibold bg-teal-700 text-white rounded-lg py-2.5 hover:bg-teal-800 transition disabled:opacity-50"
           >
-            {renewSubmitting ? "Abrindo pagamento..." : "Continuar"}
+            {renewSubmitting
+              ? "Aguarde..."
+              : license?.valid && license?.cancelAtPeriodEnd && license?.hasStripeSubscription
+              ? "Reativar renovação automática"
+              : "Continuar"}
           </button>
         </div>
       </div>
@@ -9722,6 +9773,7 @@ const SETTINGS_NAV_GROUPS = [
     items: [
       { label: "Gerenciar Assinatura", href: "#sub-assinatura" },
       { label: "Adicionar app na tela inicial", href: "#sub-instalar-app" },
+      { label: "Privacidade e segurança", href: "#sub-privacidade" },
     ],
   },
   {
@@ -12154,6 +12206,7 @@ export default function App() {
   const [budgetHistory, setBudgetHistory] = useState([]);
   const [patients, setPatients] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
   const [hasPending, setHasPending] = useState(false);
@@ -12176,8 +12229,19 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      // Se QUALQUER leitura principal falhar (internet ruim, servidor
+      // reiniciando), o app NÃO abre com valores padrão — mostra a tela de
+      // "não foi possível carregar seus dados" (ver loadError mais abaixo).
+      // Antes, uma falha aqui fazia o app abrir como se fosse conta nova, e
+      // a próxima edição salvava os padrões POR CIMA dos dados reais.
+      let failed = false;
       try {
-        const s = await window.storage.get("settings", false);
+        let s = null;
+        try {
+          s = await window.storage.get("settings", false);
+        } catch (err) {
+          failed = true;
+        }
         if (s && s.value) {
           const stored = JSON.parse(s.value);
           const merged = { ...DEFAULT_SETTINGS, ...stored };
@@ -12247,8 +12311,14 @@ export default function App() {
       // segunda busca terminava. Buscando os dois ao mesmo tempo, esse
       // quadro intermediário não existe mais.
       const [procResult, materialsResult] = await Promise.all([
-        window.storage.get("procedures", false).catch(() => null),
-        window.storage.get("materialsCatalog", false).catch(() => null),
+        window.storage.get("procedures", false).catch(() => {
+          failed = true;
+          return null;
+        }),
+        window.storage.get("materialsCatalog", false).catch(() => {
+          failed = true;
+          return null;
+        }),
       ]);
       let list = DEFAULT_PROCEDURES;
       try {
@@ -12266,20 +12336,27 @@ export default function App() {
       } catch (e) {}
       setProcedures(list);
       setMaterialsCatalog(materialsList);
+      // Histórico de orçamentos agora vem da tabela própria (1 linha por
+      // orçamento, sem limite de quantidade) — ver budgetsApi.
       try {
-        const bh = await window.storage.get("budgetHistory", false);
-        if (bh && bh.value) {
-          const storedHistory = JSON.parse(bh.value);
-          if (Array.isArray(storedHistory)) setBudgetHistory(storedHistory);
-        }
-      } catch (e) {}
+        const storedHistory = await budgetsApi.list();
+        setBudgetHistory(storedHistory);
+      } catch (e) {
+        failed = true;
+      }
       try {
         const pts = await window.storage.get("patients", false);
         if (pts && pts.value) {
           const storedPatients = JSON.parse(pts.value);
           if (Array.isArray(storedPatients)) setPatients(storedPatients);
         }
-      } catch (e) {}
+      } catch (e) {
+        failed = true;
+      }
+      if (failed) {
+        setLoadError(true);
+        return;
+      }
       // Popup de boas-vindas: mostra só UMA vez, na primeira vez que a
       // conta carrega (sem essa chave salva ainda) — a partir daqui a
       // pessoa sempre pode rever o tutorial pelo menu de conta ("Rever
@@ -12461,14 +12538,6 @@ export default function App() {
     persistMaterialsCatalog(materialsCatalog.filter((c) => c.id !== id));
   }
 
-  const persistBudgetHistory = useCallback(async (next) => {
-    const safeNext = Array.isArray(next) ? next : [];
-    setBudgetHistory(safeNext);
-    try {
-      await window.storage.set("budgetHistory", JSON.stringify(safeNext), false);
-    } catch (e) {}
-  }, []);
-
   const persistPatients = useCallback(async (next) => {
     const safeNext = Array.isArray(next) ? next : [];
     setPatients(safeNext);
@@ -12514,26 +12583,38 @@ export default function App() {
     }
   }
 
+  // Cada ação mexe SÓ no orçamento envolvido (tabela `budgets`) — sem
+  // limite de quantidade (antes o histórico era cortado em 200 e os mais
+  // antigos sumiam sem aviso).
   function handleSaveBudget(entry) {
-    const exists = budgetHistory.some((h) => h.id === entry.id);
-    if (exists) {
-      persistBudgetHistory(budgetHistory.map((h) => (h.id === entry.id ? { ...entry, status: h.status } : h)));
+    const existing = budgetHistory.find((h) => h.id === entry.id);
+    if (existing) {
+      const updated = { ...entry, status: existing.status };
+      setBudgetHistory((list) => list.map((h) => (h.id === entry.id ? updated : h)));
+      budgetsApi.save(updated).catch(() => {});
     } else {
-      persistBudgetHistory([entry, ...budgetHistory].slice(0, 200));
+      setBudgetHistory((list) => [entry, ...list]);
+      budgetsApi.save(entry).catch(() => {});
     }
     syncPatientFromBudget(entry);
   }
 
   function handleDeleteBudgetHistoryEntry(id) {
-    persistBudgetHistory(budgetHistory.filter((h) => h.id !== id));
+    setBudgetHistory((list) => list.filter((h) => h.id !== id));
+    budgetsApi.remove(id).catch(() => {});
   }
 
   function handleClearBudgetHistory() {
-    persistBudgetHistory([]);
+    setBudgetHistory([]);
+    budgetsApi.clear().catch(() => {});
   }
 
   function handleUpdateBudgetStatus(id, status) {
-    persistBudgetHistory(budgetHistory.map((h) => (h.id === id ? { ...h, status } : h)));
+    const current = budgetHistory.find((h) => h.id === id);
+    if (!current) return;
+    const updated = { ...current, status };
+    setBudgetHistory((list) => list.map((h) => (h.id === id ? updated : h)));
+    budgetsApi.save(updated).catch(() => {});
   }
 
   function handleReopenBudget(entry) {
@@ -13137,6 +13218,27 @@ export default function App() {
   });
   const selectedCalc = selectedProc ? calcs[selectedProc.id] : null;
 
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 text-stone-700 p-6">
+        <div className="max-w-sm w-full bg-white border border-stone-200 rounded-2xl p-6 text-center shadow-sm">
+          <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
+          <h2 className="font-semibold text-stone-800 mb-2">Não foi possível carregar seus dados</h2>
+          <p className="text-sm text-stone-500 mb-5 leading-relaxed">
+            Parece que a conexão com o servidor falhou. Seus dados estão guardados com segurança — nada foi
+            alterado. Confira sua internet e tente de novo.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full text-sm font-medium text-white bg-teal-700 hover:bg-teal-800 rounded-lg py-2.5 transition"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!loaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50 text-stone-500">
@@ -13147,6 +13249,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans">
+      <SaveStatusBanner />
       <style>{`
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {

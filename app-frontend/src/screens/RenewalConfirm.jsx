@@ -59,7 +59,7 @@ export default function RenewalConfirm() {
       {status === "confirming" && <p style={{ color: "#78716c", fontSize: 14 }}>Confirmando seu pagamento...</p>}
       {status === "done" && (
         <p style={{ color: "#0f766e", fontSize: 14, fontWeight: 600 }}>
-          Pagamento confirmado! Você já pode fechar esta aba.
+          Pagamento confirmado!
         </p>
       )}
       {status === "error" && (
@@ -67,6 +67,18 @@ export default function RenewalConfirm() {
           Não deu pra confirmar automaticamente, mas se o pagamento passou, sua assinatura já deve aparecer
           atualizada. Pode fechar esta aba e conferir na tela principal.
         </p>
+      )}
+      {status !== "confirming" && (
+        // Quando a renovação foi feita NESTA mesma aba (pela tela de
+        // assinatura vencida), não tem "aba principal" pra voltar — esse
+        // botão leva direto pro app.
+        <button
+          type="button"
+          onClick={() => (window.location.href = "/")}
+          style={{ marginTop: 4, fontSize: 14, fontWeight: 600, color: "#fff", background: "#0f766e", border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer" }}
+        >
+          Voltar para o Precifica
+        </button>
       )}
     </div>
   );

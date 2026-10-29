@@ -99,7 +99,7 @@ export default function ResetPassword({ email, onReset, onBackToLogin }) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               style={{ ...inputStyle, paddingRight: 64 }}
-              minLength={6}
+              minLength={8}
               required
             />
             <button type="button" onClick={() => setShowPassword((v) => !v)} style={showHideBtnStyle}>
@@ -114,7 +114,7 @@ export default function ResetPassword({ email, onReset, onBackToLogin }) {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               style={{ ...inputStyle, paddingRight: 64 }}
-              minLength={6}
+              minLength={8}
               required
             />
             <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} style={showHideBtnStyle}>

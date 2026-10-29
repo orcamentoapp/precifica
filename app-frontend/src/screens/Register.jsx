@@ -3,6 +3,7 @@ import { apiRequest } from "../api";
 import { screenStyle, cardStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle, labelStyle, showHideBtnStyle } from "../authStyles";
 import LicenseCodeInput from "../LicenseCodeInput";
 import AuthLogo from "../AuthLogo";
+import TermsCheckbox from "../TermsCheckbox";
 
 export default function Register({ onRegistered, onBackToLogin, initialLicenseCode, lockedEmail }) {
   const [licenseGroups, setLicenseGroups] = useState(initialLicenseCode || ["", "", "", ""]);
@@ -14,6 +15,7 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [resendingKey, setResendingKey] = useState(false);
   const [resendKeyMsg, setResendKeyMsg] = useState("");
 
@@ -47,8 +49,16 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
       setError("Preencha a chave de licença completa (4 blocos de 4 caracteres)");
       return;
     }
+    if (password.length < 8) {
+      setError("A senha precisa ter pelo menos 8 caracteres");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("As senhas não conferem");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError("Pra criar a conta, aceite os Termos de Uso e a Política de Privacidade.");
       return;
     }
     if (!lockedEmail && email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
@@ -65,6 +75,7 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
           email: email.trim(),
           password,
           confirmPassword,
+          acceptedTerms,
         }),
         skipAuth: true,
       });
@@ -166,7 +177,7 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={{ ...inputStyle, paddingRight: 64 }}
-              minLength={6}
+              minLength={8}
               required
             />
             <button type="button" onClick={() => setShowPassword((v) => !v)} style={showHideBtnStyle}>
@@ -181,7 +192,7 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               style={{ ...inputStyle, paddingRight: 64 }}
-              minLength={6}
+              minLength={8}
               required
             />
             <button type="button" onClick={() => setShowConfirmPassword((v) => !v)} style={showHideBtnStyle}>
@@ -189,6 +200,7 @@ export default function Register({ onRegistered, onBackToLogin, initialLicenseCo
             </button>
           </div>
 
+          <TermsCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} style={{ marginTop: 14 }} />
           <button type="submit" disabled={submitting} style={buttonStyle}>
             {submitting ? "Criando conta..." : "Criar conta"}
           </button>

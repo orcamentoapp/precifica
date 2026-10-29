@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { screenStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle } from "../authStyles";
 import AuthLogo from "../AuthLogo";
+import TermsCheckbox from "../TermsCheckbox";
 
 // Só usado enquanto o preço de verdade ainda não chegou do servidor (ver
 // useEffect mais abaixo) — pra tela não ficar em branco por um instante.
@@ -27,6 +28,7 @@ export default function Buy({ onBackToLogin }) {
   // pronto pra voltar quando for reativado.
   const [plan, setPlan] = useState("monthly"); // "monthly" | "annual"
   const [email, setEmail] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [monthlyPrice, setMonthlyPrice] = useState(FALLBACK_MONTHLY_PRICE);
@@ -62,13 +64,17 @@ export default function Buy({ onBackToLogin }) {
       setError("Preencha o e-mail antes de continuar.");
       return;
     }
+    if (!acceptedTerms) {
+      setError("Pra continuar, aceite os Termos de Uso e a Política de Privacidade.");
+      return;
+    }
     setError("");
     setSubmitting(true);
     try {
       const res = await fetch("/api/payments/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), plan, trial: false }),
+        body: JSON.stringify({ email: email.trim(), plan, trial: false, acceptedTerms }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível iniciar o pagamento.");
@@ -129,9 +135,10 @@ export default function Buy({ onBackToLogin }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={{ ...inputStyle, marginBottom: 20 }}
+          style={{ ...inputStyle, marginBottom: 14 }}
           autoFocus
         />
+        <TermsCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} />
 
         <button type="button" disabled={submitting} onClick={handleSubmit} style={buttonStyle}>
           {submitting ? "Preparando..." : "Assinar agora (cartão)"}

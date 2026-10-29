@@ -2,10 +2,15 @@ const express = require("express");
 const Stripe = require("stripe");
 const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
-const { createCheckoutSession, cancelSubscriptionAtPeriodEnd } = require("../utils/stripe");
-const { createOneTimePaymentPreference } = require("../utils/mercadopago");
-const { mercadopagoWebhookHandler } = require("./mercadopagoWebhook");
+const {
+  createCheckoutSession,
+  cancelSubscriptionAtPeriodEnd,
+  reactivateSubscription,
+  createBillingPortalSession,
+  getClient,
+} = require("../utils/stripe");
 const { createLicenseFromCheckoutSession } = require("../utils/checkoutLicense");
+const { checkoutLimiter } = require("../middleware/rateLimit");
 const { getPricing } = require("../utils/pricingSettings");
 
 const router = express.Router();
@@ -31,10 +36,13 @@ router.get("/pricing", async (req, res) => {
 
 // ---------- ASSINATURA por cartão (rota pública, chamada pela página de compra) ----------
 // body: { email, plan: "monthly" | "annual", trial: boolean }
-router.post("/stripe/checkout", async (req, res) => {
-  const { email, plan, trial } = req.body || {};
+router.post("/stripe/checkout", checkoutLimiter, async (req, res) => {
+  const { email, plan, trial, acceptedTerms } = req.body || {};
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: "E-mail inválido" });
+  }
+  if (acceptedTerms !== true) {
+    return res.status(400).json({ error: "Pra continuar, aceite os Termos de Uso e a Política de Privacidade." });
   }
   const safePlan = plan === "annual" ? "annual" : "monthly";
 
@@ -48,7 +56,7 @@ router.post("/stripe/checkout", async (req, res) => {
         .json({ error: "Já existe uma conta com esse e-mail. Faça login em vez de assinar de novo." });
     }
 
-    const session = await createCheckoutSession({ email: email.trim(), plan: safePlan, trial: !!trial });
+    const session = await createCheckoutSession({ email: email.trim(), plan: safePlan, trial: !!trial, termsAccepted: true });
     res.json({ checkoutUrl: session.url });
   } catch (err) {
     console.error("Erro ao criar checkout Stripe:", err.message);
@@ -70,9 +78,9 @@ router.post("/stripe/checkout", async (req, res) => {
 // (`createLicenseFromCheckoutSession`), então se o webhook também estiver
 // funcionando, os dois caminhos não duplicam nada (checagem por
 // stripe_subscription_id já existente).
-router.post("/stripe/confirm-checkout", async (req, res) => {
+router.post("/stripe/confirm-checkout", checkoutLimiter, async (req, res) => {
   const { sessionId } = req.body || {};
-  if (!sessionId || typeof sessionId !== "string") {
+  if (!sessionId || typeof sessionId !== "string" || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) {
     return res.status(400).json({ error: "ID de sessão inválido" });
   }
   try {
@@ -92,15 +100,52 @@ router.post("/stripe/confirm-checkout", async (req, res) => {
   }
 });
 
-// ---------- RENOVAR/TROCAR DE PLANO (pessoa já logada, rota autenticada) ----------
-// Diferente de "/stripe/checkout" (pública, pra quem ainda não tem conta):
-// aqui a pessoa já está logada, então não faz sentido pedir e-mail de novo
-// nem oferecer teste grátis (isso só pode ser usado uma vez, na primeira
-// assinatura). body: { plan: "monthly" | "annual" }
-router.post("/stripe/renew-checkout", requireAuth, async (req, res) => {
+// ---------- RENOVAR (pessoa já logada, rota autenticada) ----------
+// Antes, "Renovar" SEMPRE criava uma assinatura nova e cobrava na hora —
+// quem tinha cancelado mas ainda estava dentro do período pago pagava de
+// novo e perdia os dias que faltavam. Agora:
+// - assinatura antiga ainda ativa (só marcada pra cancelar no fim do
+//   período): desfaz o cancelamento, SEM cobrança nova — volta a renovar
+//   sozinha na data de sempre. Responde { reactivated: true }.
+// - assinatura ativa e sem cancelamento: não há o que renovar (409).
+// - assinatura com pagamento pendente (cartão recusado) ou já encerrada:
+//   cria um checkout novo; a antiga é cancelada quando o pagamento novo
+//   for confirmado (ver checkoutLicense.js), pra nunca cobrar nas duas.
+// body: { plan: "monthly" | "annual" }
+router.post("/stripe/renew-checkout", requireAuth, checkoutLimiter, async (req, res) => {
   const { plan } = req.body || {};
   const safePlan = plan === "annual" ? "annual" : "monthly";
   try {
+    const { rows } = await pool.query("SELECT * FROM licenses WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1", [
+      req.user.sub,
+    ]);
+    const license = rows[0];
+    if (license && license.stripe_subscription_id && license.status !== "revoked") {
+      let sub = null;
+      try {
+        sub = await getClient().subscriptions.retrieve(license.stripe_subscription_id);
+      } catch (err) {
+        if (err.code !== "resource_missing") throw err;
+      }
+      const sameInterval =
+        !sub ||
+        ((sub.items?.data?.[0]?.price?.recurring?.interval || "month") === (safePlan === "annual" ? "year" : "month"));
+      if (sub && (sub.status === "active" || sub.status === "trialing") && sameInterval) {
+        if (sub.cancel_at_period_end) {
+          await reactivateSubscription(sub.id);
+          await pool.query("UPDATE licenses SET cancel_at_period_end = false, cancelled_at = NULL WHERE id = $1", [license.id]);
+          return res.json({ reactivated: true, expiresAt: license.expires_at });
+        }
+        return res.status(409).json({ error: "Sua assinatura já está ativa e renova automaticamente — não precisa renovar." });
+      }
+      if (sub && (sub.status === "past_due" || sub.status === "unpaid" || sub.status === "incomplete")) {
+        // Cartão recusado: o caminho certo é trocar o cartão no portal (a
+        // própria cobrança pendente é refeita). Se a pessoa preferir pagar
+        // por um checkout novo, a antiga é cancelada após a confirmação.
+        console.log("[renovação] assinatura com pagamento pendente, criando checkout novo:", sub.id, sub.status);
+      }
+    }
+
     const session = await createCheckoutSession({
       email: req.user.email,
       plan: safePlan,
@@ -111,6 +156,33 @@ router.post("/stripe/renew-checkout", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("Erro ao criar checkout de renovação Stripe:", err.message);
     res.status(500).json({ error: "Não foi possível iniciar o pagamento agora. Tente novamente em instantes." });
+  }
+});
+
+// ---------- PORTAL DE COBRANÇA (trocar cartão, ver faturas) ----------
+// Abre o portal hospedado pelo próprio Stripe. Funciona mesmo com a
+// licença vencida (é justamente quando a pessoa mais precisa trocar o
+// cartão). Precisa estar ativado no painel do Stripe — ver README.
+router.post("/stripe/portal", requireAuth, checkoutLimiter, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT stripe_customer_id FROM licenses WHERE user_id = $1 AND stripe_customer_id IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+      [req.user.sub]
+    );
+    if (!rows[0]) {
+      return res.status(400).json({ error: "Sua conta não tem assinatura por cartão pra gerenciar." });
+    }
+    const returnUrl = `${(process.env.APP_URL || "").replace(/\/$/, "")}/configuracoes`;
+    const session = await createBillingPortalSession(rows[0].stripe_customer_id, returnUrl);
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("Erro ao abrir portal de cobrança Stripe:", err.message);
+    const notConfigured = /configuration|portal/i.test(err.message || "");
+    res.status(500).json({
+      error: notConfigured
+        ? "O gerenciamento de pagamento ainda não está disponível. Fale com o suporte."
+        : "Não foi possível abrir o gerenciamento de pagamento agora. Tente novamente em instantes.",
+    });
   }
 });
 
@@ -185,51 +257,5 @@ router.post("/stripe/cancel-subscription", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Não foi possível cancelar agora. Tente novamente em instantes." });
   }
 });
-
-// ---------- PAGAMENTO ÚNICO via Mercado Pago (Pix/Boleto/cartão avulso) ----------
-// Rota pública (compra nova, sem conta ainda) — body: { email, plan }
-router.post("/mercadopago/checkout", async (req, res) => {
-  const { email, plan } = req.body || {};
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: "E-mail inválido" });
-  }
-  const safePlan = plan === "annual" ? "annual" : "monthly";
-  try {
-    const { rows: existingUser } = await pool.query("SELECT id FROM users WHERE email = $1", [
-      email.trim().toLowerCase(),
-    ]);
-    if (existingUser[0]) {
-      return res
-        .status(409)
-        .json({ error: "Já existe uma conta com esse e-mail. Faça login em vez de comprar de novo." });
-    }
-
-    const checkoutUrl = await createOneTimePaymentPreference({ email: email.trim(), plan: safePlan });
-    res.json({ checkoutUrl });
-  } catch (err) {
-    console.error("Erro ao criar pagamento Mercado Pago:", err.message);
-    res.status(500).json({ error: "Não foi possível iniciar o pagamento agora. Tente novamente em instantes." });
-  }
-});
-
-// Rota autenticada (renovação de quem já está logado) — body: { plan }
-router.post("/mercadopago/renew-checkout", requireAuth, async (req, res) => {
-  const { plan } = req.body || {};
-  const safePlan = plan === "annual" ? "annual" : "monthly";
-  try {
-    const checkoutUrl = await createOneTimePaymentPreference({
-      email: req.user.email,
-      plan: safePlan,
-      userId: req.user.sub,
-    });
-    res.json({ checkoutUrl });
-  } catch (err) {
-    console.error("Erro ao criar pagamento de renovação Mercado Pago:", err.message);
-    res.status(500).json({ error: "Não foi possível iniciar o pagamento agora. Tente novamente em instantes." });
-  }
-});
-
-// Webhook do Mercado Pago (chamado pelo próprio Mercado Pago, não pelo app)
-router.post("/mercadopago/webhook", mercadopagoWebhookHandler);
 
 module.exports = router;

@@ -20,6 +20,17 @@ function getTransporter() {
   });
 }
 
+// Escapa texto vindo do usuário antes de colocar dentro do HTML de um
+// e-mail (nome, mensagem de contato etc.).
+function escapeHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function getFromEmail() {
   return process.env.EMAIL_FROM || process.env.SMTP_FROM || "suporte@verterelabs.com";
 }
@@ -226,7 +237,35 @@ async function sendLicenseRenewedEmail(to, expiresAtLabel) {
   });
 }
 
+// Cobrança recusada no cartão (invoice.payment_failed). O Stripe tenta de
+// novo sozinho nos próximos dias; enquanto isso, avisa a pessoa pra trocar
+// o cartão (Configurações → Gerenciar pagamento) antes de perder o acesso.
+async function sendPaymentFailedEmail(to, appUrl) {
+  const baseUrl = (appUrl || "").replace(/\/$/, "");
+  const link = baseUrl ? `${baseUrl}/configuracoes` : "";
+  return sendEmail({
+    to,
+    subject: "Precifica — não conseguimos cobrar sua assinatura",
+    text:
+      "Tentamos cobrar a renovação da sua assinatura do Precifica, mas o cartão recusou o pagamento.\n\n" +
+      "Vamos tentar de novo automaticamente nos próximos dias. Pra não perder o acesso, confira se o cartão tem limite " +
+      "ou troque o cartão em Configurações > Gerenciar Assinatura > Gerenciar pagamento." +
+      (link ? `\n\n${link}` : ""),
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color:#0f766e;">Não conseguimos cobrar sua assinatura</h2>
+        <p>Tentamos cobrar a renovação da sua assinatura do Precifica, mas o cartão <strong>recusou o pagamento</strong>.</p>
+        <p>Vamos tentar de novo automaticamente nos próximos dias. Pra não perder o acesso, confira se o cartão tem limite
+        ou troque o cartão em <strong>Configurações &gt; Gerenciar Assinatura &gt; Gerenciar pagamento</strong>.</p>
+        ${link ? `<p style="margin: 24px 0;"><a href="${link}" style="background:#0f766e; color:#fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Abrir o Precifica</a></p>` : ""}
+      </div>
+    `,
+  });
+}
+
 module.exports = {
+  escapeHtml,
+  sendPaymentFailedEmail,
   sendEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,

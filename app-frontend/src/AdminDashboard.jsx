@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { apiRequest, clearToken, getSavedAccounts, switchToAccount, removeSavedAccount } from "./api";
+import AdminSecurityCard from "./AdminSecurityCard";
 import {
   Users,
   Activity,
@@ -498,7 +499,7 @@ const ADMIN_TABS = [
   { key: "overview", label: "Visão Geral", icon: LayoutDashboard },
   { key: "users", label: "Usuários", icon: Users },
   { key: "licenses", label: "Chaves de licença", icon: KeyRound },
-  { key: "settings", label: "Preços", icon: DollarSign },
+  { key: "settings", label: "Configurações", icon: DollarSign },
 ];
 
 function AdminTabNav({ tab, setTab, darkMode }) {
@@ -880,7 +881,8 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
 
   function showToast(msg) {
     setToast(msg);
-    setTimeout(() => setToast(""), 3000);
+    // Avisos longos (ex: falha ao cancelar no Stripe) ficam mais tempo na tela.
+    setTimeout(() => setToast(""), String(msg).length > 80 ? 9000 : 3000);
   }
 
   async function handleGenerateLicense(type, description) {
@@ -913,8 +915,8 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
 
   async function handleRevoke(licenseId) {
     try {
-      await apiRequest(`/api/admin/licenses/${licenseId}/revoke`, { method: "POST" });
-      showToast("Licença revogada.");
+      const data = await apiRequest(`/api/admin/licenses/${licenseId}/revoke`, { method: "POST" });
+      showToast(data && data.stripeWarning ? data.stripeWarning : "Licença revogada e cobrança no Stripe cancelada.");
       loadAll();
     } catch (err) {
       showToast("Erro: " + err.message);
@@ -924,11 +926,17 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
   async function handleToggleUserStatus(user) {
     const newStatus = user.status === "blocked" ? "active" : "blocked";
     try {
-      await apiRequest(`/api/admin/users/${user.id}/status`, {
+      const data = await apiRequest(`/api/admin/users/${user.id}/status`, {
         method: "POST",
         body: JSON.stringify({ status: newStatus }),
       });
-      showToast(newStatus === "blocked" ? "Usuário bloqueado." : "Usuário reativado.");
+      showToast(
+        data && data.stripeWarning
+          ? data.stripeWarning
+          : newStatus === "blocked"
+          ? "Usuário bloqueado — sessões encerradas e renovação automática cancelada."
+          : "Usuário reativado."
+      );
       loadAll();
     } catch (err) {
       showToast("Erro: " + err.message);
@@ -943,8 +951,8 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
       return;
     }
     try {
-      await apiRequest(`/api/admin/users/${user.id}`, { method: "DELETE" });
-      showToast("Usuário removido.");
+      const data = await apiRequest(`/api/admin/users/${user.id}`, { method: "DELETE" });
+      showToast(data && data.stripeWarning ? data.stripeWarning : "Usuário removido e cobrança no Stripe cancelada.");
       setConfirmDeleteUser(null);
       loadAll();
     } catch (err) {
@@ -1371,7 +1379,7 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
             <div className="bg-white border border-stone-200 rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-stone-700 mb-1">Preços</h2>
               <p className="text-xs text-stone-400 mb-4 leading-relaxed">
-                Valor mostrado pro cliente e efetivamente cobrado no Stripe/Mercado Pago em toda assinatura ou
+                Valor mostrado pro cliente e efetivamente cobrado no Stripe em toda assinatura ou
                 renovação nova a partir de agora. Não muda o valor de quem já está com uma assinatura em andamento —
                 isso só vale a partir da próxima cobrança que usar esse preço (renovação, ou uma assinatura nova).
               </p>
@@ -1411,6 +1419,7 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                 </>
               )}
             </div>
+            <AdminSecurityCard showToast={showToast} />
           </div>
         ) : (
           <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
