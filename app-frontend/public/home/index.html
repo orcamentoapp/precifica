@@ -79,6 +79,12 @@
   .bubble.in{align-self:flex-start;background:#fff;border-radius:2px 10px 10px 10px;padding:7px 9px;}
   .phone::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:34%;height:20px;background:#1c1917;border-radius:999px;z-index:2;}
   .hero-chip{position:absolute;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--teal-900);box-shadow:0 12px 30px -12px rgba(12,41,38,.35);display:flex;align-items:center;gap:8px;max-width:230px;line-height:1.35;}
+  .person{background:var(--stone-50);border:1px solid var(--stone-200);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;}
+  .person img{width:100%;aspect-ratio:4/5;object-fit:cover;object-position:center 20%;display:block;max-height:440px;}
+  .person-body{padding:22px 24px 26px;}
+  .person-body h3{font-size:20px;font-weight:800;color:var(--teal-900);}
+  .person-role{margin-top:4px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal-700);}
+  .person-body p:not(.person-role){margin-top:12px;font-size:15.5px;line-height:1.6;color:var(--stone-700);}
   .microcopy{margin-top:12px;font-size:13.5px;color:var(--stone-500);}
   .microcopy strong{color:var(--teal-800);}
   .tcard{background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;}
@@ -154,9 +160,10 @@
     <div class="wrap">
       <div style="display:flex;flex-wrap:wrap;gap:48px;align-items:center;">
         <div style="flex:1 1 460px;min-width:0;">
-          <div style="display:inline-flex;align-items:center;gap:8px;background:var(--teal-100);color:var(--teal-800);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;margin-bottom:20px;">
-            Feito para dentistas e clínicas odontológicas
-          </div>
+          <a href="#quem-fez" style="display:inline-flex;align-items:center;gap:8px;background:var(--teal-100);color:var(--teal-800);font-size:13px;font-weight:600;padding:5px 14px 5px 5px;border-radius:999px;margin-bottom:20px;">
+            <span style="display:inline-flex;"><img src="img/marcelo.jpg" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover;object-position:center 20%;border:2px solid #fff;"><img src="img/stephanie.jpg" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover;object-position:center 20%;border:2px solid #fff;margin-left:-8px;"></span>
+            Criado por um protético e uma dentista que tiveram 2 clínicas
+          </a>
           <h1 style="font-size:clamp(32px,4.4vw,50px);line-height:1.1;font-weight:800;color:var(--teal-900);">
             Saiba quanto cada procedimento te custa — e passe o valor com segurança.
           </h1>
@@ -424,21 +431,36 @@
     </div>
   </section>
 
-  <!-- QUEM FEZ O PRECIFICA — texto escrito a partir do que o Marcelo
-       contou; ele deve revisar. Foto: conteudo.json → fundador.foto -->
-  <section id="quem-fez" style="padding:72px 0;background:#fff;border-top:1px solid var(--stone-200);">
-    <div class="wrap" style="max-width:860px;">
-      <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start;">
-        <div style="flex:0 0 auto;">
-          <div id="founder-photo" class="avatar" style="width:120px;height:120px;font-size:40px;">M</div>
+  <!-- QUEM ESTÁ POR TRÁS DO PRECIFICA — Marcelo Migueis e Dra. Stephanie
+       Begliomini (fotos em img/marcelo.jpg e img/stephanie.jpg). Texto
+       escrito a partir do que o Marcelo contou: revisar com eles. -->
+  <section id="quem-fez" style="padding:80px 0;background:#fff;border-top:1px solid var(--stone-200);">
+    <div class="wrap" style="max-width:980px;">
+      <div style="text-align:center;max-width:680px;margin:0 auto 40px;">
+        <p class="eyebrow">Quem está por trás do Precifica</p>
+        <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Feito por quem já tocou clínica — não por uma empresa de software genérica</h2>
+        <p style="margin-top:14px;font-size:17px;line-height:1.65;color:var(--stone-700);">Juntos, tivemos duas clínicas odontológicas. Vivemos na pele o orçamento passado no feeling, a taxa do cartão parcelado que ninguém lembrou de colocar no preço e o mês de agenda cheia que termina com o caixa apertado. O Precifica é a ferramenta que a gente queria ter tido.</p>
+      </div>
+      <div class="grid-2" style="gap:28px;">
+        <div class="person">
+          <img src="img/marcelo.jpg" alt="Marcelo Migueis, protético e empreendedor, cofundador do Precifica" loading="lazy" width="600" height="750">
+          <div class="person-body">
+            <h3>Marcelo Migueis</h3>
+            <p class="person-role">Protético e empreendedor</p>
+            <p>Protético de formação, com laboratório de prótese dentária e duas clínicas odontológicas no currículo. Cuida do Precifica e do atendimento — se você mandar mensagem, é bem provável que quem responda seja ele.</p>
+          </div>
         </div>
-        <div style="flex:1 1 420px;min-width:0;">
-          <p class="eyebrow">Quem fez o Precifica</p>
-          <h2 style="font-size:clamp(24px,3vw,32px);font-weight:800;color:var(--teal-900);margin-top:10px;">Feito por quem vive a odontologia por dentro</h2>
-          <p style="margin-top:16px;font-size:16px;line-height:1.65;color:var(--stone-700);">Sou o Marcelo, protético. Tenho um laboratório de prótese dentária e sou casado com uma dentista — então acompanho de perto a rotina de consultório: o orçamento passado no feeling, a taxa do cartão parcelado que ninguém lembrou de colocar no preço, o mês de agenda cheia que termina com o caixa apertado.</p>
-          <p style="margin-top:12px;font-size:16px;line-height:1.65;color:var(--stone-700);">Criei o Precifica pra resolver isso com dados reais de consultório: cada procedimento com o custo de verdade, e um plano de tratamento que passa segurança pro paciente. Ficou com alguma dúvida? Fala direto comigo.</p>
-          <a href="https://wa.me/5513996980088?text=Oi%20Marcelo%2C%20vim%20pela%20p%C3%A1gina%20do%20Precifica%20e%20tenho%20uma%20d%C3%BAvida" class="btn btn-ghost" style="margin-top:22px;" data-track="whatsapp_fundador">Falar com o Marcelo no WhatsApp</a>
+        <div class="person">
+          <img src="img/stephanie.jpg" alt="Dra. Stephanie Begliomini, cirurgiã-dentista, cofundadora do Precifica" loading="lazy" width="600" height="750">
+          <div class="person-body">
+            <h3>Dra. Stephanie Begliomini</h3>
+            <p class="person-role">Cirurgiã-dentista</p>
+            <p>Teve as duas clínicas junto com o Marcelo e trouxe pro Precifica a visão de quem está na cadeira: o que a dentista precisa saber na hora de passar o valor, e o que o paciente precisa ver pra fechar o tratamento.</p>
+          </div>
         </div>
+      </div>
+      <div style="text-align:center;margin-top:34px;">
+        <a href="https://wa.me/5513996980088?text=Oi%21%20Vim%20pela%20p%C3%A1gina%20do%20Precifica%20e%20tenho%20uma%20d%C3%BAvida" class="btn btn-ghost" data-track="whatsapp_fundador">Falar com a gente no WhatsApp</a>
       </div>
     </div>
   </section>
@@ -638,7 +660,6 @@
         who.appendChild(info);card.appendChild(who);cards.appendChild(card);
       });
     }
-    if(c.fundador&&c.fundador.foto){var ph=document.getElementById('founder-photo');var img=el('img',{'class':'avatar',src:c.fundador.foto,alt:'Marcelo, criador do Precifica',style:'width:120px;height:120px;'});ph.replaceWith(img);}
   }).catch(function(){});
 
   // Cliques nos botões principais → evento no pixel/Analytics (se ativo).

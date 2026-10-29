@@ -6,6 +6,29 @@
 > completo do que já foi construído, o que está testado, e o que falta.
 
 
+## ✅ Feito nesta sessão (29/10/2026, 5ª parte) — Seção "Quem está por trás do Precifica" com os dois fundadores
+
+O Marcelo mandou as fotos e o contexto: o Precifica é dele, **Marcelo
+Migueis** (protético, empreendedor), junto com a **Dra. Stephanie
+Begliomini** (cirurgiã-dentista). Os dois tiveram 2 clínicas odontológicas
+juntos.
+- Fotos recortadas (4:5) e comprimidas: `public/home/img/marcelo.jpg` e
+  `stephanie.jpg` (600×750, ~60KB cada).
+- A seção `#quem-fez` foi reescrita com dois cartões com foto, nome,
+  papel e um texto curto, uma introdução em comum ("Juntos, tivemos duas
+  clínicas...") e o botão "Falar com a gente no WhatsApp". **Texto escrito
+  pela Claude a partir do que ele contou: os dois devem revisar.** Foi
+  retirada a frase anterior "casado com uma dentista" (não confirmada
+  nesse novo contexto).
+- No topo, o selo agora traz as duas fotos pequenas e "Criado por um
+  protético e uma dentista que tiveram 2 clínicas" (link pra seção).
+- `conteudo.json` não tem mais o campo `fundador` (as fotos agora são
+  fixas no HTML); continua servindo pra `videoDepoimento` e
+  `depoimentos`.
+- Pendente: perguntar se vale mostrar o CRO da Dra. Stephanie na seção
+  (o Código de Ética odontológico pede nome + CRO quando um dentista
+  aparece em divulgação).
+
 ## ✅ Feito nesta sessão (29/10/2026, 4ª parte) — Calculadora removida + trava no preço anual
 
 - **Calculadora da landing removida** a pedido do Marcelo (HTML e script).
