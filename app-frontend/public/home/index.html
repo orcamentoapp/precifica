@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Precifica — precifique seus procedimentos com inteligência</title>
-<meta name="description" content="Descubra o custo real de cada procedimento odontológico e monte planos de tratamento com o preço certo. Teste grátis por 7 dias.">
+<meta name="description" content="Descubra o custo real de cada procedimento odontológico e monte planos de tratamento com o preço certo. Já vem com 37 procedimentos e 61 materiais prontos e funciona junto com o sistema que você já usa. Teste grátis por 7 dias.">
 <link rel="icon" href="img/favicon.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -49,6 +49,25 @@
   .shot-frame{border-radius:16px;border:1px solid var(--stone-200);box-shadow:0 30px 60px -20px rgba(12,41,38,.25);overflow:hidden;background:#fff;}
   .browser-bar{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--stone-100);border-bottom:1px solid var(--stone-200);}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--stone-300);}
+  .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;}
+  .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;}
+  section[id]{scroll-margin-top:84px;}
+  .card{background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:28px;}
+  .cmp{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--stone-200);border-radius:16px;overflow:hidden;font-size:15px;}
+  .cmp th,.cmp td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--stone-200);vertical-align:top;}
+  .cmp tr:last-child td{border-bottom:none;}
+  .cmp th{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--stone-500);background:var(--stone-50);}
+  .cmp td.yes{color:var(--teal-700);font-weight:600;}
+  .cmp td.no{color:var(--stone-500);}
+  .calc input{width:100%;font:inherit;font-size:18px;font-weight:700;padding:12px 14px;border:1.5px solid var(--stone-300);border-radius:10px;color:var(--teal-900);background:#fff;}
+  .calc label{display:block;font-size:13.5px;font-weight:600;color:var(--stone-700);margin-bottom:8px;}
+  .founder-bar{display:none;background:var(--orange-600);color:#fff;font-size:14px;font-weight:600;text-align:center;padding:9px 16px;}
+  .founder-bar a{text-decoration:underline;}
+  .price-old{font-size:16px;color:#9fd4c8;text-decoration:line-through;margin-right:6px;}
+  @media (max-width:860px){
+    .grid-3,.grid-2{grid-template-columns:1fr;}
+    .cmp th,.cmp td{padding:12px 12px;font-size:14px;}
+  }
   @media (max-width:760px){
     .nav-links{display:none !important;}
     .hide-mobile{display:none !important;}
@@ -63,6 +82,9 @@
 
 <div style="width:100%;min-height:100vh;display:flex;flex-direction:column;">
 
+  <!-- FAIXA DA OFERTA DE FUNDADOR (só aparece quando a oferta está ligada no painel admin) -->
+  <div class="founder-bar" id="founder-bar">Oferta de fundador: <span data-founder-price>R$ 29,90</span>/mês pra sempre · restam <span data-founder-remaining>—</span> vagas · <a href="#precos">ver condições</a></div>
+
   <!-- NAV -->
   <nav style="position:sticky;top:0;z-index:20;background:rgba(250,250,249,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--stone-200);">
     <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;height:72px;">
@@ -72,7 +94,8 @@
       </a>
       <div class="nav-links" style="display:flex;align-items:center;gap:32px;font-size:15px;font-weight:500;color:var(--stone-700);">
         <a href="#recursos" style="transition:color .12s;">Recursos</a>
-        <a href="#como-funciona" style="transition:color .12s;">Como funciona</a>
+        <a href="#sem-cadastro" style="transition:color .12s;">Começar rápido</a>
+        <a href="#seu-sistema" style="transition:color .12s;">Com seu sistema</a>
         <a href="#precos" style="transition:color .12s;">Preços</a>
         <a href="#faq" style="transition:color .12s;">Dúvidas</a>
       </div>
@@ -98,7 +121,12 @@
             <a href="/teste-gratis" class="btn btn-primary">Teste grátis por 7 dias</a>
             <a href="#recursos" class="btn btn-ghost">Ver como funciona</a>
           </div>
-          <p style="margin-top:18px;font-size:14px;color:var(--stone-500);">7 dias grátis, sem compromisso de permanência · cancele quando quiser</p>
+          <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;">
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Já vem pronto:</strong> 37 procedimentos e 61 materiais cadastrados e vinculados</span></li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Não troca o seu sistema:</strong> funciona junto com a agenda e o prontuário que você já usa</span></li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Se paga sozinho:</strong> acertar o preço de poucos procedimentos já cobre o mês</span></li>
+          </ul>
+          <p style="margin-top:18px;font-size:14px;color:var(--stone-500);">7 dias grátis, sem fidelidade · cancele quando quiser, direto no app</p>
         </div>
         <div style="flex:1 1 480px;min-width:0;">
           <div class="shot-frame">
@@ -120,7 +148,7 @@
           Toda clínica sente isso em algum momento
         </h2>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;">
+      <div class="grid-3">
         <div style="background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:28px;">
           <div style="width:46px;height:46px;border-radius:12px;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin-bottom:18px;">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A2 2 0 0 0 3.82 21h16.36a2 2 0 0 0 1.71-2.96L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="#dc2626" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -143,6 +171,45 @@
           <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">No fim do mês, a dúvida: esse procedimento deu lucro ou só pagou o material e a hora clínica?</p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- OBJEÇÃO 1: "não tenho tempo de cadastrar tudo" -->
+  <section id="sem-cadastro" style="padding:80px 0;background:#fff;border-top:1px solid var(--stone-200);">
+    <div class="wrap">
+      <div style="text-align:center;max-width:680px;margin:0 auto 48px;">
+        <p class="eyebrow">"Não tenho tempo de cadastrar tudo"</p>
+        <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Você não começa do zero. Nem precisa cadastrar nada pra começar.</h2>
+        <p style="margin-top:14px;font-size:17px;line-height:1.6;color:var(--stone-700);">O motivo nº 1 de quem desiste de precificar direito é o cadastro. Por isso o Precifica já abre com uma clínica inteira configurada — você só ajusta o que for diferente na sua.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <div style="font-size:34px;font-weight:800;color:var(--teal-700);line-height:1;">37 + 61</div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);margin-top:12px;">Base pronta desde o primeiro minuto</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">37 procedimentos em 5 especialidades (Prótese, Clínico, Endodontia, Estética e Ortodontia) e 61 materiais com marca, embalagem e preço — <strong>já vinculados entre si</strong>. O custo de cada procedimento aparece calculado na hora em que você entra.</p>
+        </div>
+        <div class="card">
+          <div style="font-size:34px;font-weight:800;color:var(--teal-700);line-height:1;">3 números</div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);margin-top:12px;">É só isso que só você sabe</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Seus custos fixos do mês, o pró-labore que você quer tirar e quantas horas atende. Com isso o Precifica calcula sua hora clínica — e o imposto ele já sugere sozinho. Um tour guiado mostra onde fica cada coisa.</p>
+        </div>
+        <div class="card" style="background:var(--teal-50);border-color:var(--teal-100);">
+          <div style="font-size:34px;font-weight:800;color:var(--teal-700);line-height:1;">Ou</div>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);margin-top:12px;">A gente cadastra pra você</h3>
+          <p style="margin-top:10px;font-size:15px;line-height:1.55;color:var(--stone-600);">Prefere não mexer em nada? Na consultoria, um especialista cadastra os seus materiais (marca, quantidade usada, preço do seu fornecedor) e deixa o preço de cada procedimento batendo com o custo real da sua clínica.</p>
+          <a href="#consultoria" style="display:inline-block;margin-top:14px;font-size:14px;font-weight:600;color:var(--teal-700);">Ver como funciona a consultoria →</a>
+        </div>
+      </div>
+      <div style="margin-top:40px;display:flex;flex-wrap:wrap;justify-content:center;gap:12px 28px;font-size:15px;color:var(--stone-700);">
+        <span><strong style="color:var(--teal-700);">1.</strong> Cria a conta</span>
+        <span style="color:var(--stone-300);">→</span>
+        <span><strong style="color:var(--teal-700);">2.</strong> Preenche os 3 números</span>
+        <span style="color:var(--stone-300);">→</span>
+        <span><strong style="color:var(--teal-700);">3.</strong> Coloca seu logo</span>
+        <span style="color:var(--stone-300);">→</span>
+        <span><strong style="color:var(--teal-700);">4.</strong> Monta o primeiro orçamento</span>
+      </div>
+      <p style="text-align:center;margin-top:10px;font-size:14px;color:var(--stone-500);">Os materiais e preços você vai ajustando com o tempo, conforme usa — não precisa fazer tudo no primeiro dia.</p>
     </div>
   </section>
 
@@ -230,6 +297,61 @@
     </div>
   </section>
 
+  <!-- OBJEÇÃO 2: "já pago um sistema, não quero pagar dois" -->
+  <section id="seu-sistema" style="padding:80px 0;background:#fff;border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
+    <div class="wrap">
+      <div style="text-align:center;max-width:700px;margin:0 auto 44px;">
+        <p class="eyebrow">"Já pago um sistema pra clínica"</p>
+        <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Continue com ele. O Precifica faz a parte que ele não faz.</h2>
+        <p style="margin-top:14px;font-size:17px;line-height:1.6;color:var(--stone-700);">Seu sistema de gestão cuida da agenda, do prontuário e do financeiro. Mas o preço que aparece nele é o preço que <strong>você digitou</strong> — ele não te diz se aquele valor cobre o material, a sua hora, a taxa da maquininha e o imposto. É exatamente essa conta que o Precifica faz.</p>
+      </div>
+      <div style="max-width:860px;margin:0 auto;overflow-x:auto;">
+        <table class="cmp">
+          <thead>
+            <tr><th style="width:44%;"></th><th>Sistema de gestão<br><span style="text-transform:none;letter-spacing:0;font-weight:500;">(o que você já usa)</span></th><th style="color:var(--teal-700);">Precifica</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Agenda, prontuário, controle de pacientes</td><td class="yes">✓ Continue usando</td><td class="no">Não substitui — e nem tenta</td></tr>
+            <tr><td>Custo real do material em cada procedimento</td><td class="no">Normalmente não calcula</td><td class="yes">✓ Calcula pela embalagem e pelo quanto você usa</td></tr>
+            <tr><td>Valor da sua hora clínica entrando no preço</td><td class="no">Normalmente não calcula</td><td class="yes">✓ Automático</td></tr>
+            <tr><td>Taxa da maquininha por parcela e imposto no valor final</td><td class="no">Normalmente não calcula</td><td class="yes">✓ Valor certo pra cada forma de pagamento</td></tr>
+            <tr><td>Saber se o preço dá lucro antes de falar com o paciente</td><td class="no">—</td><td class="yes">✓ Resumo de custo e margem só pra você</td></tr>
+            <tr><td>Plano de tratamento com seu logo, CRO e marca d'água</td><td class="no">Geralmente um modelo padrão</td><td class="yes">✓ PDF, imagem ou WhatsApp</td></tr>
+            <tr><td>Migrar dados ou mudar a rotina da recepção</td><td class="no">—</td><td class="yes">✓ Não precisa: usa só na hora do orçamento</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Calculadora: quanto o Precifica se paga -->
+      <div style="max-width:860px;margin:44px auto 0;background:var(--teal-50);border:1px solid var(--teal-100);border-radius:18px;padding:32px;">
+        <h3 style="font-size:20px;font-weight:800;color:var(--teal-900);">Faça a conta: ele se paga?</h3>
+        <p style="margin-top:8px;font-size:15px;line-height:1.55;color:var(--stone-700);">Quem precifica "de cabeça" costuma esquecer algum custo — a taxa do cartão parcelado, o imposto, um material. Coloque números da sua realidade:</p>
+        <div class="calc grid-2" style="margin-top:22px;gap:18px;">
+          <div>
+            <label for="calc-procs">Procedimentos que você faz por mês</label>
+            <input id="calc-procs" type="number" min="0" step="1" value="30" inputmode="numeric">
+          </div>
+          <div>
+            <label for="calc-gap">Quanto fica "na mesa" por procedimento (R$)</label>
+            <input id="calc-gap" type="number" min="0" step="1" value="20" inputmode="decimal">
+          </div>
+        </div>
+        <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;">
+          <div style="flex:1 1 220px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;">
+            <div style="font-size:13px;color:var(--stone-500);">Dinheiro que pode estar ficando na mesa</div>
+            <div id="calc-loss" style="font-size:28px;font-weight:800;color:#b91c1c;margin-top:4px;">R$ 600/mês</div>
+          </div>
+          <div style="flex:1 1 220px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:18px;">
+            <div style="font-size:13px;color:var(--stone-500);">Precifica</div>
+            <div style="font-size:28px;font-weight:800;color:var(--teal-700);margin-top:4px;"><span data-price-effective>R$ 39,90</span>/mês</div>
+          </div>
+        </div>
+        <p id="calc-msg" style="margin-top:16px;font-size:15px;line-height:1.55;color:var(--stone-700);"></p>
+        <p style="margin-top:10px;font-size:12.5px;color:var(--stone-500);">Simulação ilustrativa com os números que você digitou — não é promessa de resultado.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- COMO FUNCIONA -->
   <section id="como-funciona" style="padding:80px 0;">
     <div class="wrap">
@@ -237,7 +359,7 @@
         <p class="eyebrow">Como funciona</p>
         <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Do zero ao orçamento fechado, em 3 passos</h2>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;">
+      <div class="grid-3" style="gap:32px;">
         <div>
           <div style="width:40px;height:40px;border-radius:999px;background:var(--teal-700);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;margin-bottom:18px;">1</div>
           <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Configure uma vez</h3>
@@ -260,37 +382,60 @@
   <!-- PREÇOS -->
   <section id="precos" style="padding:80px 0;background:var(--stone-100);border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
     <div class="wrap">
-      <div style="text-align:center;max-width:620px;margin:0 auto 52px;">
+      <div style="text-align:center;max-width:640px;margin:0 auto 44px;">
         <p class="eyebrow">Planos</p>
         <h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;color:var(--teal-900);margin-top:10px;">Comece com 7 dias grátis</h2>
-        <p style="margin-top:14px;font-size:16px;color:var(--stone-600);">Sem letra miúda. Cancele quando quiser, direto no painel de "Gerenciar assinatura".</p>
+        <p id="plans-sub" style="margin-top:14px;font-size:16px;color:var(--stone-600);">Tudo liberado nos dois planos. Sem fidelidade no mensal — cancele quando quiser, direto no app.</p>
       </div>
-      <div style="display:flex;justify-content:center;">
-        <div style="flex:1 1 360px;max-width:400px;background:var(--teal-900);border-radius:18px;padding:40px;display:flex;flex-direction:column;box-shadow:0 30px 60px -20px rgba(11,59,55,.45);">
-          <h3 style="font-size:18px;font-weight:700;color:#fff;">Plano único</h3>
-          <p style="margin-top:6px;font-size:14px;color:#9fd4c8;">Tudo do Precifica, sem pegadinha</p>
+      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:24px;">
+        <!-- Mensal -->
+        <div style="flex:1 1 320px;max-width:380px;background:#fff;border:1px solid var(--stone-200);border-radius:18px;padding:36px;display:flex;flex-direction:column;position:relative;">
+          <span id="founder-badge" style="display:none;position:absolute;top:-12px;left:36px;background:var(--orange-600);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;">PREÇO DE FUNDADOR · restam <span data-founder-remaining>—</span> vagas</span>
+          <h3 style="font-size:18px;font-weight:700;color:var(--stone-900);">Mensal</h3>
+          <p style="margin-top:6px;font-size:14px;color:var(--stone-500);">Flexível, sem fidelidade<span id="monthly-regular" style="display:none;"> · preço normal <span data-price-monthly>R$ 39,90</span></span></p>
+          <div style="margin-top:22px;display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;">
+            
+            <span style="font-size:44px;font-weight:800;color:var(--teal-900);" data-price-monthly-effective>R$ 39,90</span>
+            <span style="font-size:15px;color:var(--stone-500);">/mês</span>
+          </div>
+          <p id="founder-note" style="display:none;margin-top:8px;font-size:13.5px;line-height:1.5;color:var(--orange-700);font-weight:600;">Esse valor fica travado pra sempre enquanto você mantiver a assinatura — mesmo depois que as vagas acabarem e o preço voltar a <span data-price-monthly>R$ 39,90</span>.</p>
+          <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;flex:1;">
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Orçamentos, procedimentos, materiais e pacientes ilimitados</span></li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Base pronta com 37 procedimentos e 61 materiais</span></li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Plano de tratamento com sua marca (PDF, imagem, WhatsApp)</span></li>
+            <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Cancele quando quiser</span></li>
+          </ul>
+          <a href="/teste-gratis" class="btn btn-primary" style="margin-top:28px;width:100%;">Testar 7 dias grátis</a>
+        </div>
+        <!-- Anual (escondido enquanto a oferta de fundador está no ar — ver script) -->
+        <div id="annual-card" style="flex:1 1 320px;max-width:380px;background:var(--teal-900);border-radius:18px;padding:36px;display:flex;flex-direction:column;box-shadow:0 30px 60px -20px rgba(11,59,55,.45);position:relative;">
+          <span style="position:absolute;top:-12px;left:36px;background:#f59e0b;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;" data-annual-badge>3 MESES GRÁTIS</span>
+          <h3 style="font-size:18px;font-weight:700;color:#fff;">Anual</h3>
+          <p style="margin-top:6px;font-size:14px;color:#9fd4c8;">O melhor preço, pago uma vez por ano</p>
           <div style="margin-top:22px;display:flex;align-items:baseline;gap:6px;">
-            <span style="font-size:44px;font-weight:800;color:#fff;">R$ 19,90</span>
+            <span style="font-size:44px;font-weight:800;color:#fff;" data-price-annual-month>R$ 29,90</span>
             <span style="font-size:15px;color:#9fd4c8;">/mês</span>
           </div>
-          <ul style="margin:26px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;flex:1;">
-            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Orçamentos ilimitados</li>
-            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Procedimentos, materiais e pacientes ilimitados</li>
-            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Cancele quando quiser</li>
+          <p style="margin-top:8px;font-size:13.5px;color:#9fd4c8;"><span data-price-annual>R$ 358,80</span> cobrados 1x por ano no cartão</p>
+          <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;flex:1;">
+            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo do plano mensal</span></li>
+            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><span data-annual-savings>Economia de R$ 120,00 no ano</span></span></li>
+            <li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Preço garantido pelos 12 meses</span></li><li style="display:flex;gap:10px;font-size:14.5px;color:#e4f3ef;"><svg width="18" height="18" style="flex-shrink:0;margin-top:2px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#15988a"/><path d="M6 10.5 8.5 13 14 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>7 dias de garantia: desistiu, reembolso total</span></li>
           </ul>
-          <a href="/teste-gratis" class="btn btn-primary" style="margin-top:28px;width:100%;">Teste grátis por 7 dias</a>
+          <a href="/assinar" class="btn btn-on-dark" style="margin-top:28px;width:100%;">Assinar o anual</a>
         </div>
       </div>
+      <p style="text-align:center;margin-top:26px;font-size:14px;color:var(--stone-500);">Pagamento seguro por cartão de crédito, processado pelo Stripe. O teste grátis vale uma vez por cartão.</p>
     </div>
   </section>
 
   <!-- CONSULTORIA -->
-  <section style="padding:72px 0;background:#fff;border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
+  <section id="consultoria" style="padding:72px 0;background:#fff;border-top:1px solid var(--stone-200);border-bottom:1px solid var(--stone-200);">
     <div class="wrap">
       <div class="feature-row" style="display:flex;flex-wrap:wrap;gap:56px;align-items:center;">
         <div style="flex:1 1 440px;min-width:0;">
           <p class="eyebrow">Serviço opcional</p>
-          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Não tem tempo de cadastrar tudo sozinho?</h2>
+          <h2 style="font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Prefere que a gente faça o cadastro por você?</h2>
           <p style="margin-top:16px;font-size:16px;line-height:1.6;color:var(--stone-700);">Oferecemos um serviço de consultoria independente para quem prefere entregar essa parte para alguém: um especialista cadastra e atualiza seus materiais — marca, quantidade usada, custo da embalagem — e vincula tudo aos seus procedimentos, com o preço final já batendo com o custo real da sua clínica.</p>
           <ul style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px;">
             <li style="display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--stone-700);"><svg width="18" height="18" style="flex-shrink:0;margin-top:3px;" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#d7efe9"/><path d="M6 10.5 8.5 13 14 7" stroke="#0f6b61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Cadastro e atualização de materiais com marca, quantidade e preço</li>
@@ -319,8 +464,7 @@
         <p class="eyebrow">Dúvidas frequentes</p>
         <h2 style="font-size:clamp(26px,3vw,34px);font-weight:800;color:var(--teal-900);margin-top:10px;">Perguntas de quem está decidindo</h2>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Preciso saber usar planilha ou ter conhecimento financeiro para usar o Precifica?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. Você configura o custo da sua hora clínica uma única vez (custos fixos, pró-labore desejado e horas produtivas) e o sistema faz o resto. Depois disso, cada procedimento já nasce com o preço calculado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O teste grátis de 7 dias pede cartão de crédito?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim, o cadastro do cartão é necessário para iniciar o teste, mas você não é cobrado durante os 7 dias. Pode cancelar quando quiser antes do fim do período, direto pelo painel de "Gerenciar assinatura".</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Existe fidelidade ou plano anual?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Hoje o Precifica tem um plano único, de R$ 19,90 por mês. Você pode cancelar quando quiser, direto no painel de "Gerenciar assinatura".</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O Precifica serve para consultório individual e para clínica com vários dentistas?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Nas configurações você escolhe se é um consultório ou uma clínica, e os dados (nome, CRO/CRM, endereço) aparecem automaticamente nos orçamentos exportados.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Consigo exportar o orçamento para mostrar ao paciente?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Todo orçamento pode ser salvo, exportado ou apresentado direto na tela para o paciente, com o valor final já calculado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Como funciona a consultoria de cadastro de materiais?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É um serviço opcional, separado da assinatura do Precifica: um especialista cadastra e mantém atualizados os materiais da sua clínica (marca, quantidade usada e custo) vinculados a cada procedimento. O valor varia conforme o tamanho da sua tabela — fale com a gente para uma proposta.</div></div>
+      <div style="display:flex;flex-direction:column;gap:12px;"><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Já uso um sistema de gestão. Vou precisar trocar ou migrar alguma coisa?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. O Precifica não substitui sua agenda, prontuário ou financeiro — ele cuida só da precificação e do orçamento. Você usa os dois lado a lado: monta o orçamento no Precifica (no computador ou no celular) e segue a rotina normal no seu sistema.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Não tenho tempo de cadastrar procedimentos e materiais. Vale a pena mesmo assim?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Vale, porque você não começa do zero: a conta já vem com 37 procedimentos e 61 materiais cadastrados e vinculados. Pra começar, você só informa custos fixos, pró-labore e horas atendidas. O resto você ajusta aos poucos, conforme usa. E se preferir não mexer em nada, a consultoria faz o cadastro por você.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Os preços da base servem pra minha cidade?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">São valores de referência, pra você não começar do zero. Como o Precifica mostra o custo real de cada procedimento, você vê na hora se o valor de referência cobre seus custos e ajusta pro seu mercado.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Preciso saber usar planilha ou ter conhecimento financeiro?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Não. Você configura o custo da sua hora clínica uma única vez (custos fixos, pró-labore desejado e horas atendidas) e o sistema faz o resto. Um tour guiado mostra cada passo na primeira vez que você entra.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O teste grátis de 7 dias pede cartão de crédito?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim, o cadastro do cartão é necessário para iniciar o teste, mas nada é cobrado durante os 7 dias. Se cancelar antes do fim, direto em Configurações › Gerenciar Assinatura, não paga nada. O teste vale uma vez por cartão.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Qual a diferença entre o mensal e o anual?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Os dois liberam tudo. No mensal você paga mês a mês e cancela quando quiser. No anual você paga uma vez por ano e sai bem mais barato por mês — e tem 7 dias pra desistir com reembolso total, como em qualquer compra online.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>O que é o preço de fundador?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É uma condição de lançamento, por tempo limitado: enquanto houver vagas, quem assina o plano mensal paga um valor menor e mantém esse valor pra sempre, enquanto não cancelar a assinatura. Quando as vagas acabam, novos assinantes pagam o preço normal. Quando a oferta está no ar, ela aparece no topo desta página com o número de vagas restantes.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Serve para consultório individual e para clínica com vários dentistas?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. Você escolhe se é consultório ou clínica, cadastra os profissionais e os dados de cada um (nome, especialidade, CRO) aparecem automaticamente nos orçamentos exportados.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Como funciona a consultoria de cadastro de materiais?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">É um serviço opcional, separado da assinatura: um especialista cadastra e mantém atualizados os materiais da sua clínica (marca, quantidade usada e preço do seu fornecedor) vinculados a cada procedimento. O valor varia conforme o tamanho da sua tabela — fale com a gente pelo WhatsApp para uma proposta.</div></div><div class="faq-item" style="background:#fff;border:1px solid var(--stone-200);border-radius:14px;overflow:hidden;"><button class="faq-q" aria-expanded="false" style="width:100%;background:transparent;border:none;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;font-size:16px;font-weight:600;color:var(--stone-900);"><span>Meus dados e os dos meus pacientes ficam seguros?</span><span class="faq-i" style="flex-shrink:0;width:22px;text-align:center;color:var(--teal-700);">+</span></button><div class="faq-a" hidden style="padding:0 22px 20px;font-size:15px;line-height:1.6;color:var(--stone-600);">Sim. A conexão é criptografada, cada conta só acessa os próprios dados, e você pode baixar tudo ou excluir a conta quando quiser. Detalhes na <a href="/privacidade.html" style="color:var(--teal-700);text-decoration:underline;">Política de Privacidade</a>.</div></div>
       </div>
     </div>
   </section>
@@ -329,7 +473,7 @@
   <section style="padding:72px 0;background:linear-gradient(135deg,var(--teal-800),var(--teal-900));">
     <div class="wrap" style="text-align:center;">
       <h2 style="font-size:clamp(26px,3.4vw,38px);font-weight:800;color:#fff;max-width:620px;margin:0 auto;">Da configuração ao orçamento fechado, sem planilha nenhuma por fora.</h2>
-      <p style="margin-top:16px;font-size:16px;color:#bfe3da;">Experimente o Precifica por 7 dias e veja o preço de cada procedimento bater com o custo real do seu consultório.</p>
+      <p style="margin-top:16px;font-size:16px;color:#bfe3da;">Já vem com a base pronta e roda ao lado do sistema que você já usa. Teste 7 dias grátis e veja o preço de cada procedimento bater com o custo real do seu consultório.</p>
       <a href="/teste-gratis" class="btn btn-on-dark" style="margin-top:30px;">Começar teste grátis</a>
     </div>
   </section>
@@ -342,13 +486,57 @@
         <span style="font-size:15px;font-weight:600;color:#fff;">Precifica</span>
         <span style="font-size:13px;color:#8a8580;" class="hide-mobile">· precifique seus procedimentos com inteligência</span>
       </div>
-      <p style="font-size:13px;color:#8a8580;">© 2026 Precifica — um produto Vertere Labs · <a href="/termos.html" style="color:#a8a29e;">Termos de Uso</a> · <a href="/privacidade.html" style="color:#a8a29e;">Privacidade</a></p>
+      <p style="font-size:13px;color:#8a8580;">© 2026 Precifica — um produto Vertere Labs · Marcelo Migueis Ferreira da Silva · CPF 404.328.438-17 · Av. Dr. Pedro Lessa, 1225, Aparecida, Santos/SP · <a href="/termos.html" style="color:#a8a29e;">Termos de Uso</a> · <a href="/privacidade.html" style="color:#a8a29e;">Privacidade</a></p>
     </div>
   </footer>
 
 </div>
 
 <script>
+(function(){
+  function brl(v){return 'R$ '+v.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
+  var P={monthly:39.9,annual:358.8,founder:null};
+  function setAll(sel,txt){document.querySelectorAll(sel).forEach(function(e){e.textContent=txt;});}
+  function effective(){return P.founder?P.founder.price:P.monthly;}
+  function render(){
+    setAll('[data-price-monthly]',brl(P.monthly));
+    setAll('[data-price-annual]',brl(P.annual));
+    setAll('[data-price-annual-month]',brl(P.annual/12));
+    var save=P.monthly*12-P.annual;
+    setAll('[data-annual-savings]','Economia de '+brl(Math.max(0,save))+' no ano');
+    var months=Math.floor(save/P.monthly+0.0001);
+    var pct=Math.round((1-P.annual/(P.monthly*12))*100);
+    setAll('[data-annual-badge]',months>=1?(months+(months===1?' MÊS GRÁTIS':' MESES GRÁTIS')):(pct>0?('-'+pct+'%'):'ANUAL'));
+    setAll('[data-price-monthly-effective]',brl(effective()));
+    setAll('[data-price-effective]',brl(effective()));
+    var f=!!P.founder;
+    ['founder-bar','founder-badge','founder-note','monthly-regular'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=f?(id==='founder-bar'?'block':(id==='founder-badge'?'inline-block':'inline')):'none';});
+    var note=document.getElementById('founder-note');if(note&&f)note.style.display='block';
+    // Fase de lançamento: só a oferta de fundador (o anual sairia pelo mesmo
+    // valor mensal, com menos flexibilidade — confundiria). Quando as vagas
+    // acabam, volta o mensal cheio + o anual com desconto.
+    var ac=document.getElementById('annual-card');if(ac)ac.style.display=f?'none':'flex';
+    if(f){setAll('[data-founder-price]',brl(P.founder.price));setAll('[data-founder-remaining]',String(P.founder.remaining));}
+    var sub=document.getElementById('plans-sub');if(sub)sub.textContent=f?'Condição de lançamento, por tempo limitado. Sem fidelidade — cancele quando quiser, direto no app.':'Tudo liberado nos dois planos. Sem fidelidade no mensal — cancele quando quiser, direto no app.';
+    calc();
+  }
+  function calc(){
+    var n=Math.max(0,Number(document.getElementById('calc-procs').value)||0);
+    var g=Math.max(0,Number(document.getElementById('calc-gap').value)||0);
+    var loss=n*g, price=effective();
+    document.getElementById('calc-loss').textContent=brl(loss)+'/mês';
+    var msg=document.getElementById('calc-msg');
+    if(loss<=0){msg.textContent='';return;}
+    var need=Math.ceil(price/Math.max(g,0.01));
+    msg.innerHTML='Recuperando só <strong>'+need+(need===1?' procedimento':' procedimentos')+'</strong> por mês com o preço certo, o Precifica já se pagou'+(loss>price?' — e sobram <strong>'+brl(loss-price)+'</strong> por mês, '+brl((loss-price)*12)+' no ano.':'.');
+  }
+  ['calc-procs','calc-gap'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',calc);});
+  render();
+  fetch('/api/payments/pricing').then(function(r){return r.json();}).then(function(d){
+    if(!d||typeof d.monthlyPrice!=='number')return;
+    P={monthly:d.monthlyPrice,annual:d.annualPrice,founder:d.founder||null};render();
+  }).catch(function(){});
+})();
 document.querySelectorAll('.faq-q').forEach(function(b){b.addEventListener('click',function(){var a=b.nextElementSibling,open=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!open));a.hidden=open;b.querySelector('.faq-i').textContent=open?'+':'\u2212';});});
 </script>
 </body>

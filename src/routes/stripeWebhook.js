@@ -79,12 +79,13 @@ async function handleInvoicePaid(invoice) {
       // uma fatura — só atualiza a validade.
       const newStatus =
         existingLicense.status === "revoked" ? "revoked" : existingLicense.status === "unused" ? "unused" : "active";
-      await client.query("UPDATE licenses SET expires_at = $1, status = $2, type = $3 WHERE id = $4", [
-        expiresAt,
-        newStatus,
-        plan,
-        existingLicense.id,
-      ]);
+      // Valor realmente pago nessa fatura (já com desconto/cupom, se houver)
+      // — mantém o MRR do painel fiel ao que entra de verdade.
+      const paid = (invoice.amount_paid || 0) / 100;
+      await client.query(
+        "UPDATE licenses SET expires_at = $1, status = $2, type = $3, recurring_amount = COALESCE($5, recurring_amount) WHERE id = $4",
+        [expiresAt, newStatus, plan, existingLicense.id, paid > 0 ? paid : null]
+      );
       if (buyerEmail) {
         if (wasTrial) {
           emails.push(() => sendLicensePurchasedEmail(buyerEmail, existingLicense.code, process.env.APP_URL || ""));
@@ -103,9 +104,9 @@ async function handleInvoicePaid(invoice) {
     }
     const code = generateLicenseCode();
     const ins = await client.query(
-      `INSERT INTO licenses (code, status, type, expires_at, stripe_customer_id, stripe_subscription_id, buyer_email, source)
-       VALUES ($1, 'unused', $2, $3, $4, $5, $6, 'stripe') ON CONFLICT DO NOTHING RETURNING id`,
-      [code, plan, expiresAt, customerId, subscriptionId, buyerEmail.trim().toLowerCase()]
+      `INSERT INTO licenses (code, status, type, expires_at, stripe_customer_id, stripe_subscription_id, buyer_email, source, recurring_amount)
+       VALUES ($1, 'unused', $2, $3, $4, $5, $6, 'stripe', $7) ON CONFLICT DO NOTHING RETURNING id`,
+      [code, plan, expiresAt, customerId, subscriptionId, buyerEmail.trim().toLowerCase(), (invoice.amount_paid || 0) / 100 || null]
     );
     if (ins.rows[0]) emails.push(() => sendLicensePurchasedEmail(buyerEmail, code, process.env.APP_URL || ""));
   });

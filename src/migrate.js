@@ -207,6 +207,16 @@ async function migrate() {
       err.message
     );
   }
+  // Assinatura com preço de fundador (oferta de lançamento — ver
+  // pricingSettings.js). Usado pra contar as vagas restantes.
+  await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS founder BOOLEAN NOT NULL DEFAULT false;`);
+  // Valor que essa assinatura cobra a cada ciclo (mês ou ano), em reais —
+  // gravado na compra e atualizado a cada fatura paga. Deixa o MRR do
+  // painel certo mesmo com preços diferentes convivendo (fundador, quem
+  // assinou num preço antigo, cupom). NULL em licenças antigas: o painel
+  // usa o preço atual como estimativa.
+  await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS recurring_amount NUMERIC(10,2);`);
+
   // Cartões que já usaram o teste grátis (impressão digital do cartão no
   // Stripe — não é o número do cartão, é só um identificador). Impede a
   // mesma pessoa de fazer vários testes grátis trocando só o e-mail.

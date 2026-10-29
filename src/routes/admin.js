@@ -2,7 +2,7 @@ const express = require("express");
 const pool = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { generateLicenseCode } = require("../utils/licenseCode");
-const { getPricing, setPricing } = require("../utils/pricingSettings");
+const { getPricing, setPricing, getFounderStatus } = require("../utils/pricingSettings");
 const { cancelSubscriptionNow, cancelAllSubscriptionsForUser } = require("../utils/subscriptionCleanup");
 const { cancelSubscriptionAtPeriodEnd } = require("../utils/stripe");
 
@@ -38,7 +38,7 @@ router.use(requireAdmin);
 router.get("/pricing", async (req, res) => {
   try {
     const pricing = await getPricing();
-    res.json(pricing);
+    res.json({ ...pricing, founder: await getFounderStatus() });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao carregar os preços" });
@@ -46,14 +46,14 @@ router.get("/pricing", async (req, res) => {
 });
 
 router.post("/pricing", async (req, res) => {
-  const { monthlyPrice, annualPrice } = req.body || {};
+  const { monthlyPrice, annualPrice, founderActive, founderPrice, founderLimit } = req.body || {};
   try {
-    const pricing = await setPricing({ monthlyPrice, annualPrice });
-    res.json(pricing);
+    const pricing = await setPricing({ monthlyPrice, annualPrice, founderActive, founderPrice, founderLimit });
+    res.json({ ...pricing, founder: await getFounderStatus() });
   } catch (err) {
     // Erros de validação (preço inválido) do próprio setPricing() viram 400;
     // qualquer outra coisa (banco fora do ar, etc.) é 500.
-    const isValidation = /inválido/i.test(err.message || "");
+    const isValidation = /inválid/i.test(err.message || "");
     console.error(err);
     res.status(isValidation ? 400 : 500).json({ error: err.message || "Erro ao salvar os preços" });
   }
@@ -98,8 +98,13 @@ router.get("/dashboard-stats", async (req, res) => {
          WHERE l.status = 'active' AND l.type = 'trial' AND l.user_id IS NOT NULL
            AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)`
       ),
+      // Por plano: quantidade e soma do valor REAL cobrado (recurring_amount);
+      // `unknown` conta as licenças antigas sem esse valor gravado.
       pool.query(
-        `SELECT type, COUNT(*)::int AS n FROM licenses l
+        `SELECT type, COUNT(*)::int AS n,
+                COALESCE(SUM(recurring_amount), 0)::float AS known_sum,
+                COUNT(*) FILTER (WHERE recurring_amount IS NULL)::int AS unknown
+         FROM licenses l
          WHERE l.status = 'active' AND l.type IN ('monthly','annual') AND l.user_id IS NOT NULL
            AND l.stripe_subscription_id IS NOT NULL
            AND EXISTS (SELECT 1 FROM users u WHERE u.id = l.user_id)
@@ -149,11 +154,16 @@ router.get("/dashboard-stats", async (req, res) => {
     ]);
 
     const planCounts = { monthly: 0, annual: 0 };
+    const { monthlyPrice, annualPrice } = await getPricing();
+    // MRR = soma do que cada assinatura cobra de verdade (anual ÷ 12). Pra
+    // licenças antigas sem valor gravado, estima com o preço atual.
+    let mrr = 0;
     planCountsRes.rows.forEach((r) => {
       planCounts[r.type] = r.n;
+      const fallback = r.type === "annual" ? annualPrice : monthlyPrice;
+      const total = r.known_sum + r.unknown * fallback;
+      mrr += r.type === "annual" ? total / 12 : total;
     });
-    const { monthlyPrice, annualPrice } = await getPricing();
-    const mrr = planCounts.monthly * monthlyPrice + planCounts.annual * (annualPrice / 12);
 
     const { total_trials, converted } = conversionRes.rows[0];
     const conversionRate = total_trials > 0 ? (converted / total_trials) * 100 : null;

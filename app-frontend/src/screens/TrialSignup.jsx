@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { screenStyle, inputStyle, buttonStyle, linkStyle, errorBoxStyle } from "../authStyles";
 import AuthLogo from "../AuthLogo";
 import TermsCheckbox from "../TermsCheckbox";
@@ -10,6 +10,22 @@ import TermsCheckbox from "../TermsCheckbox";
 export default function TrialSignup({ onBackToLogin }) {
   const [email, setEmail] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Valor que vai ser cobrado DEPOIS do teste (transparência: a pessoa vê
+  // antes de cadastrar o cartão) — com preço de fundador, se estiver no ar.
+  const [afterTrial, setAfterTrial] = useState(null); // { price, founder: bool, remaining }
+  useEffect(() => {
+    fetch("/api/payments/pricing")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d || typeof d.monthlyPrice !== "number") return;
+        setAfterTrial(
+          d.founder
+            ? { price: d.founder.price, regular: d.monthlyPrice, founder: true, remaining: d.founder.remaining }
+            : { price: d.monthlyPrice, founder: false }
+        );
+      })
+      .catch(() => {});
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -78,6 +94,22 @@ export default function TrialSignup({ onBackToLogin }) {
               <br />
               <strong>Nota:</strong> é necessário cadastrar um cartão válido para ativar o período de testes. O
               teste grátis vale uma vez por cartão.
+              {afterTrial && (
+                <>
+                  <br />
+                  <br />
+                  <strong>Depois do teste:</strong> R$ {afterTrial.price.toFixed(2).replace(".", ",")}/mês
+                  {afterTrial.founder ? (
+                    <>
+                      {" "}— <strong>preço de fundador</strong>, travado pra sempre enquanto você mantiver a assinatura
+                      (o preço normal é R$ {afterTrial.regular.toFixed(2).replace(".", ",")}). Restam{" "}
+                      {afterTrial.remaining} vagas.
+                    </>
+                  ) : (
+                    "."
+                  )}
+                </>
+              )}
             </p>
           </div>
 

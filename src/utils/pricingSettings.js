@@ -23,7 +23,13 @@
 // perceber.
 const pool = require("../db");
 
-const DEFAULTS = { monthlyPrice: 99.9, annualPrice: 599.9 };
+const DEFAULTS = { monthlyPrice: 39.9, annualPrice: 358.8 };
+// Oferta de fundador (lançamento): os primeiros N assinantes do plano
+// MENSAL pagam um preço menor PRA SEMPRE (enquanto mantiverem a mesma
+// assinatura). Funciona sozinho porque cada assinatura do Stripe guarda o
+// preço com que foi criada — mudar o preço depois não afeta quem já assinou.
+// Desligada por padrão; o admin liga em Configurações.
+const FOUNDER_DEFAULTS = { active: false, price: 29.9, limit: 100 };
 const CACHE_TTL_MS = 30 * 1000;
 
 let cache = null; // { monthlyPrice, annualPrice, loadedAt } | null
@@ -38,7 +44,7 @@ function envDefaults() {
 async function loadFromDb() {
   const fallback = envDefaults();
   const { rows } = await pool.query(
-    "SELECT key, value FROM app_settings WHERE key IN ('monthly_price', 'annual_price')"
+    "SELECT key, value FROM app_settings WHERE key IN ('monthly_price', 'annual_price', 'founder_active', 'founder_price', 'founder_limit')"
   );
   const saved = {};
   rows.forEach((r) => {
@@ -46,9 +52,16 @@ async function loadFromDb() {
   });
   const monthlyPrice = saved.monthly_price != null ? Number(saved.monthly_price) : fallback.monthlyPrice;
   const annualPrice = saved.annual_price != null ? Number(saved.annual_price) : fallback.annualPrice;
+  const founderPrice = saved.founder_price != null ? Number(saved.founder_price) : FOUNDER_DEFAULTS.price;
+  const founderLimit = saved.founder_limit != null ? parseInt(saved.founder_limit, 10) : FOUNDER_DEFAULTS.limit;
   return {
     monthlyPrice: Number.isFinite(monthlyPrice) && monthlyPrice > 0 ? monthlyPrice : fallback.monthlyPrice,
     annualPrice: Number.isFinite(annualPrice) && annualPrice > 0 ? annualPrice : fallback.annualPrice,
+    founder: {
+      active: saved.founder_active === "true",
+      price: Number.isFinite(founderPrice) && founderPrice > 0 ? founderPrice : FOUNDER_DEFAULTS.price,
+      limit: Number.isInteger(founderLimit) && founderLimit > 0 ? founderLimit : FOUNDER_DEFAULTS.limit,
+    },
   };
 }
 
@@ -58,7 +71,7 @@ async function loadFromDb() {
 async function getPricing() {
   const now = Date.now();
   if (cache && now - cache.loadedAt < CACHE_TTL_MS) {
-    return { monthlyPrice: cache.monthlyPrice, annualPrice: cache.annualPrice };
+    return { monthlyPrice: cache.monthlyPrice, annualPrice: cache.annualPrice, founder: cache.founder };
   }
   try {
     const fresh = await loadFromDb();
@@ -70,16 +83,27 @@ async function getPricing() {
     // ignorar de vez um ajuste que o admin já tinha feito antes — só cai
     // pra env/padrão quando NUNCA conseguiu ler o banco desde que o
     // processo subiu.
-    if (cache) return { monthlyPrice: cache.monthlyPrice, annualPrice: cache.annualPrice };
-    return envDefaults();
+    if (cache) return { monthlyPrice: cache.monthlyPrice, annualPrice: cache.annualPrice, founder: cache.founder };
+    return { ...envDefaults(), founder: { ...FOUNDER_DEFAULTS } };
   }
 }
 
 // Atualiza um ou os dois preços (passe só o que quiser mudar). Valida que
 // cada valor é um número finito maior que zero — nunca deixa salvar um
 // preço zerado/negativo/inválido no banco.
-async function setPricing({ monthlyPrice, annualPrice }) {
+async function setPricing({ monthlyPrice, annualPrice, founderActive, founderPrice, founderLimit }) {
   const updates = [];
+  if (founderActive != null) updates.push(["founder_active", founderActive ? "true" : "false"]);
+  if (founderPrice != null) {
+    const n = Number(founderPrice);
+    if (!Number.isFinite(n) || n <= 0) throw new Error("Preço de fundador inválido");
+    updates.push(["founder_price", String(n)]);
+  }
+  if (founderLimit != null) {
+    const n = Number(founderLimit);
+    if (!Number.isInteger(n) || n <= 0) throw new Error("Quantidade de vagas de fundador inválida");
+    updates.push(["founder_limit", String(n)]);
+  }
   if (monthlyPrice != null) {
     const n = Number(monthlyPrice);
     if (!Number.isFinite(n) || n <= 0) throw new Error("Preço mensal inválido");
@@ -114,4 +138,28 @@ async function setPricing({ monthlyPrice, annualPrice }) {
   return getPricing();
 }
 
-module.exports = { getPricing, setPricing };
+// Situação da oferta de fundador agora: quantas vagas já foram usadas
+// (assinaturas de fundador que não foram canceladas — quem cancela libera a
+// vaga) e se ainda dá pra entrar. `available` é o que a tela de compra e o
+// checkout usam.
+async function getFounderStatus() {
+  const { founder, monthlyPrice } = await getPricing();
+  let used = 0;
+  try {
+    const { rows } = await pool.query(
+      "SELECT count(*)::int AS n FROM licenses WHERE founder = true AND status IN ('unused', 'active') AND cancel_at_period_end = false"
+    );
+    used = rows[0].n;
+  } catch (err) {
+    console.error("Erro ao contar vagas de fundador:", err.message);
+  }
+  const remaining = Math.max(0, founder.limit - used);
+  return {
+    ...founder,
+    used,
+    remaining,
+    available: founder.active && remaining > 0 && founder.price < monthlyPrice,
+  };
+}
+
+module.exports = { getPricing, setPricing, getFounderStatus };

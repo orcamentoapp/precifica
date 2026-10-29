@@ -11,7 +11,7 @@ const {
 } = require("../utils/stripe");
 const { createLicenseFromCheckoutSession } = require("../utils/checkoutLicense");
 const { checkoutLimiter } = require("../middleware/rateLimit");
-const { getPricing } = require("../utils/pricingSettings");
+const { getPricing, getFounderStatus } = require("../utils/pricingSettings");
 
 const router = express.Router();
 
@@ -26,8 +26,15 @@ function isValidEmail(email) {
 // expõe nada sensível, então não precisa de autenticação.
 router.get("/pricing", async (req, res) => {
   try {
-    const pricing = await getPricing();
-    res.json(pricing);
+    const { monthlyPrice, annualPrice } = await getPricing();
+    const founder = await getFounderStatus();
+    res.json({
+      monthlyPrice,
+      annualPrice,
+      // Só o necessário pra tela de compra/landing (sem expor contagem
+      // interna quando a oferta está desligada).
+      founder: founder.available ? { price: founder.price, remaining: founder.remaining, limit: founder.limit } : null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao carregar o preço" });
@@ -130,13 +137,23 @@ router.post("/stripe/renew-checkout", requireAuth, checkoutLimiter, async (req, 
       const sameInterval =
         !sub ||
         ((sub.items?.data?.[0]?.price?.recurring?.interval || "month") === (safePlan === "annual" ? "year" : "month"));
-      if (sub && (sub.status === "active" || sub.status === "trialing") && sameInterval) {
+      // Assinatura ainda ativa (dentro do período pago) e marcada pra
+      // cancelar: reativa a MESMA assinatura, qualquer que seja o plano
+      // escolhido (a tela nem oferece troca nesse caso).
+      if (sub && (sub.status === "active" || sub.status === "trialing") && (sameInterval || sub.cancel_at_period_end)) {
         if (sub.cancel_at_period_end) {
           await reactivateSubscription(sub.id);
           await pool.query("UPDATE licenses SET cancel_at_period_end = false, cancelled_at = NULL WHERE id = $1", [license.id]);
           return res.json({ reactivated: true, expiresAt: license.expires_at });
         }
         return res.status(409).json({ error: "Sua assinatura já está ativa e renova automaticamente — não precisa renovar." });
+      }
+      if (sub && (sub.status === "active" || sub.status === "trialing") && !sameInterval) {
+        // Troca de plano com assinatura ativa: cobraria nas duas — por
+        // enquanto é pelo suporte (Stripe faz a troca proporcional).
+        return res.status(409).json({
+          error: "Sua assinatura está ativa. Pra trocar entre mensal e anual, fale com o suporte: suporte@verterelabs.com",
+        });
       }
       if (sub && (sub.status === "past_due" || sub.status === "unpaid" || sub.status === "incomplete")) {
         // Cartão recusado: o caminho certo é trocar o cartão no portal (a

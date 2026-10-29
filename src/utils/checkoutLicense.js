@@ -71,6 +71,8 @@ async function createLicenseFromCheckoutSession(session) {
   const isTrial = session.metadata?.trial === "true";
   const renewalUserId = session.metadata?.renewalUserId ? Number(session.metadata.renewalUserId) : null;
   const termsAcceptedAt = session.metadata?.termsAcceptedAt ? new Date(session.metadata.termsAcceptedAt) : null;
+  const isFounder = session.metadata?.founder === "true";
+  const chargedPrice = Number(session.metadata?.chargedMonthlyPrice) || null;
 
   if (!subscriptionId) {
     return { created: false, reason: "session_without_subscription" };
@@ -113,16 +115,17 @@ async function createLicenseFromCheckoutSession(session) {
         await client.query(
           `UPDATE licenses
            SET type = $1, status = 'active', expires_at = $2, stripe_customer_id = $3,
-               stripe_subscription_id = $4, source = 'stripe', cancel_at_period_end = false, cancelled_at = NULL
+               stripe_subscription_id = $4, source = 'stripe', cancel_at_period_end = false, cancelled_at = NULL,
+               recurring_amount = $6, founder = false
            WHERE id = $5`,
-          [plan, expiresAt, customerId, subscriptionId, currentLicense.id]
+          [plan, expiresAt, customerId, subscriptionId, currentLicense.id, chargedPrice]
         );
       } else {
         const code = generateLicenseCode();
         await client.query(
-          `INSERT INTO licenses (user_id, code, status, type, expires_at, stripe_customer_id, stripe_subscription_id, source)
-           VALUES ($1, $2, 'active', $3, $4, $5, $6, 'stripe')`,
-          [renewalUserId, code, plan, expiresAt, customerId, subscriptionId]
+          `INSERT INTO licenses (user_id, code, status, type, expires_at, stripe_customer_id, stripe_subscription_id, source, recurring_amount)
+           VALUES ($1, $2, 'active', $3, $4, $5, $6, 'stripe', $7)`,
+          [renewalUserId, code, plan, expiresAt, customerId, subscriptionId, chargedPrice]
         );
       }
       if (buyerEmail) emails.push(() => sendLicenseRenewedEmail(buyerEmail, expiresAt.toLocaleDateString("pt-BR")));
@@ -170,18 +173,21 @@ async function createLicenseFromCheckoutSession(session) {
     }
 
     const insert = await client.query(
-      `INSERT INTO licenses (code, status, type, expires_at, stripe_customer_id, stripe_subscription_id, buyer_email, source, trial_started_at, terms_accepted_at)
-       VALUES ($1, 'unused', $2, $3, $4, $5, $6, 'stripe', $7, $8)
+      `INSERT INTO licenses (code, status, type, expires_at, stripe_customer_id, stripe_subscription_id, buyer_email, source, trial_started_at, terms_accepted_at, founder, recurring_amount)
+       VALUES ($1, 'unused', $2, $3, $4, $5, $6, 'stripe', $7, $8, $9, $10)
        ON CONFLICT DO NOTHING
        RETURNING id`,
-      [code, licenseType, expiresAt, customerId, subscriptionId, buyerEmail.trim().toLowerCase(), isTrial ? new Date() : null, termsAcceptedAt]
+      [code, licenseType, expiresAt, customerId, subscriptionId, buyerEmail.trim().toLowerCase(), isTrial ? new Date() : null, termsAcceptedAt, isFounder, chargedPrice]
     );
     if (!insert.rows[0]) {
       return { created: false, reason: "already_exists" };
     }
 
     if (isTrial && expiresAt) {
-      const { monthlyPrice } = await getPricing();
+      // Valor que o Stripe vai cobrar DE VERDADE depois do teste (pode ser
+      // o preço de fundador) — gravado no metadata na criação do checkout.
+      const { monthlyPrice: currentMonthly } = await getPricing();
+      const monthlyPrice = chargedPrice || currentMonthly;
       emails.push(() =>
         sendTrialStartedEmail(
           buyerEmail,

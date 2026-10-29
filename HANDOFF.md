@@ -6,7 +6,87 @@
 > completo do que já foi construído, o que está testado, e o que falta.
 
 
-## ✅ Feito nesta sessão (29/10/2026) — Revisão completa de segurança + TODAS as correções implementadas
+## ✅ Feito nesta sessão (29/10/2026, 2ª parte) — Estratégia de preço + página de vendas contra as objeções
+
+### Estratégia de preço decidida com o Marcelo
+Antes: plano único de R$ 19,90/mês. Agora, **duas fases**:
+- **Fase 1, lançamento (oferta de fundador ligada):** só aparece o mensal
+  com **preço de fundador R$ 29,90/mês, travado pra sempre** enquanto a
+  pessoa mantiver a assinatura, com **100 vagas** e contador "restam X
+  vagas" real. O anual fica escondido nessa fase, porque sairia pelo mesmo
+  valor por mês com menos flexibilidade.
+- **Fase 2 (vagas esgotadas ou oferta desligada):** **Mensal R$ 39,90** e
+  **Anual R$ 358,80** (= R$ 29,90/mês, "3 meses grátis", economia de
+  R$ 120/ano).
+- Quem já assina continua no preço antigo (cada assinatura do Stripe
+  guarda o próprio preço).
+- **Evitado de propósito:** "de R$ 39,90 por R$ 29,90" riscado
+  permanente. Pelo CDC, o preço "de" precisa ter sido cobrado de verdade;
+  por isso a página mostra "preço normal R$ 39,90", não um valor riscado.
+
+**Como funciona no código:**
+- `pricingSettings.js`: `founder_active`, `founder_price` e
+  `founder_limit` em `app_settings`, mais `getFounderStatus()`. As vagas
+  usadas são licenças `founder = true` com status unused/active e sem
+  cancelamento: quem cancela libera a vaga.
+- `stripe.js`: no checkout de assinatura NOVA do mensal, com vaga, cobra
+  o preço de fundador e grava `metadata.founder` e
+  `metadata.chargedMonthlyPrice`.
+- `checkoutLicense.js`: grava `licenses.founder` e a coluna nova
+  `licenses.recurring_amount` (valor real por ciclo, atualizado a cada
+  `invoice.paid`).
+- O MRR do painel agora soma o valor REAL de cada assinatura (antes
+  multiplicava todo mundo pelo preço atual). Licenças antigas sem esse
+  valor usam o preço atual como estimativa.
+- `GET /api/payments/pricing` devolve `founder: { price, remaining,
+  limit }`, ou `null` quando não há oferta.
+- Painel admin → Configurações: preço mensal, preço anual (mostra o
+  equivalente por mês e o % de desconto), e o bloco "Oferta de fundador"
+  (liga/desliga, preço, vagas, contador de vagas usadas). O preço padrão
+  do código virou 39,90 / 358,80, mas **o que vale é o salvo no painel**.
+- Telas: `Buy.jsx` (fundador ou mensal + anual, com o anual pré-
+  selecionado quando não há oferta), `TrialSignup.jsx` (mostra quanto
+  será cobrado depois do teste, inclusive o preço de fundador) e o modal
+  "Renovar" do app (mensal + anual de volta).
+- Renovação: reativar uma assinatura cancelada (dentro do período) agora
+  funciona também pra anual. Trocar mensal↔anual com assinatura ativa
+  responde "fale com o suporte" (evita cobrar nas duas).
+
+### Página de vendas (`app-frontend/public/home/index.html`)
+- **Faixa laranja no topo** com a oferta de fundador e as vagas restantes
+  (só quando a oferta está ligada; tudo dinâmico via
+  `/api/payments/pricing`).
+- **Hero:** 3 bullets: base pronta (37 procedimentos e 61 materiais), não
+  troca seu sistema, se paga sozinho.
+- **Objeção "não tenho tempo de cadastrar"** (`#sem-cadastro`): 37+61 já
+  vinculados, "3 números" (custos fixos, pró-labore, horas) e "Ou a gente
+  cadastra pra você" (consultoria), além da trilha de 4 passos.
+- **Objeção "já pago um sistema"** (`#seu-sistema`): tabela comparando
+  sistema de gestão × Precifica (o texto diz "normalmente não calcula",
+  nunca cita concorrente por nome) e uma **calculadora "ele se paga?"**
+  (procedimentos/mês × valor perdido por procedimento → quantos
+  procedimentos pagam o Precifica), com aviso de simulação ilustrativa.
+- **Preços:** cartões mensal/fundador e anual, com garantia de 7 dias no
+  anual, e FAQ reescrito (10 perguntas, incluindo "já uso um sistema",
+  "não tenho tempo", "os preços servem pra minha cidade?", "mensal × anual"
+  e "o que é preço de fundador").
+- Corrigido um bug antigo: as seções "O problema" e "Como funciona" tinham
+  grade de 3 colunas fixa e estouravam a largura no celular.
+- Os números "37 procedimentos / 61 materiais" vêm de
+  `DEFAULT_PROCEDURES` / `DEFAULT_MATERIALS_CATALOG` no `App.jsx`. **Se
+  mudar a base padrão, atualizar a landing.**
+
+### Testado
+74 testes de API passando com o banco zerado (10 novos sobre fundador,
+anual, vagas e MRR) e testes de navegador (landing com e sem oferta, em
+desktop e celular, sem rolagem lateral, sem violação de CSP; telas de
+compra e teste grátis; painel admin).
+
+### O Marcelo precisa fazer depois do deploy
+No painel admin → Configurações: **Mensal 39,90 · Anual 358,80 · ligar
+"Oferta de fundador" com 29,90 e 100 vagas → Salvar.**
+
+## ✅ Feito nesta sessão (29/10/2026, 1ª parte) — Revisão completa de segurança + TODAS as correções implementadas
 
 Na mesma sessão: (1) revisão completa do sistema pra ver o que faltava pra
 ser seguro de usar e vender (25 itens encontrados), (2) o Marcelo pediu
@@ -233,10 +313,18 @@ Schema novo (tudo em migrate.js, com comentários):
    (Configurações).
 6. Cadastrar `https://precifica.verterelabs.com/api/health` num monitor
    gratuito (UptimeRobot).
-7. **Termos/Política**: completar com razão social e CNPJ da empresa
-   (hoje só diz "Vertere Labs") e passar por um advogado. Confirmar com o
-   contador a emissão de NFS-e das assinaturas e o enquadramento da
-   empresa.
+7. **Termos/Política**: o Marcelo vende como **pessoa física** por
+   enquanto (ainda não tem CNPJ). Os termos, a política e o rodapé da
+   landing já identificam o vendedor como exige o Decreto 7.962/2013:
+   Marcelo Migueis Ferreira da Silva, CPF 404.328.438-17, Av. Dr. Pedro
+   Lessa, 1225, Aparecida, Santos/SP, CEP 11025-001, sob a marca Vertere
+   Labs; foro da comarca de Santos/SP. **Quando abrir o CNPJ** (não pode
+   ser MEI; o caminho comum é ME/SLU no Simples, CNAE 6203-1/00), trocar
+   esses dados em `public/termos.html`, `public/privacidade.html` e no
+   rodapé de `public/home/index.html`, subir `TERMS_VERSION` e atualizar
+   o cadastro da conta no Stripe. Ainda vale passar os textos por um
+   advogado e ver com o contador o carnê-leão e a residência fiscal (por
+   causa da mudança pra Portugal).
 8. Teste rápido em produção: fazer uma compra real de teste (ou cupom
    100%), ativar, salvar um orçamento, cancelar, clicar "Renovar" (deve
    reativar sem cobrar) e testar "Gerenciar pagamento".

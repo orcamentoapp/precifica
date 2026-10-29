@@ -9225,12 +9225,16 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
   // Configurações → Preços, com a variável do Railway como respaldo), não
   // fica mais fixo no código. 29.9 aqui é só o valor de reserva enquanto a
   // busca ainda não voltou (ou se falhar).
-  const [renewMonthlyPrice, setRenewMonthlyPrice] = useState(29.9);
+  const [renewMonthlyPrice, setRenewMonthlyPrice] = useState(39.9);
+  const [renewAnnualPrice, setRenewAnnualPrice] = useState(358.8);
   useEffect(() => {
     let cancelled = false;
     apiRequest("/api/payments/pricing")
       .then((data) => {
-        if (!cancelled && data && typeof data.monthlyPrice === "number") setRenewMonthlyPrice(data.monthlyPrice);
+        if (!cancelled && data && typeof data.monthlyPrice === "number") {
+          setRenewMonthlyPrice(data.monthlyPrice);
+          if (typeof data.annualPrice === "number") setRenewAnnualPrice(data.annualPrice);
+        }
       })
       .catch(() => {});
     return () => {
@@ -9714,36 +9718,39 @@ function ProfileSettingsPage({ settings, onChange, onLogoUpload, onClinicLogoUpl
               : "Escolha o plano. Vamos abrir o pagamento numa aba nova — essa tela continua aberta do jeito que está."}
           </p>
           {renewError && <div className="text-xs text-rose-600 mb-3">{renewError}</div>}
-          {/* Só o plano mensal por enquanto (pedido do Marcelo) — o anual fica
-              comentado aqui do lado, pronto pra voltar: é só descomentar o
-              <button> do Anual e trocar essa div de volta pra
-              "grid grid-cols-2 gap-2 mb-4" (era assim antes). */}
-          <div className="mb-4">
-            <button
-              onClick={() => setRenewPlan("monthly")}
-              className={`w-full text-left rounded-xl border p-3 transition ${
-                renewPlan === "monthly" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
-              }`}
-            >
-              <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Mensal</div>
-              <div className="text-base font-bold text-stone-800 mt-1">
-                R$ {renewMonthlyPrice.toFixed(2).replace(".", ",")}
-              </div>
-              <div className="text-[11px] text-stone-400">por mês</div>
-            </button>
-            {/*
-            <button
-              onClick={() => setRenewPlan("annual")}
-              className={`text-left rounded-xl border p-3 transition ${
-                renewPlan === "annual" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
-              }`}
-            >
-              <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Anual</div>
-              <div className="text-base font-bold text-stone-800 mt-1">R$ 599,90</div>
-              <div className="text-[11px] text-stone-400">por ano</div>
-            </button>
-            */}
-          </div>
+          {/* Mensal e anual (anual reativado em 29/10/2026). Quando é só
+              "reativar a renovação" de uma assinatura ainda no período pago,
+              não tem escolha de plano — continua no mesmo. */}
+          {!(license?.valid && license?.cancelAtPeriodEnd && license?.hasStripeSubscription) && (
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                onClick={() => setRenewPlan("monthly")}
+                className={`text-left rounded-xl border p-3 transition ${
+                  renewPlan === "monthly" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
+                }`}
+              >
+                <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Mensal</div>
+                <div className="text-base font-bold text-stone-800 mt-1">
+                  R$ {renewMonthlyPrice.toFixed(2).replace(".", ",")}
+                </div>
+                <div className="text-[11px] text-stone-400">por mês</div>
+              </button>
+              <button
+                onClick={() => setRenewPlan("annual")}
+                className={`text-left rounded-xl border p-3 transition ${
+                  renewPlan === "annual" ? "border-teal-500 bg-teal-50" : "border-stone-200 hover:bg-stone-50"
+                }`}
+              >
+                <div className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Anual</div>
+                <div className="text-base font-bold text-stone-800 mt-1">
+                  R$ {(renewAnnualPrice / 12).toFixed(2).replace(".", ",")}
+                </div>
+                <div className="text-[11px] text-stone-400">
+                  por mês · R$ {renewAnnualPrice.toFixed(2).replace(".", ",")}/ano
+                </div>
+              </button>
+            </div>
+          )}
           <button
             onClick={handleStartRenewal}
             disabled={renewSubmitting || !renewPlan}

@@ -735,7 +735,13 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
   // pessoa digita, pra não brigar com o cursor/vírgula decimal; só vira
   // número na hora de validar/enviar (ver handleSavePricing).
   const [pricing, setPricing] = useState(null); // { monthlyPrice, annualPrice } | null (ainda carregando)
-  const [pricingForm, setPricingForm] = useState({ monthlyPrice: "", annualPrice: "" });
+  const [pricingForm, setPricingForm] = useState({
+    monthlyPrice: "",
+    annualPrice: "",
+    founderActive: false,
+    founderPrice: "",
+    founderLimit: "",
+  });
   const [pricingSaving, setPricingSaving] = useState(false);
   const [pricingError, setPricingError] = useState("");
 
@@ -828,6 +834,9 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
       setPricingForm({
         monthlyPrice: data.monthlyPrice.toFixed(2).replace(".", ","),
         annualPrice: data.annualPrice.toFixed(2).replace(".", ","),
+        founderActive: !!(data.founder && data.founder.active),
+        founderPrice: data.founder ? data.founder.price.toFixed(2).replace(".", ",") : "29,90",
+        founderLimit: data.founder ? String(data.founder.limit) : "100",
       });
     } catch (err) {
       setError(err.message);
@@ -855,17 +864,38 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
       setPricingError("Preencha os dois preços com um valor maior que zero.");
       return;
     }
+    const founderPrice = parseBRLInput(pricingForm.founderPrice);
+    const founderLimit = Number(pricingForm.founderLimit);
+    if (pricingForm.founderActive) {
+      if (!Number.isFinite(founderPrice) || founderPrice <= 0 || founderPrice >= monthlyPrice) {
+        setPricingError("O preço de fundador precisa ser maior que zero e menor que o mensal.");
+        return;
+      }
+      if (!Number.isInteger(founderLimit) || founderLimit <= 0) {
+        setPricingError("Informe quantas vagas de fundador (número inteiro).");
+        return;
+      }
+    }
     setPricingError("");
     setPricingSaving(true);
     try {
       const data = await apiRequest("/api/admin/pricing", {
         method: "POST",
-        body: JSON.stringify({ monthlyPrice, annualPrice }),
+        body: JSON.stringify({
+          monthlyPrice,
+          annualPrice,
+          founderActive: !!pricingForm.founderActive,
+          ...(Number.isFinite(founderPrice) && founderPrice > 0 ? { founderPrice } : {}),
+          ...(Number.isInteger(founderLimit) && founderLimit > 0 ? { founderLimit } : {}),
+        }),
       });
       setPricing(data);
       setPricingForm({
         monthlyPrice: data.monthlyPrice.toFixed(2).replace(".", ","),
         annualPrice: data.annualPrice.toFixed(2).replace(".", ","),
+        founderActive: !!(data.founder && data.founder.active),
+        founderPrice: data.founder ? data.founder.price.toFixed(2).replace(".", ",") : "29,90",
+        founderLimit: data.founder ? String(data.founder.limit) : "100",
       });
       showToast("Preços atualizados — já valem pro próximo checkout.");
     } catch (err) {
@@ -1395,11 +1425,21 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                     value={pricingForm.monthlyPrice}
                     onChange={(e) => setPricingForm((f) => ({ ...f, monthlyPrice: e.target.value }))}
                     className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 mb-3"
-                    placeholder="29,90"
+                    placeholder="39,90"
                   />
                   <label className="block text-xs font-medium text-stone-500 mb-1.5">
-                    Anual (R$)
-                    <span className="font-normal text-stone-400"> — pausado na tela de compra por enquanto, mas continua valendo pra chaves anuais geradas na mão</span>
+                    Anual (R$, cobrado uma vez por ano)
+                    {(() => {
+                      const m = parseBRLInput(pricingForm.monthlyPrice);
+                      const a = parseBRLInput(pricingForm.annualPrice);
+                      if (!(m > 0 && a > 0)) return null;
+                      const pct = Math.round((1 - a / (m * 12)) * 100);
+                      return (
+                        <span className="font-normal text-stone-400">
+                          {" "}— equivale a R$ {(a / 12).toFixed(2).replace(".", ",")}/mês{pct > 0 ? ` (${pct}% de desconto)` : ""}
+                        </span>
+                      );
+                    })()}
                   </label>
                   <input
                     type="text"
@@ -1407,8 +1447,53 @@ export default function AdminDashboard({ onLogout, currentEmail }) {
                     value={pricingForm.annualPrice}
                     onChange={(e) => setPricingForm((f) => ({ ...f, annualPrice: e.target.value }))}
                     className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400 mb-4"
-                    placeholder="599,90"
+                    placeholder="358,80"
                   />
+                  <div className="border border-stone-200 rounded-xl p-3.5 mb-4">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-stone-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!pricingForm.founderActive}
+                        onChange={(e) => setPricingForm((f) => ({ ...f, founderActive: e.target.checked }))}
+                      />
+                      Oferta de fundador (lançamento)
+                    </label>
+                    <p className="text-[11px] text-stone-400 mt-1 mb-3 leading-relaxed">
+                      Os primeiros assinantes do plano mensal pagam o preço de fundador pra sempre, enquanto mantiverem a
+                      assinatura. Quem cancela libera a vaga. Quando as vagas acabam, novos assinantes pagam o mensal normal.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-medium text-stone-500 mb-1">Preço de fundador (R$/mês)</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={pricingForm.founderPrice}
+                          onChange={(e) => setPricingForm((f) => ({ ...f, founderPrice: e.target.value }))}
+                          className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+                          placeholder="29,90"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-stone-500 mb-1">Vagas</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={pricingForm.founderLimit}
+                          onChange={(e) => setPricingForm((f) => ({ ...f, founderLimit: e.target.value.replace(/\D/g, "") }))}
+                          className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-teal-400"
+                          placeholder="100"
+                        />
+                      </div>
+                    </div>
+                    {pricing && pricing.founder && (
+                      <p className="text-[11px] text-stone-500 mt-2">
+                        Vagas usadas: <strong>{pricing.founder.used}</strong> de {pricing.founder.limit} · restam{" "}
+                        <strong>{pricing.founder.remaining}</strong>
+                        {pricing.founder.available ? " · oferta no ar" : pricing.founder.active ? " · esgotada" : " · desligada"}
+                      </p>
+                    )}
+                  </div>
                   <button
                     onClick={handleSavePricing}
                     disabled={pricingSaving}

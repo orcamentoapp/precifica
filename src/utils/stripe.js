@@ -3,7 +3,7 @@
 // dias). A integração com Mercado Pago (Pix/Boleto) foi cancelada e o
 // código dela removido em 29/10/2026.
 const Stripe = require("stripe");
-const { getPricing } = require("./pricingSettings");
+const { getPricing, getFounderStatus } = require("./pricingSettings");
 
 function getClient() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -30,15 +30,28 @@ async function createCheckoutSession({ email, name, plan = "monthly", trial = fa
   const isRenewal = !!renewalUserId;
   const isAnnual = plan === "annual";
   const { monthlyPrice, annualPrice } = await getPricing();
-  const unitAmount = isAnnual ? annualPrice : monthlyPrice;
+  // Oferta de fundador: só no MENSAL, só pra assinatura nova (não em
+  // renovação), e só enquanto houver vaga. O preço fica gravado na própria
+  // assinatura do Stripe — vale pra sempre enquanto ela existir.
+  let founderPrice = null;
+  if (!isAnnual && !renewalUserId) {
+    const founder = await getFounderStatus();
+    if (founder.available) founderPrice = founder.price;
+  }
+  const unitAmount = isAnnual ? annualPrice : founderPrice || monthlyPrice;
   const interval = isAnnual ? "year" : "month";
-  const productName = isAnnual ? "Precifica — Assinatura anual" : "Precifica — Assinatura mensal";
+  const productName = isAnnual
+    ? "Precifica — Assinatura anual"
+    : founderPrice
+    ? "Precifica — Assinatura mensal (preço de fundador)"
+    : "Precifica — Assinatura mensal";
   const appUrl = process.env.APP_URL || "";
   const effectiveTrial = isRenewal ? false : trial;
   const planMetadata = {
     plan: isAnnual ? "annual" : "monthly",
     trial: effectiveTrial ? "true" : "false",
     ...(isRenewal ? { renewalUserId: String(renewalUserId) } : {}),
+    ...(founderPrice ? { founder: "true", chargedMonthlyPrice: String(founderPrice) } : { chargedMonthlyPrice: String(isAnnual ? annualPrice : monthlyPrice) }),
     // Aceite dos Termos/Política na tela de compra (LGPD/CDC) — copiado pra
     // licença quando o pagamento é confirmado.
     ...(termsAccepted ? { termsAcceptedAt: new Date().toISOString() } : {}),
