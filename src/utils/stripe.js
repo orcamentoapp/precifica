@@ -76,6 +76,10 @@ async function createCheckoutSession({ email, name, plan = "monthly", trial = fa
       : `${appUrl}/?checkout=sucesso&session_id={CHECKOUT_SESSION_ID}${effectiveTrial ? "&plano=trial" : ""}`,
     cancel_url: isRenewal ? `${appUrl}/configuracoes` : `${appUrl}/?checkout=cancelado`,
     metadata: { name: name || "", ...planMetadata },
+    // Campo "Adicionar código promocional" no checkout do Stripe — os
+    // cupons/códigos são criados no painel do Stripe (Catálogo de produtos →
+    // Cupons). Serve pra teste (cupom 100%), parcerias e campanhas.
+    allow_promotion_codes: true,
   };
 
   if (effectiveTrial) {

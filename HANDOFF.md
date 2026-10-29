@@ -6,6 +6,23 @@
 > completo do que já foi construído, o que está testado, e o que falta.
 
 
+## ✅ Feito nesta sessão (29/10/2026, 6ª parte) — Campo de cupom no checkout
+
+- `createCheckoutSession` (`src/utils/stripe.js`) agora envia
+  `allow_promotion_codes: true`: o checkout do Stripe mostra "Adicionar
+  código promocional". Os cupons são criados no painel do Stripe
+  (Catálogo de produtos → Cupons → Criar cupom → Adicionar código
+  promocional). Uso imediato: cupom de teste 100% / "uma vez" / 1 resgate
+  pro Marcelo testar o fluxo de compra real em produção. Depois do teste:
+  cancelar a assinatura de teste e arquivar o cupom.
+- Obs.: uma compra com cupom 100% gera fatura inicial de R$ 0 com
+  `billing_reason = subscription_create`, que o webhook ignora (mesmo
+  tratamento da fatura do trial). A licença é criada normalmente pelo
+  `checkout.session.completed` / confirm-checkout.
+- Stripe já configurado pelo Marcelo nesta sessão: 6 eventos do webhook
+  e Customer portal (trocar cartão + faturas + cancelar no fim do
+  período; troca de plano e pausa DESLIGADAS).
+
 ## ✅ Feito nesta sessão (29/10/2026, 5ª parte) — Seção "Quem está por trás do Precifica" com os dois fundadores
 
 > **Ajuste pedido pelo Marcelo (mesma sessão):** NÃO citar "tivemos 2
